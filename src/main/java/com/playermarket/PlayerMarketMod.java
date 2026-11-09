@@ -40,6 +40,7 @@ public class PlayerMarketMod implements ModInitializer {
         MarketConfig.load();
         MarketAccessCardItem.registerItems();
         com.playermarket.item.CrumpledLetterItem.registerItems();
+        com.playermarket.item.BlockedMarketCardItem.registerItems();
         MarketNetworking.registerServer();
 
         // Register /market commands
@@ -111,29 +112,63 @@ public class PlayerMarketMod implements ModInitializer {
             MarketNetworking.sendSyncToPlayer(newPlayer);
         });
 
-        // Track ore mining for Mining Contract
+        // Track ore mining for Mining Contract & Active Story Quests
         PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
             if (!world.isClientSide() && player instanceof ServerPlayer sp && sp.level().getServer() != null) {
                 Block b = state.getBlock();
-                if (isOreBlock(b)) {
+                if (isOreBlock(b) && !sp.isCreative()) {
                     MarketSavedData data = MarketSavedData.get(sp.level().getServer());
                     PlayerMarketAccount acc = data.getOrCreateAccount(sp.getUUID());
+                    com.playermarket.story.SharedCampaignData campaign = data.getCampaignData();
+
                     acc.progressContracts("MINE_ORE", 1);
+                    campaign.addContribution("ore_mined", 1);
+
+                    if (pos.getY() < 0) {
+                        campaign.addContribution("deep_ore_mined", 1);
+                    }
+                    if (pos.getY() < -32) {
+                        campaign.addContribution("deep_cavity_mined", 1);
+                    }
+                    if (b == Blocks.GOLD_ORE || b == Blocks.DEEPSLATE_GOLD_ORE || b == Blocks.NETHER_GOLD_ORE) {
+                        campaign.addContribution("gold_ore_mined", 1);
+                    }
+                    if (b == Blocks.DIAMOND_ORE || b == Blocks.DEEPSLATE_DIAMOND_ORE) {
+                        campaign.addContribution("diamond_ore_mined", 1);
+                    }
+                    if (b == Blocks.NETHER_QUARTZ_ORE || b == Blocks.ANCIENT_DEBRIS) {
+                        campaign.addContribution("nether_ore_mined", 1);
+                    }
                     data.setDirty();
+                    com.playermarket.story.StoryManager.checkAllQuests(sp, acc);
                 }
             }
         });
 
-        // Track hostile kills for Combat Contract & Synthetic Heart Black Market item
+        // Track hostile kills for Combat Contract & Active Story Quests
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register((world, entity, killedEntity, damageSource) -> {
             if (entity instanceof ServerPlayer sp && world.getServer() != null) {
                 MarketSavedData data = MarketSavedData.get(world.getServer());
                 PlayerMarketAccount acc = data.getOrCreateAccount(sp.getUUID());
+                com.playermarket.story.SharedCampaignData campaign = data.getCampaignData();
                 long gameTick = world.getServer().overworld().getGameTime();
 
-                if (killedEntity instanceof Enemy) {
+                if (killedEntity instanceof Enemy && !sp.isCreative()) {
                     acc.progressContracts("KILL_MOBS", 1);
+                    campaign.addContribution("hostile_kills", 1);
+
+                    if (data.getActiveEvent() != MarketEvent.STABLE_MARKET) {
+                        campaign.addContribution("event_combat_kills", 1);
+                    }
+                    String entityPath = BuiltInRegistries.ENTITY_TYPE.getKey(killedEntity.getType()).getPath();
+                    if (entityPath.contains("skeleton")) {
+                        campaign.addContribution("skeleton_kills", 1);
+                    }
+                    if (entityPath.equals("enderman") || entityPath.equals("witch") || entityPath.equals("ravager")) {
+                        campaign.addContribution("apex_kills", 1);
+                    }
                     data.setDirty();
+                    com.playermarket.story.StoryManager.checkAllQuests(sp, acc);
                 }
 
                 if (acc.isBlackMarketEffectActive(BlackMarketItem.SYNTHETIC_HEART, gameTick)) {

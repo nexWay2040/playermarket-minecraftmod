@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "playermarket:item/blocked_market_card"
+  }
+}

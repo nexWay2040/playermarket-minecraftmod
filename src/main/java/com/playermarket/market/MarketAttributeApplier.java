@@ -496,8 +496,28 @@ public class MarketAttributeApplier {
                 PlayerMarketAccount account = data.getOrCreateAccount(player.getUUID());
                 boolean needsSync = false;
 
-                // 1. Progress survival contract
+                // 1. Progress survival contract & Active Campaign Objectives
                 account.progressContracts("SURVIVE_TICKS", 20);
+                com.playermarket.story.SharedCampaignData campaign = data.getCampaignData();
+                if (campaign.isCampaignAccepted()) {
+                    player.level().getBiome(player.blockPosition()).unwrapKey().ifPresent(k -> {
+                        campaign.recordBiome(k.identifier().getPath());
+                    });
+                    if (player.isUnderWater()) {
+                        campaign.addContribution("underwater_seconds", 1);
+                    }
+                    long dayTime = player.level().getGameTime() % 24000L;
+                    boolean isNight = dayTime >= 13000L && dayTime <= 23000L;
+                    if (isNight && player.level().canSeeSky(player.blockPosition())) {
+                        campaign.addContribution("night_seconds", 1);
+                        if (account.getSoldAssetCount() > 0) {
+                            campaign.addContribution("night_stress_seconds", 1);
+                        }
+                    }
+                    if (player.getDeltaMovement().horizontalDistanceSqr() > 0.001) {
+                        campaign.addContribution("distance_traveled", 3);
+                    }
+                }
 
                 // 2. Check & enforce Contract Deadlines for ACTIVE accepted contracts only (1-5 in-game days)
                 List<ContractEntry> contracts = account.getContracts();

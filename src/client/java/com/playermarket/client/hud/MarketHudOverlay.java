@@ -4,6 +4,8 @@ import com.playermarket.PlayerMarketMod;
 import com.playermarket.client.ClientMarketState;
 import com.playermarket.client.gui.MarketMainScreen;
 import com.playermarket.market.*;
+import com.playermarket.story.SharedCampaignData;
+import com.playermarket.story.StoryQuests;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -23,6 +25,18 @@ public class MarketHudOverlay {
         if (client.getDebugOverlay() != null && client.getDebugOverlay().showDebugScreen()) return;
 
         PlayerMarketAccount account = ClientMarketState.getAccount();
+        SharedCampaignData campaign = ClientMarketState.getSharedCampaign();
+
+        // Completely hide HUD during ending cinematic or when market access is permanently revoked
+        if (account.isMarketCardBlocked()
+                || account.isPermanentImpaired()
+                || campaign.isEndingStarted()
+                || campaign.isEndingApplied()
+                || "FINAL_SETTLEMENT_ACTIVE".equals(campaign.getEndingState())
+                || "SETTLED".equals(campaign.getEndingState())) {
+            return;
+        }
+
         long gameTick = ClientMarketState.getCurrentGameTick();
         int diamonds = MarketAttributeApplier.countVanillaDiamonds(client.player.getInventory());
         MarketEvent event = ClientMarketState.getActiveEvent();
@@ -47,6 +61,17 @@ public class MarketHudOverlay {
             lines.add("§6Событие: §e" + event.getHeadline());
         }
 
+        // Active Story Quest tracker (compact single line)
+        if (campaign.isCampaignAccepted() && campaign.getCurrentStage() <= 5) {
+            List<StoryQuests.StageTask> tasks = StoryQuests.getTasksForStage(campaign.getCurrentStage());
+            for (StoryQuests.StageTask t : tasks) {
+                if (!campaign.isTaskCompleted(t.id())) {
+                    lines.add(String.format(Locale.ROOT, "§6Миссия %d: §f%s", campaign.getCurrentStage(), cleanShortTitle(t.title())));
+                    break;
+                }
+            }
+        }
+
         // Group Active Leases by Asset to avoid cluttering HUD
         List<LeaseContract> leases = account.getActiveLeases();
         if (!leases.isEmpty()) {
@@ -62,8 +87,8 @@ public class MarketHudOverlay {
 
             int count = 0;
             for (java.util.Map.Entry<String, LeasedGroup> entry : grouped.entrySet()) {
-                if (!showAll && count >= 4) {
-                    lines.add(String.format(Locale.ROOT, " §8+ ещё %d позиций... §e[Зажмите ALT]", grouped.size() - count));
+                if (!showAll && count >= 3) {
+                    lines.add(String.format(Locale.ROOT, " §8+ ещё %d позиций... §e[ALT: раскрыть]", grouped.size() - count));
                     break;
                 }
                 String shortName = AssetType.byId(entry.getKey()).map(AssetType::getShortName).orElse(entry.getKey());
@@ -87,25 +112,16 @@ public class MarketHudOverlay {
             int activeContractCount = 0;
             for (ContractEntry c : activeContracts) {
                 if (!showAll && activeContractCount >= 3) {
-                    lines.add(String.format(Locale.ROOT, " §8+ ещё %d контрактов... §e[Зажмите ALT]", activeContracts.size() - activeContractCount));
+                    lines.add(String.format(Locale.ROOT, " §8+ ещё %d контрактов... §e[ALT: раскрыть]", activeContracts.size() - activeContractCount));
                     break;
                 }
+                String shortTitle = cleanShortTitle(c.title());
                 if (c.completed()) {
-                    lines.add(" §a✔ " + truncate(c.title(), 18) + " §2[Готов]");
+                    lines.add(" §a✔ " + shortTitle + " §2[Готов]");
                 } else {
                     double daysLeft = (c.deadlineTick() > gameTick)
                             ? Math.max(0.0, (c.deadlineTick() - gameTick) / 24000.0)
                             : (double) c.durationDays();
-                    String shortTitle = switch (c.id()) {
-                        case "mining_iron" -> "Горная квота";
-                        case "resource_delivery" -> "Поставка сырья";
-                        case "experience_yield" -> "Сбор опыта";
-                        case "survival_shift" -> "Био-вахта";
-                        case "combat_security" -> "Зачистка";
-                        case "market_volume" -> "Трейдинг";
-                        case "asset_repayment" -> "Выкуп активов";
-                        default -> truncate(c.title(), 16);
-                    };
                     lines.add(String.format(Locale.ROOT, " §f• %s: §e%d/%d", shortTitle, c.currentProgress(), c.targetProgress()));
                     lines.add(String.format(Locale.ROOT, "   §eОсталось: %.1f дн. §8| §cШтраф: -%d CR", daysLeft, c.penaltyCr()));
                 }
@@ -113,8 +129,8 @@ public class MarketHudOverlay {
             }
         }
 
-        if (showAll && (leases.size() > 4 || activeContracts.size() > 3)) {
-            lines.add("§8[ALT зажат: Полный реестр]");
+        if (showAll && (leases.size() > 3 || activeContracts.size() > 3)) {
+            lines.add("§8[ALT: Реестр развёрнут]");
         }
 
         int maxLineW = 190;
@@ -124,7 +140,7 @@ public class MarketHudOverlay {
         int width = maxLineW;
         int height = 12 + lines.size() * 10;
 
-        // Render Background (using hud_bg sprite or dark box fallback)
+        // Render Background
         try {
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED, PlayerMarketMod.id("hud_bg"), x, y, width, height);
         } catch (Throwable t) {
@@ -143,20 +159,34 @@ public class MarketHudOverlay {
         }
     }
 
+    private static String cleanShortTitle(String title) {
+        if (title == null) return "";
+        if (title.contains(":")) {
+            return title.substring(0, title.indexOf(':')).trim();
+        }
+        if (title.contains("//")) {
+            return title.substring(0, title.indexOf("//")).trim();
+        }
+        return title.trim();
+    }
+
     private static String formatNumber(long num) {
         if (num >= 1_000_000L) {
             return String.format(Locale.ROOT, "%.1fM", num / 1_000_000.0);
         } else if (num >= 10_000L) {
             return String.format(Locale.ROOT, "%.1fK", num / 1_000.0);
+        } else {
+            return String.format(Locale.ROOT, "%,d", num);
         }
-        return String.format(Locale.ROOT, "%,d", num);
     }
 
-    private static String truncate(String text, int maxChars) {
-        if (text == null) return "";
-        if (text.length() <= maxChars) return text;
-        return text.substring(0, maxChars - 1) + "…";
-    }
+    private static class LeasedGroup {
+        double fraction;
+        double daysLeft;
 
-    private record LeasedGroup(double fraction, double daysLeft) {}
+        LeasedGroup(double fraction, double daysLeft) {
+            this.fraction = fraction;
+            this.daysLeft = daysLeft;
+        }
+    }
 }

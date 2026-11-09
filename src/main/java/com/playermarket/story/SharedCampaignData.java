@@ -19,7 +19,11 @@ public class SharedCampaignData {
             Codec.STRING.listOf().optionalFieldOf("impairedPlayers", List.of()).forGetter(SharedCampaignData::getImpairedPlayersStringList),
             Codec.STRING.listOf().optionalFieldOf("disconnectedPlayers", List.of()).forGetter(SharedCampaignData::getDisconnectedPlayersStringList),
             Codec.STRING.listOf().optionalFieldOf("triggeredStoryEvents", List.of()).forGetter(SharedCampaignData::getTriggeredStoryEventsList),
-            Codec.LONG.optionalFieldOf("lastStoryEventTick", 0L).forGetter(SharedCampaignData::getLastStoryEventTick)
+            Codec.LONG.optionalFieldOf("lastStoryEventTick", 0L).forGetter(SharedCampaignData::getLastStoryEventTick),
+            Codec.BOOL.optionalFieldOf("endingStarted", false).forGetter(SharedCampaignData::isEndingStarted),
+            Codec.BOOL.optionalFieldOf("endingApplied", false).forGetter(SharedCampaignData::isEndingApplied),
+            Codec.BOOL.optionalFieldOf("cinematicCompleted", false).forGetter(SharedCampaignData::isCinematicCompleted),
+            Codec.BOOL.optionalFieldOf("disconnectSent", false).forGetter(SharedCampaignData::isDisconnectSent)
     ).apply(instance, SharedCampaignData::new));
 
     private boolean campaignAccepted;
@@ -34,6 +38,12 @@ public class SharedCampaignData {
     private final Set<UUID> disconnectedPlayers = new LinkedHashSet<>();
     private final Set<String> triggeredStoryEvents = new LinkedHashSet<>();
     private long lastStoryEventTick = 0L;
+
+    // Independent ending lifecycle state flags (eliminates reconnect loops)
+    private boolean endingStarted = false;
+    private boolean endingApplied = false;
+    private boolean cinematicCompleted = false;
+    private boolean disconnectSent = false;
 
     public SharedCampaignData() {
         this.campaignAccepted = false;
@@ -52,7 +62,11 @@ public class SharedCampaignData {
             List<String> impairedPlayers,
             List<String> disconnectedPlayers,
             List<String> triggeredStoryEvents,
-            long lastStoryEventTick
+            long lastStoryEventTick,
+            boolean endingStarted,
+            boolean endingApplied,
+            boolean cinematicCompleted,
+            boolean disconnectSent
     ) {
         this.campaignAccepted = campaignAccepted;
         this.currentStage = Math.max(1, currentStage);
@@ -78,6 +92,10 @@ public class SharedCampaignData {
         }
         if (triggeredStoryEvents != null) this.triggeredStoryEvents.addAll(triggeredStoryEvents);
         this.lastStoryEventTick = lastStoryEventTick;
+        this.endingStarted = endingStarted;
+        this.endingApplied = endingApplied;
+        this.cinematicCompleted = cinematicCompleted;
+        this.disconnectSent = disconnectSent;
     }
 
     public boolean isCampaignAccepted() { return campaignAccepted; }
@@ -99,6 +117,14 @@ public class SharedCampaignData {
     public boolean completeSideQuest(String id) { return completedSideQuests.add(id); }
 
     public Map<String, Integer> getObjectiveProgress() { return objectiveProgress; }
+    public void recordBiome(String biome) {
+        if (biome != null && !biome.isEmpty()) {
+            addContribution("biome_" + biome, 1);
+            int count = (int) objectiveProgress.keySet().stream().filter(k -> k.startsWith("biome_")).count();
+            setObjective("visited_biomes_count", count);
+        }
+    }
+
     public int getObjective(String key) { return objectiveProgress.getOrDefault(key, 0); }
     public void setObjective(String key, int val) { objectiveProgress.put(key, val); }
     public int addContribution(String key, int delta) {
@@ -147,6 +173,18 @@ public class SharedCampaignData {
 
     public long getLastStoryEventTick() { return lastStoryEventTick; }
     public void setLastStoryEventTick(long tick) { this.lastStoryEventTick = tick; }
+
+    public boolean isEndingStarted() { return endingStarted; }
+    public void setEndingStarted(boolean endingStarted) { this.endingStarted = endingStarted; }
+
+    public boolean isEndingApplied() { return endingApplied; }
+    public void setEndingApplied(boolean endingApplied) { this.endingApplied = endingApplied; }
+
+    public boolean isCinematicCompleted() { return cinematicCompleted; }
+    public void setCinematicCompleted(boolean cinematicCompleted) { this.cinematicCompleted = cinematicCompleted; }
+
+    public boolean isDisconnectSent() { return disconnectSent; }
+    public void setDisconnectSent(boolean disconnectSent) { this.disconnectSent = disconnectSent; }
 
     public int getTotalCompletedProgramTasks() {
         return completedTasks.size() + completedSideQuests.size();
