@@ -171,6 +171,12 @@ public class MarketAttributeApplier {
             addModifier(player, Attributes.BLOCK_BREAK_SPEED, "bm_overclock_mining", 0.25, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
         }
 
+        // 6. Apply Permanent Mobility Debuff if player accepted Final Settlement (Account Revoked / Impaired)
+        if (account.isPermanentImpaired()) {
+            addModifier(player, Attributes.MOVEMENT_SPEED, "permanent_impaired_speed", -0.25, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
+            addModifier(player, Attributes.JUMP_STRENGTH, "permanent_impaired_jump", -0.20, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
+        }
+
         // Clamp current health if Max Health decreased
         if (player.getHealth() > player.getMaxHealth()) {
             player.setHealth(player.getMaxHealth());

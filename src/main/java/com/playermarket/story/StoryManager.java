@@ -21,6 +21,81 @@ public class StoryManager {
     private static final String SENDER_LEGAL = "Департамент Юстиции // Asset Program";
     private static final String SENDER_MEDICAL = "Медицинская Служба // BioMech";
 
+    public static void onPlayerReadLetter(ServerPlayer player) {
+        if (player.level().getServer() == null) return;
+        MarketSavedData data = MarketSavedData.get(player.level().getServer());
+        PlayerMarketAccount account = data.getOrCreateAccount(player.getUUID());
+        onPlayerReadLetter(player, account);
+    }
+
+    public static void onPlayerReadLetter(ServerPlayer player, PlayerMarketAccount account) {
+        account.setReadCrumpledLetter(true);
+        long gameTick = player.level().getServer() != null ? player.level().getServer().overworld().getGameTime() : 0L;
+        boolean hasOffer = false;
+        for (MailMessage m : account.getStoryProgress().getMailbox()) {
+            if ("contract_offer_mail".equals(m.id())) {
+                hasOffer = true;
+                break;
+            }
+        }
+        if (!hasOffer) {
+            account.getStoryProgress().addMail(new MailMessage(
+                    "contract_offer_mail",
+                    gameTick,
+                    "ASSET PROGRAM // CONTRACTING DIVISION",
+                    "ASSET PROGRAM — OFFER OF PARTICIPATION",
+                    "Уважаемый кандидат!\n\n"
+                            + "Настоящим уведомляем, что вы выбраны для участия в Программе Активов (The Asset Program).\n\n"
+                            + "Условия программы:\n"
+                            + "• Добровольная монетизация биологических характеристик в обмен на кредиты CR.\n"
+                            + "• Синхронизированный кооперативный доступ для всех участников сектора.\n"
+                            + "• Начальное финансирование (+100 CR) и персональная Карта Доступа.\n\n"
+                            + "Для подтверждения участия нажмите кнопку «ПРИНЯТЬ КОНТРАКТ» ниже.\n"
+                            + "Вы также можете отклонить предложение («ОТКЛОНИТЬ») без каких-либо санкций.",
+                    false,
+                    "CONTRACT_OFFER",
+                    100L,
+                    false
+            ));
+            notifyNewMail(player, "ASSET PROGRAM — OFFER OF PARTICIPATION");
+        }
+    }
+
+    public static void acceptSharedContract(ServerPlayer player, PlayerMarketAccount account, net.minecraft.server.MinecraftServer server) {
+        MarketSavedData savedData = MarketSavedData.get(server);
+        SharedCampaignData campaign = savedData.getCampaignData();
+        campaign.setCampaignAccepted(true);
+        if (campaign.getCurrentStage() < 1) {
+            campaign.setCurrentStage(1);
+        }
+        campaign.getRegisteredParticipants().add(player.getUUID());
+        for (ServerPlayer online : server.getPlayerList().getPlayers()) {
+            campaign.getRegisteredParticipants().add(online.getUUID());
+        }
+
+        account.getStoryProgress().claimMailReward("contract_offer_mail");
+        account.addCr(100L);
+        com.playermarket.PlayerMarketMod.grantStarterCardSafely(player);
+
+        long gameTick = server.overworld().getGameTime();
+        account.addTransaction(gameTick, "СОГЛАШЕНИЕ ОБ УЧАСТИИ", "The Asset Program",
+                "Подписание корпоративного контракта", 100L, 0);
+
+        server.getPlayerList().broadcastSystemMessage(
+                Component.literal("§8[§6ASSET PROGRAM§8] §aУчастник §f" + player.getName().getString()
+                        + " §aподписал Соглашение об Участии. Программа Активов запущена в совместном режиме!"),
+                false
+        );
+
+        savedData.setDirty();
+        MarketNetworking.broadcastSync(server, "§aПрограмма Активов запущена!");
+    }
+
+    public static void declineSharedContract(ServerPlayer player, PlayerMarketAccount account) {
+        account.getStoryProgress().claimMailReward("contract_offer_mail");
+        player.sendSystemMessage(Component.literal("§8[§6ASSET PROGRAM§8] §7Вы отклонили предложение Программы Активов. Вы можете продолжить обычное выживание."));
+    }
+
     public static void initializeAccountStory(PlayerMarketAccount account, long gameTick) {
         StoryProgress story = account.getStoryProgress();
         if (story.getMailbox().isEmpty()) {
@@ -150,7 +225,11 @@ public class StoryManager {
             }
 
             if (allDone && stage < 6) {
-                advanceStage(player, account, stage + 1, gameTick);
+                if (player.level().getServer() != null) {
+                    advanceSharedStage(player.level().getServer(), stage + 1, gameTick);
+                } else {
+                    advanceStage(player, account, stage + 1, gameTick);
+                }
             }
         }
 
@@ -266,6 +345,21 @@ public class StoryManager {
             ));
             notifyNewMail(player, "Результаты ревизии вашего тела");
         }
+    }
+
+    public static void advanceSharedStage(net.minecraft.server.MinecraftServer server, int newStage, long gameTick) {
+        if (server == null) return;
+        MarketSavedData data = MarketSavedData.get(server);
+        SharedCampaignData campaign = data.getCampaignData();
+        campaign.setCurrentStage(newStage);
+
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            PlayerMarketAccount account = data.getOrCreateAccount(player.getUUID());
+            advanceStage(player, account, newStage, gameTick);
+        }
+
+        data.setDirty();
+        MarketNetworking.broadcastSync(server, "§6ПРОГРАММА АКТИВОВ: ЭТАП " + newStage + "!");
     }
 
     public static void advanceStage(ServerPlayer player, PlayerMarketAccount account, int newStage, long gameTick) {
@@ -482,9 +576,13 @@ public class StoryManager {
         long gameTick = player.level().getServer() != null ? player.level().getServer().overworld().getGameTime() : 0L;
 
         switch (choiceId) {
-            case "MAIN_ENDING", "TRANSFER_OF_OWNERSHIP" -> {
-                EndingSequenceManager.startMainEnding(player);
-                return true;
+            case "FINAL_SETTLEMENT", "ACCOUNT_SETTLEMENT", "MAIN_ENDING", "TRANSFER_OF_OWNERSHIP" -> {
+                net.minecraft.server.MinecraftServer server = player.level().getServer();
+                if (server != null) {
+                    EndingSequenceManager.startSynchronizedFinalSettlement(server);
+                    return true;
+                }
+                return false;
             }
             case "SECRET_ENDING", "REVOKE_CONSENT" -> {
                 EndingSequenceManager.startSecretEnding(player);

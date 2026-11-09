@@ -271,6 +271,16 @@ public class MarketMainScreen extends Screen {
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
+    private int getGuiWidth() {
+        int target = (int) (width * 0.72);
+        return Math.clamp(target, Math.min(width - 16, 460), 570);
+    }
+
+    private int getGuiHeight() {
+        int target = (int) (height * 0.76);
+        return Math.clamp(target, Math.min(height - 16, 270), 350);
+    }
+
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (selectedNewsArticle != null) {
@@ -291,8 +301,8 @@ public class MarketMainScreen extends Screen {
             int mx = (int) event.x();
             int my = (int) event.y();
 
-            int guiWidth = Math.min(width - 16, 680);
-            int guiHeight = Math.min(height - 16, 360);
+            int guiWidth = getGuiWidth();
+            int guiHeight = getGuiHeight();
             int left = (width - guiWidth) / 2;
             int top = (height - guiHeight) / 2;
             int footerTop = top + guiHeight - 22;
@@ -335,9 +345,9 @@ public class MarketMainScreen extends Screen {
         // 1. Transparent background blur
         this.extractTransparentBackground(graphics);
 
-        // 2. Main Window Dimensions
-        int guiWidth = Math.min(width - 16, 680);
-        int guiHeight = Math.min(height - 16, 360);
+        // 2. Main Window Dimensions (Compact ~70% screen area)
+        int guiWidth = getGuiWidth();
+        int guiHeight = getGuiHeight();
         int left = (width - guiWidth) / 2;
         int top = (height - guiHeight) / 2;
 
@@ -663,75 +673,30 @@ public class MarketMainScreen extends Screen {
         if (currentStage == 6) {
             cy += 6;
 
-            if ("MAIN_COMPLETED".equals(account.getEndingState())) {
-                drawSprite(graphics, "hud_bg", left, cy, width, 70, 0xFF241508);
-                drawClampedText(graphics, "§6§lСТАТУС УЧЁТНОЙ ЗАПИСИ: СОБСТВЕННОСТЬ КОРПОРАЦИИ // PROMOTED", left + 8, cy + 6, width - 16, 0xFFFBBF24, false);
-                drawClampedText(graphics, "§7CUSTOMER: §c" + (minecraft.player != null ? minecraft.player.getName().getString() : "UNKNOWN"), left + 8, cy + 20, width - 16, 0xFFEF4444, false);
-                drawClampedText(graphics, "§7ACCOUNT MANAGER: §e" + (minecraft.player != null ? minecraft.player.getName().getString() : "UNKNOWN"), left + 8, cy + 32, width - 16, 0xFFFBBF24, false);
-                drawClampedText(graphics, "§c§lFIRST ASSIGNMENT: EVALUATE YOUR REPLACEMENT.", left + 8, cy + 46, width - 16, 0xFFE2E8F0, false);
-                drawClampedText(graphics, "§8Ваша Карта Доступа переведена в статус EMPLOYEE ACCESS CARD.", left + 8, cy + 58, width - 16, 0xFF64748B, false);
+            if (account.isPermanentImpaired() || account.isMarketCardBlocked()) {
+                drawSprite(graphics, "hud_bg", left, cy, width, 70, 0xFF200A0E);
+                drawClampedText(graphics, "§4§lФИНАНСОВЫЙ РАСЧЁТ ЗАВЕРШЁН // СТАТЬЯ 17.4 ВСТУПИЛА В СИЛУ", left + 8, cy + 6, width - 16, 0xFFEF4444, false);
+                drawClampedText(graphics, "§cПрава на биологические активы переданы корпорации. Доступ к бирже аннулирован.", left + 8, cy + 20, width - 16, 0xFFEF4444, false);
+                drawClampedText(graphics, "§7Ортопедический фиксатор активен на правой ноге. Мобильность снижена.", left + 8, cy + 34, width - 16, 0xFFCBD5E1, false);
+                drawClampedText(graphics, "§8«Вы больше не клиент. Вы — корпоративный актив.»", left + 8, cy + 48, width - 16, 0xFF64748B, false);
                 cy += 76;
-            } else if ("SECRET_COMPLETED".equals(account.getEndingState())) {
-                drawSprite(graphics, "hud_bg", left, cy, width, 60, 0xFF200A0E);
-                drawClampedText(graphics, "§4§lУЧЁТНАЯ ЗАПИСЬ АННУЛИРОВАНА ПО ТРЕБОВАНИЮ КЛИЕНТА", left + 8, cy + 6, width - 16, 0xFFEF4444, false);
-                drawClampedText(graphics, "§aВсе проданные биологические характеристики восстановлены до 100%.", left + 8, cy + 20, width - 16, 0xFF34D399, false);
-                drawClampedText(graphics, "§cCR-аккаунт закрыт. Торговые операции на бирже прекращены.", left + 8, cy + 32, width - 16, 0xFFE2E8F0, false);
-                drawClampedText(graphics, "§7Письмо в почтовом ящике: «We respect your decision. We do not forgive it.»", left + 8, cy + 46, width - 16, 0xFF64748B, false);
-                cy += 66;
-            } else if (!finalEndingRevokeMode) {
-                int cardH = 120;
+            } else {
+                int cardH = 110;
                 drawSprite(graphics, "card_amber", left, cy, width, cardH, 0xFF241A0A);
-                drawClampedText(graphics, "§6§lФИНАНСОВЫЙ ДОГОВОР // FINAL SETTLEMENT", left + 10, cy + 8, width - 20, 0xFFFBBF24, false);
-                drawClampedText(graphics, "§fВсе этапы Программы Активов завершены. Вы монетизировали свои органические возможности.", left + 10, cy + 22, width - 20, 0xFFE2E8F0, false);
-                drawClampedText(graphics, "§7Совет Директоров готов произвести окончательный расчёт и закрыть инвестиционный раунд.", left + 10, cy + 34, width - 20, 0xFFCBD5E1, false);
+                drawClampedText(graphics, "§6§lФИНАНСОВЫЙ ДОГОВОР // ACCOUNT SETTLEMENT", left + 10, cy + 8, width - 20, 0xFFFBBF24, false);
+                drawClampedText(graphics, "§fВсе этапы Программы Активов завершены. Корпорация производит окончательный расчёт.", left + 10, cy + 22, width - 20, 0xFFE2E8F0, false);
+                drawClampedText(graphics, "§7Выплата +100 000 CR начисляется на счета всех зарегистрированных участников.", left + 10, cy + 34, width - 20, 0xFFCBD5E1, false);
 
-                int bigBtnW = 270;
+                int bigBtnW = 280;
                 int bigBtnH = 24;
                 int bigBtnX = left + (width - bigBtnW) / 2;
                 int bigBtnY = cy + 50;
-                drawButton(graphics, "btn_green", bigBtnX, bigBtnY, bigBtnW, bigBtnH, "ACCEPT FINAL PAYMENT (+100 000 CR)", mouseX, mouseY, () -> {
-                    sendMarketAction("CHOOSE_FINAL_TRANSACTION", "MAIN_ENDING", "", 0, 0.0);
+                drawButton(graphics, "btn_green", bigBtnX, bigBtnY, bigBtnW, bigBtnH, "ACCEPT FINAL SETTLEMENT (+100 000 CR)", mouseX, mouseY, () -> {
+                    sendMarketAction("CHOOSE_FINAL_TRANSACTION", "FINAL_SETTLEMENT", "", 0, 0.0);
                 });
 
-                String finePrint = "By accepting this payment, you agree to transfer ownership of all registered assets, including the account holder. No withdrawal is permitted after execution.";
+                String finePrint = "SECTION 17.4: RECOVERY PROTOCOL & BIOLOGICAL SURRENDER. Irrevocable assignment of biological assets.";
                 drawClampedText(graphics, "§8" + finePrint, left + 10, cy + 82, width - 20, 0xFF475569, false);
-
-                String clauseText = "SECTION 17.4 — REVOKE CONSENT";
-                int clauseW = font.width(clauseText) + 8;
-                int clauseX = left + 10;
-                int clauseY = cy + 96;
-                boolean clauseHovered = (mouseX >= clauseX && mouseX <= clauseX + clauseW && mouseY >= clauseY && mouseY <= clauseY + 10);
-                graphics.text(font, (clauseHovered ? "§e§n" : "§8") + clauseText, clauseX, clauseY, clauseHovered ? 0xFFFBBF24 : 0xFF475569, false);
-                registerClick(clauseX, clauseY, clauseX + clauseW, clauseY + 10, () -> {
-                    finalEndingRevokeMode = true;
-                    if (minecraft != null && minecraft.player != null) {
-                        minecraft.player.playSound(net.minecraft.sounds.SoundEvents.ITEM_BREAK.value(), 1.0f, 0.5f);
-                    }
-                }, "Секретный параграф: отказаться от договора");
-
-                cy += cardH + 10;
-            } else {
-                int cardH = 110;
-                drawSprite(graphics, "card_hover", left, cy, width, cardH, 0xFF2A0D0D);
-                drawClampedText(graphics, "§c§l[ОШИБКА БЕЗОПАСНОСТИ] ОБНАРУЖЕНА ПОПЫТКА РАСТОРЖЕНИЯ ДОГОВОРА", left + 10, cy + 8, width - 20, 0xFFEF4444, false);
-                drawClampedText(graphics, "§8[§6MR. LEDGER§8] §c<This option is unavailable to your account.>", left + 10, cy + 22, width - 20, 0xFFEF4444, false);
-                drawClampedText(graphics, "§7В соответствии с параграфом 17.4, отзыв согласия аннулирует баланс CR и расторгает контракт.", left + 10, cy + 34, width - 20, 0xFFCBD5E1, false);
-
-                int revokeBtnW = 280;
-                int revokeBtnH = 22;
-                int revokeBtnX = left + 10;
-                int revokeBtnY = cy + 52;
-                drawButton(graphics, "btn_red", revokeBtnX, revokeBtnY, revokeBtnW, revokeBtnH, "⚠ ПОДТВЕРДИТЬ ОТЗЫВ СОГЛАСИЯ И РАСТОРЖЕНИЕ", mouseX, mouseY, () -> {
-                    sendMarketAction("CHOOSE_FINAL_TRANSACTION", "SECRET_ENDING", "", 0, 0.0);
-                });
-
-                int cancelBtnW = 110;
-                int cancelBtnH = 22;
-                int cancelBtnX = left + width - cancelBtnW - 10;
-                int cancelBtnY = cy + 52;
-                drawButton(graphics, "btn_gray", cancelBtnX, cancelBtnY, cancelBtnW, cancelBtnH, "✕ Отмена", mouseX, mouseY, () -> {
-                    finalEndingRevokeMode = false;
-                });
 
                 cy += cardH + 10;
             }
@@ -903,7 +868,26 @@ public class MarketMainScreen extends Screen {
             int attachY = top + height - 34;
             drawSprite(graphics, "hud_bg", readerLeft + 8, attachY, readerWidth - 16, 28, 0xFF172030);
 
-            if (currentMsg.rewardClaimed()) {
+            if ("CONTRACT_OFFER".equalsIgnoreCase(currentMsg.rewardType())) {
+                if (currentMsg.rewardClaimed()) {
+                    drawClampedText(graphics, "§8✔ Предложение рассмотрено",
+                            readerLeft + 16, attachY + 9, readerWidth - 32, 0xFF64748B, false);
+                } else {
+                    int btnW = 96;
+                    int btnH = 20;
+                    int btnY = attachY + 4;
+                    int acceptX = readerLeft + readerWidth - (btnW * 2) - 16;
+                    int declineX = readerLeft + readerWidth - btnW - 8;
+
+                    final String cId = currentMsg.id();
+                    drawSmallButton(graphics, "btn_green", acceptX, btnY, btnW, btnH, "✔ ПРИНЯТЬ", mouseX, mouseY, () -> {
+                        sendMarketAction("ACCEPT_SHARED_CONTRACT", cId, "", 0, 0.0);
+                    });
+                    drawSmallButton(graphics, "btn_red", declineX, btnY, btnW, btnH, "✖ ОТКЛОНИТЬ", mouseX, mouseY, () -> {
+                        sendMarketAction("DECLINE_SHARED_CONTRACT", cId, "", 0, 0.0);
+                    });
+                }
+            } else if (currentMsg.rewardClaimed()) {
                 drawClampedText(graphics, "§8✔ Корпоративное вложение получено (" + currentMsg.rewardAmount() + " " + currentMsg.rewardType() + ")",
                         readerLeft + 16, attachY + 9, readerWidth - 32, 0xFF64748B, false);
             } else {

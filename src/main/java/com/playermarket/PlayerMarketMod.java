@@ -39,6 +39,7 @@ public class PlayerMarketMod implements ModInitializer {
 
         MarketConfig.load();
         MarketAccessCardItem.registerItems();
+        com.playermarket.item.CrumpledLetterItem.registerItems();
         MarketNetworking.registerServer();
 
         // Register /market commands
@@ -52,22 +53,32 @@ public class PlayerMarketMod implements ModInitializer {
         // Server tick for leases, market events, and custom attribute effects
         ServerTickEvents.END_SERVER_TICK.register(MarketAttributeApplier::tickServer);
 
-        // Sync player modifiers and grant initial Market Access Card on first join
+        // Sync player modifiers and grant crumpled letter / market card on join
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerPlayer player = handler.player;
             server.execute(() -> {
                 MarketSavedData data = MarketSavedData.get(server);
                 PlayerMarketAccount account = data.getOrCreateAccount(player.getUUID());
+                data.ensureAccountRegistered(player.getUUID(), account);
+
                 long gameTick = server.overworld().getGameTime();
                 com.playermarket.story.StoryManager.initializeAccountStory(account, gameTick);
-                if (account.getHistory().isEmpty()) {
-                    // Grant starter Market Access Card on first ever join
+
+                // Safe 1-time delivery of crumpled introductory letter
+                grantCrumpledLetterSafely(player, account);
+
+                // Only give card if campaign is active and card is not blocked
+                if (!account.isMarketCardBlocked() && (data.getCampaignData().isCampaignAccepted() || account.getStoryStage() >= 1)) {
                     grantStarterCardSafely(player);
-                    account.addTransaction(server.overworld().getGameTime(),
+                }
+
+                if (account.getHistory().isEmpty() && data.getCampaignData().isCampaignAccepted()) {
+                    account.addTransaction(gameTick,
                             "ОТКРЫТИЕ СЧЁТА", "Стартовый капитал",
                             "Карта доступа и базовый баланс", account.getCrBalance(), 0);
                     data.setDirty();
                 }
+
                 MarketAttributeApplier.syncPlayerModifiers(player);
                 com.playermarket.story.StoryManager.checkAllQuests(player, account);
                 com.playermarket.story.EndingSequenceManager.onPlayerJoin(player);
@@ -149,7 +160,36 @@ public class PlayerMarketMod implements ModInitializer {
         return Identifier.fromNamespaceAndPath(MOD_ID, path);
     }
 
+    public static void grantCrumpledLetterSafely(ServerPlayer player, PlayerMarketAccount account) {
+        if (!account.hasReceivedCrumpledLetter()) {
+            boolean hasLetter = false;
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                ItemStack s = player.getInventory().getItem(i);
+                if (!s.isEmpty() && s.is(com.playermarket.item.CrumpledLetterItem.CRUMPLED_LETTER)) {
+                    hasLetter = true;
+                    break;
+                }
+            }
+            if (!hasLetter) {
+                ItemStack letter = new ItemStack(com.playermarket.item.CrumpledLetterItem.CRUMPLED_LETTER);
+                if (player.getInventory().getItem(7).isEmpty()) {
+                    player.getInventory().setItem(7, letter);
+                } else if (!player.getInventory().add(letter)) {
+                    player.drop(letter, false, net.minecraft.util.Prediction.SERVER_ONLY);
+                }
+            }
+            account.setReceivedCrumpledLetter(true);
+        }
+    }
+
     public static void grantStarterCardSafely(ServerPlayer player) {
+        if (player.level().getServer() != null) {
+            PlayerMarketAccount acc = MarketSavedData.get(player.level().getServer()).getOrCreateAccount(player.getUUID());
+            if (acc.isMarketCardBlocked() || acc.isPermanentImpaired()) {
+                return;
+            }
+        }
+
         // 1. Check if player has Market Access Card
         boolean hasCard = false;
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {

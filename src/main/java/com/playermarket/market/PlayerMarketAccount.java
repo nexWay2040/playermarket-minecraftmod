@@ -18,7 +18,11 @@ public class PlayerMarketAccount {
             boolean secondChanceArmed,
             boolean goldenContractArmed,
             String endingState,
-            boolean accountClosed
+            boolean accountClosed,
+            boolean receivedCrumpledLetter,
+            boolean readCrumpledLetter,
+            boolean marketCardBlocked,
+            boolean permanentImpaired
     ) {
         public static final Codec<AccountOverview> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.LONG.fieldOf("crBalance").forGetter(AccountOverview::crBalance),
@@ -30,7 +34,11 @@ public class PlayerMarketAccount {
                 Codec.BOOL.fieldOf("secondChanceArmed").forGetter(AccountOverview::secondChanceArmed),
                 Codec.BOOL.fieldOf("goldenContractArmed").forGetter(AccountOverview::goldenContractArmed),
                 Codec.STRING.optionalFieldOf("endingState", "NONE").forGetter(AccountOverview::endingState),
-                Codec.BOOL.optionalFieldOf("accountClosed", false).forGetter(AccountOverview::accountClosed)
+                Codec.BOOL.optionalFieldOf("accountClosed", false).forGetter(AccountOverview::accountClosed),
+                Codec.BOOL.optionalFieldOf("receivedCrumpledLetter", false).forGetter(AccountOverview::receivedCrumpledLetter),
+                Codec.BOOL.optionalFieldOf("readCrumpledLetter", false).forGetter(AccountOverview::readCrumpledLetter),
+                Codec.BOOL.optionalFieldOf("marketCardBlocked", false).forGetter(AccountOverview::marketCardBlocked),
+                Codec.BOOL.optionalFieldOf("permanentImpaired", false).forGetter(AccountOverview::permanentImpaired)
         ).apply(instance, AccountOverview::new));
     }
 
@@ -58,6 +66,10 @@ public class PlayerMarketAccount {
     private boolean goldenContractArmed;
     private String endingState = "NONE";
     private boolean accountClosed = false;
+    private boolean receivedCrumpledLetter = false;
+    private boolean readCrumpledLetter = false;
+    private boolean marketCardBlocked = false;
+    private boolean permanentImpaired = false;
 
     private final Map<String, Double> permanentSoldFractions = new LinkedHashMap<>();
     private final Map<String, Long> permanentSalePayoutBasis = new LinkedHashMap<>();
@@ -99,6 +111,10 @@ public class PlayerMarketAccount {
         this.goldenContractArmed = overview.goldenContractArmed();
         this.endingState = overview.endingState() != null ? overview.endingState() : "NONE";
         this.accountClosed = overview.accountClosed();
+        this.receivedCrumpledLetter = overview.receivedCrumpledLetter();
+        this.readCrumpledLetter = overview.readCrumpledLetter();
+        this.marketCardBlocked = overview.marketCardBlocked();
+        this.permanentImpaired = overview.permanentImpaired();
 
         this.permanentSoldFractions.putAll(permanentSoldFractions);
         this.permanentSalePayoutBasis.putAll(permanentSalePayoutBasis);
@@ -117,7 +133,9 @@ public class PlayerMarketAccount {
         return new AccountOverview(
                 crBalance, totalCrEarned, totalCrSpent, totalDiamondsSpent,
                 totalDealsCount, blackMarketUnlocked, secondChanceArmed, goldenContractArmed,
-                getEndingState(), isAccountClosed()
+                getEndingState(), isAccountClosed(),
+                isReceivedCrumpledLetter(), isReadCrumpledLetter(),
+                isMarketCardBlocked(), isPermanentImpaired()
         );
     }
 
@@ -504,6 +522,50 @@ public class PlayerMarketAccount {
         this.history.clear();
         this.blackMarketActiveUntil.clear();
         this.blackMarketCooldownUntil.clear();
+        this.receivedCrumpledLetter = false;
+        this.readCrumpledLetter = false;
+        this.marketCardBlocked = false;
+        this.permanentImpaired = false;
         ensureDefaultContracts();
+    }
+
+    public boolean isReceivedCrumpledLetter() {
+        return receivedCrumpledLetter;
+    }
+
+    public boolean hasReceivedCrumpledLetter() {
+        return receivedCrumpledLetter;
+    }
+
+    public void setReceivedCrumpledLetter(boolean receivedCrumpledLetter) {
+        this.receivedCrumpledLetter = receivedCrumpledLetter;
+    }
+
+    public boolean isReadCrumpledLetter() {
+        return readCrumpledLetter;
+    }
+
+    public boolean hasReadCrumpledLetter() {
+        return readCrumpledLetter;
+    }
+
+    public void setReadCrumpledLetter(boolean readCrumpledLetter) {
+        this.readCrumpledLetter = readCrumpledLetter;
+    }
+
+    public boolean isMarketCardBlocked() {
+        return marketCardBlocked;
+    }
+
+    public void setMarketCardBlocked(boolean marketCardBlocked) {
+        this.marketCardBlocked = marketCardBlocked;
+    }
+
+    public boolean isPermanentImpaired() {
+        return permanentImpaired;
+    }
+
+    public void setPermanentImpaired(boolean permanentImpaired) {
+        this.permanentImpaired = permanentImpaired;
     }
 }

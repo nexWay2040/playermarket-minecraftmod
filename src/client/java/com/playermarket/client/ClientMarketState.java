@@ -3,10 +3,15 @@ package com.playermarket.client;
 import com.playermarket.market.MarketEvent;
 import com.playermarket.market.PlayerMarketAccount;
 import com.playermarket.network.MarketNetworking;
+import com.playermarket.story.SharedCampaignData;
+import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.NbtOps;
+
+import java.util.UUID;
 
 public class ClientMarketState {
     private static PlayerMarketAccount account = new PlayerMarketAccount();
+    private static SharedCampaignData sharedCampaign = new SharedCampaignData();
     private static MarketEvent activeEvent = MarketEvent.STABLE_MARKET;
     private static long currentGameTick = 0L;
     private static long nextEventSwitchTick = 0L;
@@ -18,6 +23,11 @@ public class ClientMarketState {
         PlayerMarketAccount.CODEC.parse(NbtOps.INSTANCE, payload.accountTag())
                 .result()
                 .ifPresent(parsed -> account = parsed);
+        if (payload.campaignTag() != null && !payload.campaignTag().isEmpty()) {
+            SharedCampaignData.CODEC.parse(NbtOps.INSTANCE, payload.campaignTag())
+                    .result()
+                    .ifPresent(parsed -> sharedCampaign = parsed);
+        }
         activeEvent = MarketEvent.byId(payload.activeEventId()).orElse(MarketEvent.STABLE_MARKET);
         currentGameTick = payload.currentGameTick();
         nextEventSwitchTick = payload.nextEventSwitchTick();
@@ -30,6 +40,19 @@ public class ClientMarketState {
 
     public static PlayerMarketAccount getAccount() {
         return account;
+    }
+
+    public static SharedCampaignData getSharedCampaign() {
+        return sharedCampaign;
+    }
+
+    public static boolean isPlayerImpaired(UUID uuid) {
+        if (uuid == null) return false;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && uuid.equals(mc.player.getUUID())) {
+            if (account.isPermanentImpaired()) return true;
+        }
+        return sharedCampaign.isPlayerImpaired(uuid);
     }
 
     public static MarketEvent getActiveEvent() {

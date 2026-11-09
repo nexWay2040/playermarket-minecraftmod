@@ -2,8 +2,11 @@ package com.playermarket.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.playermarket.PlayerMarketMod;
+import com.playermarket.client.gui.CrumpledLetterScreen;
 import com.playermarket.client.gui.MarketMainScreen;
 import com.playermarket.client.hud.MarketHudOverlay;
+import com.playermarket.client.render.PlayerBraceRenderLayer;
+import com.playermarket.item.CrumpledLetterItem;
 import com.playermarket.item.MarketAccessCardItem;
 import com.playermarket.network.MarketNetworking;
 import net.fabricmc.api.ClientModInitializer;
@@ -11,9 +14,13 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.player.AvatarRenderer;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.item.ItemStack;
 
 public class PlayerMarketClient implements ClientModInitializer {
@@ -28,14 +35,21 @@ public class PlayerMarketClient implements ClientModInitializer {
                 KeyMapping.Category.MISC
         ));
 
+        // Connect Crumpled Letter use to open Document Screen
+        CrumpledLetterItem.CLIENT_OPEN_LETTER_CALLBACK = player -> {
+            Minecraft client = Minecraft.getInstance();
+            if (client.player == player && client.gui != null) {
+                client.gui.setScreen(new CrumpledLetterScreen());
+            }
+        };
+
         // Connect item use to open Market Screen
         MarketAccessCardItem.CLIENT_OPEN_SCREEN_CALLBACK = player -> {
             Minecraft client = Minecraft.getInstance();
             if (client.player == player && client.gui != null) {
-                if (ClientMarketState.getAccount().isAccountClosed()) {
-                    client.player.sendOverlayMessage(
-                            Component.literal("§8[§cPLAYER MARKET§8] §cУчётная запись закрыта по требованию клиента. Вход заблокирован.")
-                    );
+                if (ClientMarketState.getAccount().isMarketCardBlocked() || ClientMarketState.getAccount().isAccountClosed()) {
+                    client.player.sendOverlayMessage(Component.literal("§cACCESS REVOKED."));
+                    client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.ITEM_BREAK.value(), 1.0f));
                     return;
                 }
                 ClientPlayNetworking.send(new MarketNetworking.MarketActionPayload("REQUEST_SYNC", "", "", 0, 0.0));
@@ -43,7 +57,14 @@ public class PlayerMarketClient implements ClientModInitializer {
             }
         };
 
-        // Network receiver for real-time market data
+        // Register visual orthopedic brace on Player Model
+        LivingEntityRenderLayerRegistrationCallback.EVENT.register((entityType, entityRenderer, helper, context) -> {
+            if (entityRenderer instanceof AvatarRenderer avatarRenderer) {
+                helper.register(new PlayerBraceRenderLayer(avatarRenderer, context));
+            }
+        });
+
+        // Network receiver for real-time market and shared campaign data
         ClientPlayNetworking.registerGlobalReceiver(MarketNetworking.MarketSyncPayload.TYPE, (payload, context) -> {
             context.client().execute(() -> ClientMarketState.applySync(payload));
         });
@@ -55,10 +76,9 @@ public class PlayerMarketClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openMarketKey.consumeClick()) {
                 if (client.player != null && client.gui != null && client.gui.screen() == null) {
-                    if (ClientMarketState.getAccount().isAccountClosed()) {
-                        client.player.sendOverlayMessage(
-                                Component.literal("§8[§cPLAYER MARKET§8] §cУчётная запись закрыта по требованию клиента. Вход заблокирован.")
-                        );
+                    if (ClientMarketState.getAccount().isMarketCardBlocked() || ClientMarketState.getAccount().isAccountClosed()) {
+                        client.player.sendOverlayMessage(Component.literal("§cACCESS REVOKED."));
+                        client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.ITEM_BREAK.value(), 1.0f));
                         continue;
                     }
                     boolean hasCard = false;

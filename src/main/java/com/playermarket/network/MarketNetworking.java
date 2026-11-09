@@ -50,7 +50,10 @@ public class MarketNetworking {
         CLAIM_SIDE_QUEST_REWARD,
         CLAIM_MAIL_REWARD,
         MARK_MAIL_READ,
-        CHOOSE_FINAL_TRANSACTION
+        CHOOSE_FINAL_TRANSACTION,
+        READ_CRUMPLED_LETTER,
+        ACCEPT_SHARED_CONTRACT,
+        DECLINE_SHARED_CONTRACT
     }
 
     public record MarketActionPayload(
@@ -80,6 +83,7 @@ public class MarketNetworking {
 
     public record MarketSyncPayload(
             CompoundTag accountTag,
+            CompoundTag campaignTag,
             String activeEventId,
             long currentGameTick,
             long nextEventSwitchTick,
@@ -89,14 +93,25 @@ public class MarketNetworking {
         public static final CustomPacketPayload.Type<MarketSyncPayload> TYPE =
                 new CustomPacketPayload.Type<>(PlayerMarketMod.id("market_sync"));
 
-        public static final StreamCodec<RegistryFriendlyByteBuf, MarketSyncPayload> STREAM_CODEC = StreamCodec.composite(
-                ByteBufCodecs.COMPOUND_TAG, MarketSyncPayload::accountTag,
-                ByteBufCodecs.STRING_UTF8, MarketSyncPayload::activeEventId,
-                ByteBufCodecs.VAR_LONG, MarketSyncPayload::currentGameTick,
-                ByteBufCodecs.VAR_LONG, MarketSyncPayload::nextEventSwitchTick,
-                ByteBufCodecs.STRING_UTF8, MarketSyncPayload::oreScannerReport,
-                ByteBufCodecs.STRING_UTF8, MarketSyncPayload::statusMessage,
-                MarketSyncPayload::new
+        public static final StreamCodec<RegistryFriendlyByteBuf, MarketSyncPayload> STREAM_CODEC = StreamCodec.of(
+                (buf, val) -> {
+                    ByteBufCodecs.COMPOUND_TAG.encode(buf, val.accountTag());
+                    ByteBufCodecs.COMPOUND_TAG.encode(buf, val.campaignTag());
+                    ByteBufCodecs.STRING_UTF8.encode(buf, val.activeEventId());
+                    ByteBufCodecs.VAR_LONG.encode(buf, val.currentGameTick());
+                    ByteBufCodecs.VAR_LONG.encode(buf, val.nextEventSwitchTick());
+                    ByteBufCodecs.STRING_UTF8.encode(buf, val.oreScannerReport());
+                    ByteBufCodecs.STRING_UTF8.encode(buf, val.statusMessage());
+                },
+                buf -> new MarketSyncPayload(
+                        ByteBufCodecs.COMPOUND_TAG.decode(buf),
+                        ByteBufCodecs.COMPOUND_TAG.decode(buf),
+                        ByteBufCodecs.STRING_UTF8.decode(buf),
+                        ByteBufCodecs.VAR_LONG.decode(buf),
+                        ByteBufCodecs.VAR_LONG.decode(buf),
+                        ByteBufCodecs.STRING_UTF8.decode(buf),
+                        ByteBufCodecs.STRING_UTF8.decode(buf)
+                )
         );
 
         @Override
@@ -127,20 +142,33 @@ public class MarketNetworking {
         ResourceValuationEngine.ensureInitialized(server);
         MarketSavedData savedData = MarketSavedData.get(server);
         PlayerMarketAccount account = savedData.getOrCreateAccount(player.getUUID());
+        savedData.ensureAccountRegistered(player.getUUID(), account);
         long gameTick = server.overworld().getGameTime();
 
-        Tag encoded = PlayerMarketAccount.CODEC.encodeStart(NbtOps.INSTANCE, account).result().orElse(new CompoundTag());
-        CompoundTag compound = encoded instanceof CompoundTag ct ? ct : new CompoundTag();
+        Tag encodedAccount = PlayerMarketAccount.CODEC.encodeStart(NbtOps.INSTANCE, account).result().orElse(new CompoundTag());
+        CompoundTag compound = encodedAccount instanceof CompoundTag ct ? ct : new CompoundTag();
+
+        Tag encodedCampaign = com.playermarket.story.SharedCampaignData.CODEC.encodeStart(NbtOps.INSTANCE, savedData.getCampaignData()).result().orElse(new CompoundTag());
+        CompoundTag campaignCompound = encodedCampaign instanceof CompoundTag cct ? cct : new CompoundTag();
+
         String scannerReport = MarketAttributeApplier.computeOreScannerReport(player, account);
 
         ServerPlayNetworking.send(player, new MarketSyncPayload(
                 compound,
+                campaignCompound,
                 savedData.getActiveEvent().getId(),
                 gameTick,
                 savedData.getNextEventSwitchTick(),
                 scannerReport,
                 statusMessage != null ? statusMessage : ""
         ));
+    }
+
+    public static void broadcastSync(MinecraftServer server, String statusMessage) {
+        if (server == null) return;
+        for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
+            sendSyncToPlayer(sp, statusMessage);
+        }
     }
 
     private static synchronized void handleAction(ServerPlayer player, MinecraftServer server, MarketActionPayload payload) {
@@ -757,6 +785,29 @@ public class MarketNetworking {
                     playErrorSound(player);
                     return;
                 }
+            }
+
+            case READ_CRUMPLED_LETTER -> {
+                account.setReadCrumpledLetter(true);
+                com.playermarket.story.StoryManager.onPlayerReadLetter(player, account);
+                savedData.setDirty();
+                sendSyncToPlayer(player, "");
+                return;
+            }
+
+            case ACCEPT_SHARED_CONTRACT -> {
+                com.playermarket.story.StoryManager.acceptSharedContract(player, account, server);
+                savedData.setDirty();
+                broadcastSync(server, "§aУчастник подписал Программу Активов!");
+                playSuccessSound(player);
+                return;
+            }
+
+            case DECLINE_SHARED_CONTRACT -> {
+                com.playermarket.story.StoryManager.declineSharedContract(player, account);
+                savedData.setDirty();
+                sendSyncToPlayer(player, "§7Вы отклонили предложение Программы Активов.");
+                return;
             }
         }
 
