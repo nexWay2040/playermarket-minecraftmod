@@ -456,8 +456,10 @@ public class MarketAttributeApplier {
         MarketSavedData data = MarketSavedData.get(server);
         long gameTime = server.overworld().getGameTime();
 
-        // Check dynamic Market Event rotation (every 10 minutes / 12,000 ticks)
-        if (gameTime >= data.getNextEventSwitchTick() || data.getActiveEvent() == MarketEvent.STABLE_MARKET) {
+        // Check dynamic Market Event rotation:
+        // Enforce a 15-minute peace period (18,000 ticks) upon world start before any event switch can occur,
+        // and enforce minimum 10-minute intervals (12,000 ticks) between subsequent events.
+        if (gameTime >= 18000L && gameTime >= data.getNextEventSwitchTick()) {
             MarketEvent[] events = MarketEvent.values();
             MarketEvent current = data.getActiveEvent();
             MarketEvent next = current;

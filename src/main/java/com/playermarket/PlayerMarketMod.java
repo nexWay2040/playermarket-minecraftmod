@@ -68,7 +68,7 @@ public class PlayerMarketMod implements ModInitializer {
                 grantCrumpledLetterSafely(player, account);
 
                 // Only give card if campaign is active and card is not blocked
-                if (!account.isMarketCardBlocked() && (data.getCampaignData().isCampaignAccepted() || account.getStoryStage() >= 1)) {
+                if (!account.isMarketCardBlocked() && data.getCampaignData().isCampaignAccepted()) {
                     grantStarterCardSafely(player);
                 }
 
@@ -184,8 +184,9 @@ public class PlayerMarketMod implements ModInitializer {
 
     public static void grantStarterCardSafely(ServerPlayer player) {
         if (player.level().getServer() != null) {
-            PlayerMarketAccount acc = MarketSavedData.get(player.level().getServer()).getOrCreateAccount(player.getUUID());
-            if (acc.isMarketCardBlocked() || acc.isPermanentImpaired()) {
+            MarketSavedData data = MarketSavedData.get(player.level().getServer());
+            PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
+            if (acc.isMarketCardBlocked() || acc.isPermanentImpaired() || !data.getCampaignData().isCampaignAccepted()) {
                 return;
             }
         }

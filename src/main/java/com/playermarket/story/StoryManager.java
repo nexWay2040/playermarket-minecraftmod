@@ -50,8 +50,8 @@ public class StoryManager {
                             + "• Добровольная монетизация биологических характеристик в обмен на кредиты CR.\n"
                             + "• Синхронизированный кооперативный доступ для всех участников сектора.\n"
                             + "• Начальное финансирование (+100 CR) и персональная Карта Доступа.\n\n"
-                            + "Для подтверждения участия нажмите кнопку «ПРИНЯТЬ КОНТРАКТ» ниже.\n"
-                            + "Вы также можете отклонить предложение («ОТКЛОНИТЬ») без каких-либо санкций.",
+                            + "Для официального подписания изучите и подпишите Мятое письмо (бумажный бланк договора в инвентаре).\n"
+                            + "После подписания вам будет выдана Карта Доступа к бирже.",
                     false,
                     "CONTRACT_OFFER",
                     100L,
@@ -75,6 +75,16 @@ public class StoryManager {
 
         account.getStoryProgress().claimMailReward("contract_offer_mail");
         account.addCr(100L);
+
+        // Remove crumpled letter upon signing
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack s = player.getInventory().getItem(i);
+            if (!s.isEmpty() && s.is(com.playermarket.item.CrumpledLetterItem.CRUMPLED_LETTER)) {
+                s.shrink(1);
+                break;
+            }
+        }
+
         com.playermarket.PlayerMarketMod.grantStarterCardSafely(player);
 
         long gameTick = server.overworld().getGameTime();

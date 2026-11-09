@@ -52,6 +52,10 @@ jar {
 	}
 }
 
+tasks.withType(AbstractArchiveTask).configureEach {
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
 publishing {
 	publications {
 		create("mavenJava", MavenPublication) {

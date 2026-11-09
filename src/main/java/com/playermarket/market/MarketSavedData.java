@@ -33,7 +33,7 @@ public class MarketSavedData extends SavedData {
 
     private final Map<UUID, PlayerMarketAccount> accounts = new HashMap<>();
     private MarketEvent activeEvent = MarketEvent.STABLE_MARKET;
-    private long nextEventSwitchTick = 12000L;
+    private long nextEventSwitchTick = 18000L;
     private SharedCampaignData campaignData = new SharedCampaignData();
 
     public MarketSavedData() {
@@ -57,9 +57,6 @@ public class MarketSavedData extends SavedData {
 
     public void ensureAccountRegistered(UUID playerUuid, PlayerMarketAccount account) {
         campaignData.getRegisteredParticipants().add(playerUuid);
-        if (account.getStoryStage() >= 1 || account.getCrBalance() > 0 || !account.getHistory().isEmpty()) {
-            campaignData.setCampaignAccepted(true);
-        }
     }
 
     private Map<String, PlayerMarketAccount> getSerializedAccounts() {
@@ -83,7 +80,13 @@ public class MarketSavedData extends SavedData {
 
     public void setActiveEvent(MarketEvent activeEvent, long currentTick) {
         this.activeEvent = activeEvent;
-        this.nextEventSwitchTick = currentTick + MarketConfig.get().marketEventDurationTicks;
+        long duration = Math.max(12000L, MarketConfig.get().marketEventDurationTicks);
+        this.nextEventSwitchTick = currentTick + duration;
+        setDirty();
+    }
+
+    public void setNextEventSwitchTick(long tick) {
+        this.nextEventSwitchTick = tick;
         setDirty();
     }
 

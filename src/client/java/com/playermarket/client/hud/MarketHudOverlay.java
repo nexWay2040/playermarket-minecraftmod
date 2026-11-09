@@ -31,8 +31,12 @@ public class MarketHudOverlay {
         int x = 6;
         int y = 6;
 
-        // GLFW_KEY_LEFT_ALT = 342, GLFW_KEY_RIGHT_ALT = 346
-        boolean showAll = com.mojang.blaze3d.platform.InputConstants.isKeyDown(342)
+        // Support both SDL3 scancodes (KEY_LALT=226, KEY_RALT=230) and legacy GLFW keycodes (342, 346)
+        boolean showAll = com.mojang.blaze3d.platform.InputConstants.isKeyDown(com.mojang.blaze3d.platform.InputConstants.KEY_LALT)
+                || com.mojang.blaze3d.platform.InputConstants.isKeyDown(com.mojang.blaze3d.platform.InputConstants.KEY_RALT)
+                || com.mojang.blaze3d.platform.InputConstants.isKeyDown(226)
+                || com.mojang.blaze3d.platform.InputConstants.isKeyDown(230)
+                || com.mojang.blaze3d.platform.InputConstants.isKeyDown(342)
                 || com.mojang.blaze3d.platform.InputConstants.isKeyDown(346);
 
         List<String> lines = new ArrayList<>();

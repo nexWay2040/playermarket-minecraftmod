@@ -272,13 +272,13 @@ public class MarketMainScreen extends Screen {
     }
 
     private int getGuiWidth() {
-        int target = (int) (width * 0.72);
-        return Math.clamp(target, Math.min(width - 16, 460), 570);
+        int target = (int) (width * 0.82);
+        return Math.clamp(target, Math.min(width - 16, 520), 650);
     }
 
     private int getGuiHeight() {
-        int target = (int) (height * 0.76);
-        return Math.clamp(target, Math.min(height - 16, 270), 350);
+        int target = (int) (height * 0.86);
+        return Math.clamp(target, Math.min(height - 16, 290), 380);
     }
 
     @Override
@@ -394,10 +394,15 @@ public class MarketMainScreen extends Screen {
 
         // 5. Sidebar Navigation
         Tab[] tabs = Tab.values();
-        int tabHeight = Math.max(20, (footerTop - sidebarTop) / tabs.length);
+        int availableSidebarH = footerTop - sidebarTop;
+        int tabHeight = Math.max(18, availableSidebarH / tabs.length);
         for (int i = 0; i < tabs.length; i++) {
             Tab t = tabs[i];
             int ty = sidebarTop + (i * tabHeight);
+            if (ty + tabHeight > footerTop) {
+                // Prevent overflowing into footer
+                ty = footerTop - tabHeight;
+            }
             boolean isSelected = (t == activeTab);
             boolean isHovered = (bgMouseX >= left + 2 && bgMouseX <= left + sidebarWidth && bgMouseY >= ty && bgMouseY < ty + tabHeight);
 
@@ -429,15 +434,21 @@ public class MarketMainScreen extends Screen {
         }
 
         // 6. Footer Content
+        // Sidebar footer column
+        graphics.text(font, "§8PM // v2.0", left + 8, footerTop + 6, 0xFF475569, false);
+
+        // Footer main status starts to the right of the sidebar (left + sidebarWidth + 8)
+        int footerLeft = left + sidebarWidth + 8;
+        int footerMaxWidth = guiWidth - sidebarWidth - 190;
         String activeMsg = ClientMarketState.getActiveStatusMessage();
         if (!activeMsg.isEmpty()) {
-            drawClampedText(graphics, "§e✦ " + activeMsg, left + 8, footerTop + 6, guiWidth - 180, 0xFFFFFFFF, false);
+            drawClampedText(graphics, "§e✦ " + activeMsg, footerLeft, footerTop + 6, footerMaxWidth, 0xFFFFFFFF, false);
         } else {
             String scanner = ClientMarketState.getOreScannerReport();
             String footerText = (!scanner.isEmpty() && !scanner.equals("OFFLINE"))
                     ? "§bСКАНЕР РУД: §f" + scanner
                     : "§8[M / ESC: Закрыть] §7ВСЁ ИМЕЕТ СВОЮ ЦЕНУ.";
-            drawClampedText(graphics, footerText, left + 8, footerTop + 6, guiWidth - 180, 0xFF94A3B8, false);
+            drawClampedText(graphics, footerText, footerLeft, footerTop + 6, footerMaxWidth, 0xFF94A3B8, false);
         }
 
         String eventBadge = "§6[ " + event.getHeadline() + " ]";
@@ -492,27 +503,27 @@ public class MarketMainScreen extends Screen {
 
         // Card 1: Balance & Liquidity
         drawCard(graphics, left, top, cardWidth, cardHeight, mouseX, mouseY);
-        drawClampedText(graphics, "§7ЛИКВИДНЫЙ КАПИТАЛ", left + 8, top + 6, cardWidth - 16, 0xFF94A3B8, false);
+        drawClampedText(graphics, "§7БАЛАНС СЧЁТА", left + 8, top + 6, cardWidth - 16, 0xFF94A3B8, false);
         drawClampedText(graphics, "§a§l" + formatNumber(account.getCrBalance()) + " CR", left + 8, top + 18, cardWidth - 16, 0xFF10B981, false);
-        drawClampedText(graphics, "§8Заработано: §7" + formatNumber(account.getTotalCrEarned()) + " CR", left + 8, top + 34, cardWidth - 16, 0xFF64748B, false);
-        drawClampedText(graphics, "§8Потрачено: §7" + formatNumber(account.getTotalCrSpent()) + " CR", left + 8, top + 44, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§8Приход: §7" + formatNumber(account.getTotalCrEarned()) + " CR", left + 8, top + 34, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§8Расход: §7" + formatNumber(account.getTotalCrSpent()) + " CR", left + 8, top + 44, cardWidth - 16, 0xFF64748B, false);
 
         // Card 2: Sold Assets Valuation
         int c2Left = left + cardWidth + 6;
         drawCard(graphics, c2Left, top, cardWidth, cardHeight, mouseX, mouseY);
-        drawClampedText(graphics, "§7ПРОДАННЫЕ АКТИВЫ", c2Left + 8, top + 6, cardWidth - 16, 0xFF94A3B8, false);
+        drawClampedText(graphics, "§7АКТИВЫ И ЛИЗИНГ", c2Left + 8, top + 6, cardWidth - 16, 0xFF94A3B8, false);
         drawClampedText(graphics, "§6§l" + formatNumber(account.getTotalSoldAssetsValuation()) + " CR", c2Left + 8, top + 18, cardWidth - 16, 0xFFF59E0B, false);
-        drawClampedText(graphics, "§8Продано статов: §f" + account.getSoldAssetCount() + " категорий", c2Left + 8, top + 34, cardWidth - 16, 0xFF64748B, false);
-        drawClampedText(graphics, "§8Активный лизинг: §d" + account.getActiveLeases().size() + " шт.", c2Left + 8, top + 44, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§8Продано: §f" + account.getSoldAssetCount() + " шт.", c2Left + 8, top + 34, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§8Лизинг: §d" + account.getActiveLeases().size() + " шт.", c2Left + 8, top + 44, cardWidth - 16, 0xFF64748B, false);
 
         // Card 3: Upgrades & Diamonds
         int c3Left = c2Left + cardWidth + 6;
         drawCard(graphics, c3Left, top, cardWidth, cardHeight, mouseX, mouseY);
-        drawClampedText(graphics, "§7АЛМАЗНЫЕ МОДИФИКАЦИИ", c3Left + 8, top + 6, cardWidth - 16, 0xFF94A3B8, false);
-        drawClampedText(graphics, "§b§l" + diamonds + " ♦ §7(В кармане)", c3Left + 8, top + 18, cardWidth - 16, 0xFF38BDF8, false);
+        drawClampedText(graphics, "§7АЛМАЗЫ И VIP", c3Left + 8, top + 6, cardWidth - 16, 0xFF94A3B8, false);
+        drawClampedText(graphics, "§b§l" + diamonds + " ♦ §7(Инвентарь)", c3Left + 8, top + 18, cardWidth - 16, 0xFF38BDF8, false);
         drawClampedText(graphics, "§8Инвестировано: §b" + account.getTotalDiamondsSpent() + " ♦", c3Left + 8, top + 34, cardWidth - 16, 0xFF64748B, false);
         int vipLvl = account.getUpgradeLevel(UpgradeType.VIP_CLIENT);
-        drawClampedText(graphics, "§8VIP Статус: §e" + (vipLvl > 0 ? "Уровень " + vipLvl : "Базовый"), c3Left + 8, top + 44, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§8VIP: §e" + (vipLvl > 0 ? "Уровень " + vipLvl : "Базовый"), c3Left + 8, top + 44, cardWidth - 16, 0xFF64748B, false);
 
         // Market Event Banner
         int bannerY = top + cardHeight + 8;
@@ -528,19 +539,19 @@ public class MarketMainScreen extends Screen {
         int navW = (width - 18) / 4;
         int navH = 24;
 
-        drawButton(graphics, "btn_amber", left, navY, navW, navH, "ПРОГРАММА АКТИВОВ", mouseX, mouseY, () -> {
+        drawButton(graphics, "btn_amber", left, navY, navW, navH, "ПРОГРАММА", mouseX, mouseY, () -> {
             activeTab = Tab.STORY;
             scrollOffset = 0;
             sendMarketAction("TAB_OPENED", "STORY", "", 0, 0.0);
         });
 
-        drawButton(graphics, "btn_green", left + (navW + 6), navY, navW, navH, "ПРОДАЖА АКТИВОВ", mouseX, mouseY, () -> {
+        drawButton(graphics, "btn_green", left + (navW + 6), navY, navW, navH, "ПРОДАЖА", mouseX, mouseY, () -> {
             activeTab = Tab.SELL_ASSETS;
             scrollOffset = 0;
             sendMarketAction("TAB_OPENED", "SELL_ASSETS", "", 0, 0.0);
         });
 
-        drawButton(graphics, "btn_blue", left + (navW + 6) * 2, navY, navW, navH, "МАГАЗИН УЛУЧШЕНИЙ", mouseX, mouseY, () -> {
+        drawButton(graphics, "btn_blue", left + (navW + 6) * 2, navY, navW, navH, "МАГАЗИН", mouseX, mouseY, () -> {
             activeTab = Tab.UPGRADE_STORE;
             scrollOffset = 0;
             sendMarketAction("TAB_OPENED", "UPGRADE_STORE", "", 0, 0.0);
@@ -562,14 +573,14 @@ public class MarketMainScreen extends Screen {
                 ? com.playermarket.story.StoryQuests.STAGES.get(curStage - 1).name()
                 : "ЭТАП " + curStage;
 
-        drawClampedText(graphics, "§e📋 ТЕКУЩАЯ МИССИЯ: §fЭтап " + curStage + " — " + stageTitle, left + 8, archY + 7, width / 2, 0xFFFBBF24, false);
-        drawClampedText(graphics, "§a§lАРХЕТИП: §f" + determineArchetype(account), left + width / 2 + 8, archY + 7, width / 2 - 16, 0xFF10B981, false);
+        drawClampedText(graphics, "§e📋 ТЕКУЩАЯ МИССИЯ: §fЭтап " + curStage + " — " + stageTitle, left + 8, archY + 6, width - 16, 0xFFFBBF24, false);
+        drawClampedText(graphics, "§a🎭 ВАШ АРХЕТИП: §f" + determineArchetype(account), left + 8, archY + 18, width - 16, 0xFF10B981, false);
 
         int completedTasks = account.getStoryProgress().getCompletedTasks().size();
-        drawClampedText(graphics, "§7Сюжет корпорации: монетизируйте характеристики, выполняйте задачи во вкладке «ПРОГРАММА» (" + completedTasks + " завершено).",
-                left + 8, archY + 21, width - 16, 0xFFCBD5E1, false);
-        drawClampedText(graphics, "§8Читайте входящие письма от Mr. Ledger в разделе «ПОЧТА», повышайте допуск и готовьтесь к финальной сделке.",
-                left + 8, archY + 34, width - 16, 0xFF94A3B8, false);
+        drawClampedText(graphics, "§7Сюжет корпорации: монетизируйте характеристики, выполняйте задачи («ПРОГРАММА» — " + completedTasks + " завершено).",
+                left + 8, archY + 30, width - 16, 0xFFCBD5E1, false);
+        drawClampedText(graphics, "§8Читайте входящие письма от Mr. Ledger в разделе «ПОЧТА», повышайте допуск и готовьтесь к финалу.",
+                left + 8, archY + 42, width - 16, 0xFF94A3B8, false);
     }
 
     // ==========================================
@@ -869,24 +880,8 @@ public class MarketMainScreen extends Screen {
             drawSprite(graphics, "hud_bg", readerLeft + 8, attachY, readerWidth - 16, 28, 0xFF172030);
 
             if ("CONTRACT_OFFER".equalsIgnoreCase(currentMsg.rewardType())) {
-                if (currentMsg.rewardClaimed()) {
-                    drawClampedText(graphics, "§8✔ Предложение рассмотрено",
-                            readerLeft + 16, attachY + 9, readerWidth - 32, 0xFF64748B, false);
-                } else {
-                    int btnW = 96;
-                    int btnH = 20;
-                    int btnY = attachY + 4;
-                    int acceptX = readerLeft + readerWidth - (btnW * 2) - 16;
-                    int declineX = readerLeft + readerWidth - btnW - 8;
-
-                    final String cId = currentMsg.id();
-                    drawSmallButton(graphics, "btn_green", acceptX, btnY, btnW, btnH, "✔ ПРИНЯТЬ", mouseX, mouseY, () -> {
-                        sendMarketAction("ACCEPT_SHARED_CONTRACT", cId, "", 0, 0.0);
-                    });
-                    drawSmallButton(graphics, "btn_red", declineX, btnY, btnW, btnH, "✖ ОТКЛОНИТЬ", mouseX, mouseY, () -> {
-                        sendMarketAction("DECLINE_SHARED_CONTRACT", cId, "", 0, 0.0);
-                    });
-                }
+                drawClampedText(graphics, "§e[!] Подпишите официальный договор на бумаге (Мятое письмо в инвентаре)",
+                        readerLeft + 16, attachY + 9, readerWidth - 32, 0xFFFBBF24, false);
             } else if (currentMsg.rewardClaimed()) {
                 drawClampedText(graphics, "§8✔ Корпоративное вложение получено (" + currentMsg.rewardAmount() + " " + currentMsg.rewardType() + ")",
                         readerLeft + 16, attachY + 9, readerWidth - 32, 0xFF64748B, false);
@@ -989,15 +984,15 @@ public class MarketMainScreen extends Screen {
             drawSprite(graphics, "card", left, cy, width, cardHeight, 0xFF10141D);
 
             // === ROW 1: Name, Status, Progress Bar, [?] Help Tooltip, [⟲ Выкуп] ===
-            String assetTitle = "§f§l" + asset.getDisplayName() + " §7[" + asset.getCategory().getDisplayName() + "]";
-            drawClampedText(graphics, assetTitle, left + 6, cy + 4, 160, 0xFFFFFFFF, false);
+            String assetTitle = "§f§l" + asset.getDisplayName();
+            drawClampedText(graphics, assetTitle, left + 6, cy + 4, 185, 0xFFFFFFFF, false);
 
-            String statusStr = String.format(Locale.ROOT, "§7Продано: §e%.0f%% §8(квота %.0f%%)", totalSold * 100.0, maxAllowed * 100.0);
-            drawClampedText(graphics, statusStr, left + 170, cy + 4, 110, 0xFFFBBF24, false);
+            String statusStr = String.format(Locale.ROOT, "§7Продано: §e%.0f%% §8/ %.0f%%", totalSold * 100.0, maxAllowed * 100.0);
+            drawClampedText(graphics, statusStr, left + 195, cy + 4, 90, 0xFFFBBF24, false);
 
-            int barW = 65;
+            int barW = 60;
             int barH = 5;
-            drawProgressBar(graphics, left + 285, cy + 6, barW, barH, totalSold / maxAllowed, totalSold > 0.65 ? "bar_red" : "bar_green");
+            drawProgressBar(graphics, left + 290, cy + 6, barW, barH, totalSold / maxAllowed, totalSold > 0.65 ? "bar_red" : "bar_green");
 
             // Help [?] button in top right
             int helpW = 14;
@@ -1053,7 +1048,7 @@ public class MarketMainScreen extends Screen {
                 long p10 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.10, 0);
                 boolean a10 = canSellMore && (totalSold + 0.10 <= maxAllowed + 0.001);
                 int b0X = left + 6 + 0 * (singleBtnW + btnGap);
-                drawSmallButton(graphics, a10 ? "btn_green" : "btn_gray", b0X, row2Y, singleBtnW, row2H, "10% (+" + p10 + ")", mouseX, mouseY, () -> {
+                drawSmallButton(graphics, a10 ? "btn_green" : "btn_gray", b0X, row2Y, singleBtnW, row2H, "10%", mouseX, mouseY, () -> {
                     if (a10) sendMarketAction("SELL_ASSET", asset.getId(), "", 0, 0.10);
                 }, "Продать 10% характеристики навсегда за +" + p10 + " CR");
 
@@ -1061,7 +1056,7 @@ public class MarketMainScreen extends Screen {
                 long p25 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.25, 0);
                 boolean a25 = canSellMore && (totalSold + 0.25 <= maxAllowed + 0.001);
                 int b1X = left + 6 + 1 * (singleBtnW + btnGap);
-                drawSmallButton(graphics, a25 ? "btn_green" : "btn_gray", b1X, row2Y, singleBtnW, row2H, "25% (+" + p25 + ")", mouseX, mouseY, () -> {
+                drawSmallButton(graphics, a25 ? "btn_green" : "btn_gray", b1X, row2Y, singleBtnW, row2H, "25%", mouseX, mouseY, () -> {
                     if (a25) sendMarketAction("SELL_ASSET", asset.getId(), "", 0, 0.25);
                 }, "Продать 25% характеристики навсегда за +" + p25 + " CR");
 
@@ -1069,7 +1064,7 @@ public class MarketMainScreen extends Screen {
                 long p50 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.50, 0);
                 boolean a50 = canSellMore && (totalSold + 0.50 <= maxAllowed + 0.001);
                 int b2X = left + 6 + 2 * (singleBtnW + btnGap);
-                drawSmallButton(graphics, a50 ? "btn_green" : "btn_gray", b2X, row2Y, singleBtnW, row2H, "50% (+" + p50 + ")", mouseX, mouseY, () -> {
+                drawSmallButton(graphics, a50 ? "btn_green" : "btn_gray", b2X, row2Y, singleBtnW, row2H, "50%", mouseX, mouseY, () -> {
                     if (a50) sendMarketAction("SELL_ASSET", asset.getId(), "", 0, 0.50);
                 }, "Продать 50% характеристики навсегда за +" + p50 + " CR (в 5 раз больше, чем за 10%)");
 
@@ -1077,7 +1072,7 @@ public class MarketMainScreen extends Screen {
                 long l1 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.20, 1);
                 boolean al1 = canSellMore && (totalSold + 0.20 <= maxAllowed + 0.001);
                 int b3X = left + 6 + 3 * (singleBtnW + btnGap);
-                drawSmallButton(graphics, al1 ? "btn_blue" : "btn_gray", b3X, row2Y, singleBtnW, row2H, "1д (+" + l1 + ")", mouseX, mouseY, () -> {
+                drawSmallButton(graphics, al1 ? "btn_blue" : "btn_gray", b3X, row2Y, singleBtnW, row2H, "Лизинг 1д", mouseX, mouseY, () -> {
                     if (al1) sendMarketAction("LEASE_ASSET", asset.getId(), "", 1, 0.20);
                 }, "Лизинг 20% стата на 1 день: +" + l1 + " CR сразу + пассивный доход");
 
@@ -1085,7 +1080,7 @@ public class MarketMainScreen extends Screen {
                 long l3 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.20, 3);
                 boolean al3 = canSellMore && (totalSold + 0.20 <= maxAllowed + 0.001);
                 int b4X = left + 6 + 4 * (singleBtnW + btnGap);
-                drawSmallButton(graphics, al3 ? "btn_amber" : "btn_gray", b4X, row2Y, singleBtnW, row2H, "3д (+" + l3 + ")", mouseX, mouseY, () -> {
+                drawSmallButton(graphics, al3 ? "btn_amber" : "btn_gray", b4X, row2Y, singleBtnW, row2H, "Лизинг 3д", mouseX, mouseY, () -> {
                     if (al3) sendMarketAction("LEASE_ASSET", asset.getId(), "", 3, 0.20);
                 }, "Лизинг 20% стата на 3 дня: +" + l3 + " CR сразу + повышенный процент");
 
@@ -1093,7 +1088,7 @@ public class MarketMainScreen extends Screen {
                 long l5 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.20, 5);
                 boolean al5 = canSellMore && (totalSold + 0.20 <= maxAllowed + 0.001);
                 int b5X = left + 6 + 5 * (singleBtnW + btnGap);
-                drawSmallButton(graphics, al5 ? "btn_amber" : "btn_gray", b5X, row2Y, singleBtnW, row2H, "5д (+" + l5 + ")", mouseX, mouseY, () -> {
+                drawSmallButton(graphics, al5 ? "btn_amber" : "btn_gray", b5X, row2Y, singleBtnW, row2H, "Лизинг 5д", mouseX, mouseY, () -> {
                     if (al5) sendMarketAction("LEASE_ASSET", asset.getId(), "", 5, 0.20);
                 }, "Лизинг 20% стата на 5 дней: +" + l5 + " CR сразу + максимальный процент");
             }
@@ -2152,26 +2147,18 @@ public class MarketMainScreen extends Screen {
 
     private void renderCustomMultilineTooltip(GuiGraphicsExtractor graphics, String tooltipText, int mouseX, int mouseY) {
         if (tooltipText == null || tooltipText.isEmpty()) return;
-        String cleanText = tooltipText.replace("\r", "");
-        List<Component> components = new ArrayList<>();
-        int maxLinePx = 240;
-        for (String rawParagraph : cleanText.split("\n")) {
-            String p = rawParagraph.trim();
+        String clean = tooltipText.replace("\r", "");
+        List<net.minecraft.util.FormattedCharSequence> wrappedLines = new ArrayList<>();
+        int maxLinePx = 220;
+        for (String paragraph : clean.split("\n")) {
+            String p = paragraph.trim();
             if (p.isEmpty()) {
-                components.add(Component.literal(" "));
-                continue;
-            }
-            if (font.width(p) <= maxLinePx) {
-                components.add(Component.literal(p));
+                wrappedLines.add(net.minecraft.util.FormattedCharSequence.EMPTY);
             } else {
-                List<net.minecraft.network.chat.FormattedText> lines =
-                        font.getSplitter().splitLines(Component.literal(p), maxLinePx, net.minecraft.network.chat.Style.EMPTY);
-                for (var line : lines) {
-                    components.add(Component.literal(line.getString()));
-                }
+                wrappedLines.addAll(font.split(Component.literal(p), maxLinePx));
             }
         }
-        graphics.setComponentTooltipForNextFrame(font, components, mouseX, mouseY);
+        graphics.setTooltipForNextFrame(font, wrappedLines, mouseX, mouseY);
     }
 
     private void renderNewsModal(GuiGraphicsExtractor graphics, NewsArticle article, int screenW, int screenH, int mouseX, int mouseY) {
