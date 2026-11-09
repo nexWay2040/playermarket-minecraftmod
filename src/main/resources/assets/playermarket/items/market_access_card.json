@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "playermarket:item/market_access_card"
+  }
+}

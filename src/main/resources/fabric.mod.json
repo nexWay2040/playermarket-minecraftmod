@@ -1,31 +1,31 @@
 {
 	"schemaVersion": 1,
-	"id": "modid",
+	"id": "playermarket",
 	"version": "${version}",
-	"name": "Example Mod",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"name": "Player Market",
+	"description": "EVERYTHING HAS A PRICE. Your body, your assets, our market. Sell player stats for CR, trade resources, buy diamond augmentations, and build corporate archetypes.",
 	"authors": [
-		"Me!"
+		"Player Market Corp."
 	],
 	"contact": {
 		"homepage": "https://fabricmc.net/",
 		"sources": "https://github.com/FabricMC/fabric-example-mod"
 	},
 	"license": "CC0-1.0",
-	"icon": "assets/modid/icon.png",
+	"icon": "assets/playermarket/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"com.example.ExampleMod"
+			"com.playermarket.PlayerMarketMod"
 		],
 		"client": [
-			"com.example.client.ExampleModClient"
+			"com.playermarket.client.PlayerMarketClient"
 		]
 	},
 	"mixins": [
-		"modid.mixins.json",
+		"playermarket.mixins.json",
 		{
-			"config": "modid.client.mixins.json",
+			"config": "playermarket.client.mixins.json",
 			"environment": "client"
 		}
 	],
