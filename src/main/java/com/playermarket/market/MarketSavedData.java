@@ -33,7 +33,7 @@ public class MarketSavedData extends SavedData {
 
     private final Map<UUID, PlayerMarketAccount> accounts = new HashMap<>();
     private MarketEvent activeEvent = MarketEvent.STABLE_MARKET;
-    private long nextEventSwitchTick = 18000L;
+    private long nextEventSwitchTick = 3600L;
     private SharedCampaignData campaignData = new SharedCampaignData();
 
     public MarketSavedData() {
@@ -80,7 +80,7 @@ public class MarketSavedData extends SavedData {
 
     public void setActiveEvent(MarketEvent activeEvent, long currentTick) {
         this.activeEvent = activeEvent;
-        long duration = Math.max(12000L, MarketConfig.get().marketEventDurationTicks);
+        long duration = Math.min(Math.max(3600L, MarketConfig.get().marketEventDurationTicks), 6000L);
         this.nextEventSwitchTick = currentTick + duration;
         setDirty();
     }

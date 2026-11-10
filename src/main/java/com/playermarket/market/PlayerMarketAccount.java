@@ -142,7 +142,9 @@ public class PlayerMarketAccount {
     public void ensureDefaultContracts() {
         // Migrate legacy English contracts or contracts without diamond rewards
         if (!contracts.isEmpty()) {
-            if (contracts.getFirst().title().startsWith("INDUSTRIAL") || contracts.stream().anyMatch(c -> c.rewardDiamonds() <= 0)) {
+            if (contracts.getFirst().title().startsWith("INDUSTRIAL")
+                    || contracts.stream().anyMatch(c -> c.rewardDiamonds() <= 0)
+                    || contracts.stream().anyMatch(c -> c.id().equals("survival_shift") && c.targetProgress() == 24000 && c.currentProgress() == 0)) {
                 contracts.clear();
             }
         }
@@ -150,45 +152,45 @@ public class PlayerMarketAccount {
 
         contracts.add(new ContractEntry(
                 "mining_iron", "MINE_ORE",
-                "Горная квота: 16 руд",
-                "Добудьте 16 любых руд (железо, золото, медь, уголь, алмазы).",
-                16, 0, 650L, 15, false, false, 2, 0L, 250L
+                "Горная квота: 5 руд",
+                "Добудьте 5 любых руд (железо, золото, медь, уголь, алмазы).",
+                5, 0, 500L, 10, false, false, 2, 0L, 200L
         ));
         contracts.add(new ContractEntry(
                 "resource_delivery", "SELL_RESOURCES",
-                "Поставка сырья: 64 предм.",
-                "Продайте 64 предмета на Рынке Ресурсов.",
-                64, 0, 500L, 10, false, false, 1, 0L, 200L
+                "Поставка сырья: 16 предм.",
+                "Продайте 16 предметов на Рынке Ресурсов.",
+                16, 0, 450L, 10, false, false, 1, 0L, 180L
         ));
         contracts.add(new ContractEntry(
                 "experience_yield", "GAIN_XP",
-                "Сбор данных: 150 опыта",
-                "Получите 150 единиц опыта (XP) из любого источника.",
-                150, 0, 550L, 12, false, false, 2, 0L, 220L
+                "Сбор данных: 25 опыта",
+                "Получите 25 единиц опыта (XP) из любого источника.",
+                25, 0, 450L, 10, false, false, 2, 0L, 180L
         ));
         contracts.add(new ContractEntry(
                 "survival_shift", "SURVIVE_TICKS",
-                "Био-вахта: Выжить 1 день",
-                "Проживите 1 полный игровой день (20 минут) без смертей.",
-                24000, 0, 800L, 25, false, false, 3, 0L, 320L
+                "Био-вахта: Выжить 1 мин",
+                "Продержитесь 1 минуту активной смены без гибели.",
+                1200, 0, 600L, 15, false, false, 3, 0L, 240L
         ));
         contracts.add(new ContractEntry(
                 "combat_security", "KILL_MOBS",
-                "Зачистка сектора: 12 врагов",
-                "Ликвидируйте 12 враждебных монстров.",
-                12, 0, 750L, 20, false, false, 3, 0L, 300L
+                "Зачистка сектора: 4 врага",
+                "Ликвидируйте 4 враждебных монстров.",
+                4, 0, 600L, 15, false, false, 3, 0L, 240L
         ));
         contracts.add(new ContractEntry(
                 "market_volume", "MARKET_TRADES",
-                "Активный трейдинг: 4 сделки",
-                "Совершите 4 любые рыночные операции в терминале.",
-                4, 0, 650L, 15, false, false, 4, 0L, 260L
+                "Активный трейдинг: 2 сделки",
+                "Совершите 2 любые рыночные операции в терминале.",
+                2, 0, 500L, 12, false, false, 4, 0L, 200L
         ));
         contracts.add(new ContractEntry(
                 "asset_repayment", "BUYBACK_ASSET",
                 "Возврат капитала: Выкуп стата",
                 "Выкупите обратно любую проданную характеристику.",
-                1, 0, 1000L, 30, false, false, 5, 0L, 400L
+                1, 0, 800L, 20, false, false, 5, 0L, 320L
         ));
     }
 

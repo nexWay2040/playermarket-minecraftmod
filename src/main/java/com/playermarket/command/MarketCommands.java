@@ -150,27 +150,36 @@ public class MarketCommands {
                                 .then(Commands.argument("stage", IntegerArgumentType.integer(1, 6))
                                         .executes(ctx -> {
                                             ServerPlayer player = ctx.getSource().getPlayerOrException();
+                                            var server = player.level().getServer();
                                             int stage = IntegerArgumentType.getInteger(ctx, "stage");
-                                            MarketSavedData data = MarketSavedData.get(player.level().getServer());
+                                            MarketSavedData data = MarketSavedData.get(server);
+                                            var campaign = data.getCampaignData();
+                                            campaign.setCampaignAccepted(true);
+                                            campaign.setCurrentStage(stage);
                                             PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
-                                            com.playermarket.story.StoryManager.advanceStage(player, acc, stage, player.level().getServer().overworld().getGameTime());
+                                            com.playermarket.story.StoryManager.advanceStage(player, acc, stage, server.overworld().getGameTime());
                                             data.setDirty();
-                                            MarketNetworking.sendSyncToPlayer(player, "§aЭтап программы установлен: " + stage);
-                                            ctx.getSource().sendSuccess(() -> Component.literal("§8[§aPLAYER MARKET§8] §aStory stage set to " + stage + " for " + player.getName().getString()), true);
+                                            MarketNetworking.broadcastSync(server, "§aЭтап программы установлен: " + stage);
+                                            ctx.getSource().sendSuccess(() -> Component.literal("§8[§aPLAYER MARKET§8] §aStory stage set to " + stage + " (shared campaign synced)"), true);
                                             return 1;
                                         })))
                         .then(Commands.literal("reset")
                                 .executes(ctx -> {
                                     ServerPlayer player = ctx.getSource().getPlayerOrException();
-                                    MarketSavedData data = MarketSavedData.get(player.level().getServer());
+                                    var server = player.level().getServer();
+                                    MarketSavedData data = MarketSavedData.get(server);
+                                    var campaign = data.getCampaignData();
+                                    campaign.setCurrentStage(1);
+                                    campaign.getCompletedTasks().clear();
+                                    campaign.getCompletedSideQuests().clear();
                                     PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
                                     acc.getStoryProgress().setCurrentStage(1);
                                     acc.getStoryProgress().getCompletedTasks().clear();
                                     acc.getStoryProgress().getClaimedTaskRewards().clear();
                                     acc.getStoryProgress().setFinalChoice("NONE");
                                     data.setDirty();
-                                    MarketNetworking.sendSyncToPlayer(player, "§aПрогресс сюжета сброшен на Этап 1");
-                                    ctx.getSource().sendSuccess(() -> Component.literal("§8[§aPLAYER MARKET§8] §eStory reset to Stage 1 for " + player.getName().getString()), true);
+                                    MarketNetworking.broadcastSync(server, "§aПрогресс сюжета сброшен на Этап 1");
+                                    ctx.getSource().sendSuccess(() -> Component.literal("§8[§aPLAYER MARKET§8] §eStory reset to Stage 1"), true);
                                     return 1;
                                 })))
                 .then(Commands.literal("reset")

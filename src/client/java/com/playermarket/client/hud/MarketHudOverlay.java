@@ -11,6 +11,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,21 +21,31 @@ import java.util.Locale;
 
 public class MarketHudOverlay {
 
+    private static final Identifier ICON_CR = PlayerMarketMod.id("textures/gui/icons/currency_cr.png");
+    private static final Identifier ICON_DIAMOND = PlayerMarketMod.id("textures/gui/icons/currency_diamond.png");
+
     public static void render(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.level == null) return;
-        if (client.gui.screen() instanceof MarketMainScreen) return;
         if (client.getDebugOverlay() != null && client.getDebugOverlay().showDebugScreen()) return;
 
         PlayerMarketAccount account = ClientMarketState.getAccount();
         SharedCampaignData campaign = ClientMarketState.getSharedCampaign();
 
-        // Completely hide HUD during ending cinematic or when market access is permanently revoked
+        // Fullscreen responsive ending cinematic renders even while screen closes / card is blocked
+        if ("FINAL_SETTLEMENT_ACTIVE".equals(campaign.getEndingState())
+                || (campaign.isEndingStarted() && !campaign.isDisconnectSent() && !"SETTLED".equals(campaign.getEndingState()))) {
+            renderEndingCinematic(graphics, client, campaign);
+            return;
+        }
+
+        if (client.gui.screen() instanceof MarketMainScreen) return;
+
+        // Completely hide HUD after ending settlement or when market access is permanently revoked
         if (account.isMarketCardBlocked()
                 || account.isPermanentImpaired()
                 || campaign.isEndingStarted()
                 || campaign.isEndingApplied()
-                || "FINAL_SETTLEMENT_ACTIVE".equals(campaign.getEndingState())
                 || "SETTLED".equals(campaign.getEndingState())) {
             return;
         }
@@ -55,7 +68,9 @@ public class MarketHudOverlay {
 
         List<String> lines = new ArrayList<>();
         lines.add("§a§lPLAYER MARKET §8// §7[M]");
-        lines.add(String.format(Locale.ROOT, "§aCR: §f§l%s §8| §b♦: §f§l%d", formatNumber(account.getCrBalance()), diamonds));
+        String crDisplay = formatNumber(account.getCrBalance());
+        String currencyPrefix = "   §f§l" + crDisplay + " §aCR §8| ";
+        lines.add(currencyPrefix + "   §b§l" + diamonds);
 
         if (event != MarketEvent.STABLE_MARKET) {
             lines.add("§6Событие: §e" + event.getHeadline());
@@ -153,10 +168,134 @@ public class MarketHudOverlay {
 
         // Render Lines
         int lineY = y + 5;
-        for (String line : lines) {
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
             graphics.text(font, line, x + 6, lineY, 0xFFFFFFFF, true);
+            if (i == 1) {
+                graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_CR, x + 5, lineY - 1, 0.0f, 0.0f, 9, 9, 16, 16, 16, 16);
+                int diaX = x + 6 + font.width(currencyPrefix);
+                graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_DIAMOND, diaX + 1, lineY - 1, 0.0f, 0.0f, 9, 9, 16, 16, 16, 16);
+            }
             lineY += 10;
         }
+    }
+
+    private static void renderEndingCinematic(GuiGraphicsExtractor graphics, Minecraft client, SharedCampaignData campaign) {
+        Font font = client.font;
+        int sw = client.getWindow().getGuiScaledWidth();
+        int sh = client.getWindow().getGuiScaledHeight();
+        long elapsedMs = ClientMarketState.getLocalEndingElapsedMs();
+        float progress = Math.min(1.0f, elapsedMs / 10000.0f);
+
+        // Smooth dark vignette intensifying as liquidation proceeds
+        int bgAlpha = (int) (0x48 + progress * 0x70);
+        int bgTint = (bgAlpha << 24) | (elapsedMs >= 6000L ? 0x160408 : 0x05080F);
+        graphics.fill(0, 0, sw, sh, bgTint);
+
+        // Responsive top & bottom cinematic letterbox bars (slide in smoothly over first 500ms)
+        float slide = Math.min(1.0f, elapsedMs / 500.0f);
+        int targetBarH = Math.max(24, Math.min(48, sh / 7));
+        int barH = Math.max(4, Math.round(targetBarH * slide));
+        int accent = elapsedMs >= 4000L ? 0xFFEF4444 : 0xFF10B981;
+        graphics.fill(0, 0, sw, barH, 0xF205070B);
+        graphics.fill(0, barH - 1, sw, barH, accent);
+        graphics.fill(0, sh - barH, sw, sh, 0xF205070B);
+        graphics.fill(0, sh - barH, sw, sh - barH + 1, accent);
+
+        // Determine current cinematic phase matching EndingSequenceManager ticks (0..200)
+        String tag;
+        String title;
+        String subtitle;
+        int titleColor;
+        int step;
+        if (elapsedMs < 2000L) {
+            step = 1;
+            tag = "[ CONTRACT EXECUTED // +100,000 CR ]";
+            title = Component.translatableWithFallback("ending.playermarket.phase1.title", "FINAL SETTLEMENT").getString();
+            subtitle = Component.translatableWithFallback("ending.playermarket.phase1.sub",
+                    "Расчёт одобрен. Средства зачислены на корпоративный счёт.").getString();
+            titleColor = 0xFFFBBF24;
+        } else if (elapsedMs < 4000L) {
+            step = 2;
+            tag = "[ BIOMETRIC COLLATERAL RECOVERY ]";
+            title = Component.translatableWithFallback("ending.playermarket.phase2.title", "ЛИКВИДАЦИЯ АКТИВОВ").getString();
+            subtitle = Component.translatableWithFallback("ending.playermarket.phase2.sub",
+                    "Сбор биологического залога согласно условиям сделки...").getString();
+            titleColor = 0xFFF59E0B;
+        } else if (elapsedMs < 6000L) {
+            step = 3;
+            tag = "[ CORPORATE REGISTRY OVERRIDE ]";
+            title = Component.translatableWithFallback("ending.playermarket.phase3.title", "САНКЦИИ АКТИВИРОВАНЫ").getString();
+            subtitle = Component.translatableWithFallback("ending.playermarket.phase3.sub",
+                    "Аннулирование доступа к терминалу и конфискация портфеля...").getString();
+            titleColor = 0xFFEF4444;
+        } else if (elapsedMs < 8000L) {
+            step = 4;
+            tag = "[ SECTION 17.4 ENFORCEMENT ]";
+            title = Component.translatableWithFallback("ending.playermarket.phase4.title", "СТАТЬЯ 17.4").getString();
+            subtitle = Component.translatableWithFallback("ending.playermarket.phase4.sub",
+                    "Установка постоянного ограничителя. Возврат невозможен.").getString();
+            titleColor = 0xFFEF4444;
+        } else {
+            step = 5;
+            tag = "[ SUBJECT STATUS: EXPIRED ]";
+            title = Component.translatableWithFallback("ending.playermarket.phase5.title", "ДОСТУП АННУЛИРОВАН").getString();
+            subtitle = Component.translatableWithFallback("ending.playermarket.phase5.sub",
+                    "Права собственности переданы корпорации. Вы больше не клиент.").getString();
+            titleColor = 0xFFDC2626;
+        }
+
+        int centerY = sh / 2;
+
+        // Center card panel for crystal readability over any world lighting
+        int cardW = Math.min(Math.max(240, sw - 48), 420);
+        int wrapW = Math.max(120, cardW - 28);
+        List<FormattedCharSequence> subLines = font.split(Component.literal(subtitle), wrapW);
+        int cardH = 74 + subLines.size() * 11;
+        int cardX = (sw - cardW) / 2;
+        int cardY = centerY - cardH / 2;
+        graphics.blitSprite(RenderPipelines.GUI_TEXTURED, PlayerMarketMod.id("hud_bg"), cardX, cardY, cardW, cardH);
+
+        // Phase tag header inside top of card
+        int tagW = font.width(tag);
+        if (tagW <= cardW - 16) {
+            graphics.text(font, tag, (sw - tagW) / 2, cardY + 10, accent, true);
+        } else {
+            graphics.text(font, font.plainSubstrByWidth(tag, cardW - 20), cardX + 10, cardY + 10, accent, true);
+        }
+
+        // Scaled responsive title — automatically steps down scale so it NEVER overflows screen width
+        int rawTitleW = Math.max(1, font.width(title));
+        float maxFitW = Math.max(100.0f, cardW - 24.0f);
+        float titleScale = rawTitleW * 2.0f <= maxFitW ? 2.0f : (rawTitleW * 1.5f <= maxFitW ? 1.5f : Math.min(1.0f, maxFitW / rawTitleW));
+        graphics.pose().pushMatrix();
+        graphics.pose().translate(sw / 2.0f, cardY + 32.0f);
+        graphics.pose().scale(titleScale, titleScale);
+        graphics.text(font, title, -rawTitleW / 2, -4, titleColor, true);
+        graphics.pose().popMatrix();
+
+        // Wrapped multi-line subtitle guaranteed within card bounds
+        int subY = cardY + 46;
+        for (FormattedCharSequence seq : subLines) {
+            graphics.text(font, seq, (sw - font.width(seq)) / 2, subY, 0xFFE2E8F0, true);
+            subY += 11;
+        }
+
+        // Animated transfer progress bar
+        int barW = Math.min(240, cardW - 32);
+        int barX = (sw - barW) / 2;
+        int progY = cardY + cardH - 18;
+        graphics.blitSprite(RenderPipelines.GUI_TEXTURED, PlayerMarketMod.id("bar_bg"), barX, progY, barW, 6);
+        int fillW = Math.max(4, Math.round(barW * progress));
+        String fillSprite = elapsedMs < 4000L ? "bar_green" : "bar_red";
+        graphics.blitSprite(RenderPipelines.GUI_TEXTURED, PlayerMarketMod.id(fillSprite), barX, progY, fillW, 6);
+
+        // Telemetry counter inside bottom letterbox bar
+        String footerLeft = String.format(Locale.ROOT, "PROTOCOL // STEP %d/5", step);
+        String footerRight = Math.min(100, Math.round(progress * 100)) + "%";
+        int footerY = sh - (barH / 2) - 4;
+        graphics.text(font, footerLeft, 12, footerY, 0xFF94A3B8, false);
+        graphics.text(font, footerRight, sw - font.width(footerRight) - 12, footerY, accent, false);
     }
 
     private static String cleanShortTitle(String title) {

@@ -457,9 +457,9 @@ public class MarketAttributeApplier {
         long gameTime = server.overworld().getGameTime();
 
         // Check dynamic Market Event rotation:
-        // Enforce a 15-minute peace period (18,000 ticks) upon world start before any event switch can occur,
-        // and enforce minimum 10-minute intervals (12,000 ticks) between subsequent events.
-        if (gameTime >= 18000L && gameTime >= data.getNextEventSwitchTick()) {
+        // Initial 3-minute onboarding period (3,600 ticks), then switch every ~4 minutes (4,800 ticks)
+        // so players actively experience booms and crashes during a ~15-20 minute session.
+        if (gameTime >= 3600L && gameTime >= data.getNextEventSwitchTick()) {
             MarketEvent[] events = MarketEvent.values();
             MarketEvent current = data.getActiveEvent();
             MarketEvent next = current;
@@ -508,11 +508,18 @@ public class MarketAttributeApplier {
                     }
                     long dayTime = player.level().getGameTime() % 24000L;
                     boolean isNight = dayTime >= 13000L && dayTime <= 23000L;
+                    boolean inCave = player.blockPosition().getY() < 56 || !player.level().canSeeSky(player.blockPosition());
+                    if (isNight || inCave) {
+                        campaign.addContribution("cave_seconds", 1);
+                    }
                     if (isNight && player.level().canSeeSky(player.blockPosition())) {
                         campaign.addContribution("night_seconds", 1);
                         if (account.getSoldAssetCount() > 0) {
                             campaign.addContribution("night_stress_seconds", 1);
                         }
+                    }
+                    if (inCave && account.getSoldAssetCount() > 0) {
+                        campaign.addContribution("cave_stress_seconds", 1);
                     }
                     if (player.getDeltaMovement().horizontalDistanceSqr() > 0.001) {
                         campaign.addContribution("distance_traveled", 3);

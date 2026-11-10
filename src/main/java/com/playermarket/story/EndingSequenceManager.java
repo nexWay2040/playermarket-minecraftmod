@@ -7,9 +7,7 @@ import com.playermarket.market.MarketSavedData;
 import com.playermarket.market.PlayerMarketAccount;
 import com.playermarket.network.MarketNetworking;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
-import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
-import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
+import net.minecraft.network.protocol.game.ClientboundClearTitlesPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -53,8 +51,8 @@ public class EndingSequenceManager {
             }
             player.getInventory().setChanged();
 
-            // Set Title Animation Timing (fade-in 10, stay 50, fade-out 10)
-            player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 50, 10));
+            // Clear any huge vanilla titles; client HUD renders responsive wrapped fullscreen takeover
+            player.connection.send(new ClientboundClearTitlesPacket(true));
         }
 
         for (UUID uuid : campaignData.getRegisteredParticipants()) {
@@ -127,25 +125,25 @@ public class EndingSequenceManager {
                 player.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 40, 0, false, false, false));
 
                 if (elapsed == 0) {
-                    sendTitle(player, "§6§lFINAL SETTLEMENT", "§eAccount Approved // +100,000 CR");
+                    player.sendSystemMessage(Component.literal("§6§l[FINAL SETTLEMENT] §eСчёт одобрен // +100,000 CR начислено."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 0.8f);
                 } else if (elapsed == 40) {
-                    sendTitle(player, "§c§lLIQUIDATING ASSETS...", "§7Collecting Biological Collateral");
+                    player.sendSystemMessage(Component.literal("§c§l[ЛИКВИДАЦИЯ] §7Сбор биологического залога..."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.BEACON_DEACTIVATE, SoundSource.PLAYERS, 1.0f, 0.6f);
                 } else if (elapsed == 80) {
-                    sendTitle(player, "§4§lREVOKING ACCESS...", "§cClosing Portfolios & Accounts");
+                    player.sendSystemMessage(Component.literal("§4§l[САНКЦИИ] §cАннулирование доступа и портфеля..."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.ELDER_GUARDIAN_CURSE, SoundSource.PLAYERS, 0.8f, 0.7f);
                 } else if (elapsed == 120) {
-                    sendTitle(player, "§4§lPERMANENT MODIFICATIONS", "§7Section 17.4 Protocol Applied");
+                    player.sendSystemMessage(Component.literal("§4§l[СТАТЬЯ 17.4] §7Применение постоянных модификаций..."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.ITEM_BREAK, SoundSource.PLAYERS, 1.0f, 0.5f);
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 0.8f, 0.6f);
                 } else if (elapsed == 160) {
-                    sendTitle(player, "§c§lACCOUNT ACCESS REVOKED.", "§4Asset Ownership Transferred.");
+                    player.sendSystemMessage(Component.literal("§c§l[ДОСТУП АННУЛИРОВАН] §4Права собственности переданы корпорации."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.WITHER_SPAWN, SoundSource.PLAYERS, 0.7f, 0.5f);
                 } else if (elapsed >= 200) {
@@ -158,17 +156,12 @@ public class EndingSequenceManager {
                     for (ServerPlayer target : server.getPlayerList().getPlayers()) {
                         campaignData.getDisconnectedPlayers().add(target.getUUID());
                         MarketAttributeApplier.syncPlayerModifiers(target);
-                        target.connection.disconnect(Component.literal("§c§lACCOUNT OWNERSHIP TRANSFERRED\n§7Market Access Revoked (Section 17.4)\n§8Your biological assets have been liquidated."));
+                        target.connection.disconnect(Component.literal("§c§lДОСТУП ЗАБЛОКИРОВАН // СТАТЬЯ 17.4\n§7Права на активы переданы корпорации.\n§8Вы больше не клиент."));
                     }
                     return;
                 }
             }
         }
-    }
-
-    private static void sendTitle(ServerPlayer player, String title, String subtitle) {
-        player.connection.send(new ClientboundSetTitleTextPacket(Component.literal(title)));
-        player.connection.send(new ClientboundSetSubtitleTextPacket(Component.literal(subtitle)));
     }
 
     public static void onPlayerJoin(ServerPlayer player) {

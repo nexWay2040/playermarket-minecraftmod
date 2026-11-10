@@ -124,10 +124,10 @@ public class PlayerMarketMod implements ModInitializer {
                     acc.progressContracts("MINE_ORE", 1);
                     campaign.addContribution("ore_mined", 1);
 
-                    if (pos.getY() < 0) {
+                    if (pos.getY() <= 24) {
                         campaign.addContribution("deep_ore_mined", 1);
                     }
-                    if (pos.getY() < -32) {
+                    if (pos.getY() < 0) {
                         campaign.addContribution("deep_cavity_mined", 1);
                     }
                     if (b == Blocks.GOLD_ORE || b == Blocks.DEEPSLATE_GOLD_ORE || b == Blocks.NETHER_GOLD_ORE) {

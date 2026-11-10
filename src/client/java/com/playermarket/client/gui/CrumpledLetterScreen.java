@@ -38,7 +38,7 @@ public class CrumpledLetterScreen extends Screen {
         int dy = (height - docH) / 2;
 
         // Render high-resolution procedural aged parchment background texture with wax seal & border
-        graphics.blit(RenderPipelines.GUI_TEXTURED, PARCHMENT_TEXTURE, dx, dy, 0.0f, 0.0f, docW, docH, 400, 280);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, PARCHMENT_TEXTURE, dx, dy, 0.0f, 0.0f, docW, docH, 400, 280, 400, 280);
 
         // Header Title & Stamp
         graphics.text(font, "§4§lКОРПОРАТИВНЫЙ РЕЕСТР §8// §0ASSET PROGRAM", dx + 20, dy + 18, 0xFF24150D, false);

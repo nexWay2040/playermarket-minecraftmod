@@ -17,6 +17,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -31,7 +32,7 @@ public class MarketMainScreen extends Screen {
         BUY_BACK("tab.playermarket.buyback", "ВЫКУП", "tab_buyback"),
         RESOURCE_MARKET("tab.playermarket.resource_market", "РЕСУРСЫ", "tab_resources"),
         UPGRADE_STORE("tab.playermarket.upgrade_store", "МАГАЗИН", "tab_upgrades"),
-        BLACK_MARKET("tab.playermarket.black_market", "ЧЁРНЫЙ РЫНОК", "tab_black_market"),
+        BLACK_MARKET("tab.playermarket.black_market", "ЧЁРНЫЙ РЫНОК", "tab_blackmarket"),
         CONTRACTS("tab.playermarket.contracts", "КОНТРАКТЫ", "tab_contracts"),
         PORTFOLIO("tab.playermarket.portfolio", "ПОРТФЕЛЬ", "tab_portfolio"),
         LEDGER("tab.playermarket.history", "ИСТОРИЯ", "tab_history"),
@@ -59,6 +60,11 @@ public class MarketMainScreen extends Screen {
 
     private Tab activeTab = Tab.DASHBOARD;
     private AssetType.Category assetFilter = null; // null = all
+    private static final Identifier ICON_CR = PlayerMarketMod.id("textures/gui/icons/currency_cr.png");
+    private static final Identifier ICON_DIAMOND = PlayerMarketMod.id("textures/gui/icons/currency_diamond.png");
+    private static final Identifier ICON_LOCK_CLOSED = PlayerMarketMod.id("textures/gui/icons/lock_closed.png");
+    private static final Identifier ICON_BLACKMARKET = PlayerMarketMod.id("textures/gui/icons/tab_blackmarket.png");
+
     private UpgradeType.Category upgradeFilter = UpgradeType.Category.BODY;
     private boolean resourceCatalogMode = false; // false = sell inventory, true = buy catalog
     private String selectedMailId = null;
@@ -382,13 +388,38 @@ public class MarketMainScreen extends Screen {
                 ? MarketAttributeApplier.countVanillaDiamonds(minecraft.player.getInventory()) : 0;
 
         // 4. Header Bar Content
-        graphics.text(font, "§a§lPLAYER MARKET §8// §fФИНАНСОВЫЙ ТЕРМИНАЛ §8[§7v2.0§8]", left + 10, top + 10, 0xFFE2E8F0, false);
+        String headerTitle = "§a§lPLAYER MARKET §8// §fФИНАНСОВЫЙ ТЕРМИНАЛ §8[§7v2.0§8]";
+        graphics.text(font, headerTitle, left + 10, top + 10, 0xFFE2E8F0, false);
 
-        String balanceStr = finalEndingRevokeMode
-                ? "§4[ §cCR: §k99999§r §c(UNKNOWN) §8| §b♦: §f§l" + diamonds + " §4]"
-                : "§2[ §aCR: §f§l" + formatNumber(account.getCrBalance()) + " §8| §b♦: §f§l" + diamonds + " §2]";
-        int balWidth = font.width(balanceStr);
-        graphics.text(font, balanceStr, left + guiWidth - balWidth - 10, top + 10, 0xFFFFFFFF, false);
+        // Right-aligned Currency Badge with crisp 10x10 CR & Diamond icons + live cycle countdown
+        String crText = finalEndingRevokeMode ? "§k99999§r §c(REVOKED)" : ("§f§l" + formatNumber(account.getCrBalance()) + " §aCR");
+        String diaText = "§b§l" + diamonds;
+        int balPillW = 16 + font.width(crText) + 10 + 14 + font.width(diaText) + 8;
+        int balX = left + guiWidth - balPillW - 8;
+        drawSprite(graphics, "hud_bg", balX, top + 5, balPillW, 15, finalEndingRevokeMode ? 0xFF280D12 : 0xFF0E1622);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_CR, balX + 5, top + 7, 0.0f, 0.0f, 10, 10, 16, 16, 16, 16);
+        graphics.text(font, crText, balX + 17, top + 9, 0xFFFFFFFF, false);
+        int sepX = balX + 17 + font.width(crText) + 4;
+        graphics.text(font, "§8|", sepX, top + 9, 0xFF475569, false);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_DIAMOND, sepX + 6, top + 7, 0.0f, 0.0f, 10, 10, 16, 16, 16, 16);
+        graphics.text(font, diaText, sepX + 18, top + 9, 0xFFFFFFFF, false);
+
+        // Live market cycle countdown pill if space allows cleanly between title and balance pill
+        int titleEndX = left + 10 + font.width(headerTitle) + 8;
+        long nextEvTick = ClientMarketState.getNextEventSwitchTick();
+        long curWorldTick = (minecraft != null && minecraft.level != null) ? minecraft.level.getGameTime() : 0L;
+        long remEvTicks = Math.max(0L, nextEvTick - curWorldTick);
+        int remSecTotal = (int) (remEvTicks / 20L);
+        String cycleStr = nextEvTick > 0L
+                ? String.format(Locale.ROOT, "§e%02d:%02d", remSecTotal / 60, remSecTotal % 60)
+                : "§7--:--";
+        String cycleBadge = "§8● §7ЦИКЛ " + cycleStr;
+        int cycleW = font.width(cycleBadge) + 12;
+        if (balX - titleEndX >= cycleW + 8) {
+            int cycleX = balX - cycleW - 6;
+            drawSprite(graphics, "hud_bg", cycleX, top + 5, cycleW, 15, 0xFF0D1420);
+            graphics.text(font, cycleBadge, cycleX + 6, top + 9, 0xFFE2E8F0, false);
+        }
 
         int bgMouseX = (selectedNewsArticle != null) ? -9999 : mouseX;
         int bgMouseY = (selectedNewsArticle != null) ? -9999 : mouseY;
@@ -419,20 +450,25 @@ public class MarketMainScreen extends Screen {
             int iconX = left + 6;
             int iconY = ty + (tabHeight - iconSize) / 2;
             try {
-                graphics.blit(RenderPipelines.GUI_TEXTURED, t.getIconId(), iconX, iconY, 0.0f, 0.0f, iconSize, iconSize, 16, 16);
+                graphics.blit(RenderPipelines.GUI_TEXTURED, t.getIconId(), iconX, iconY, 0.0f, 0.0f, iconSize, iconSize, 16, 16, 16, 16);
             } catch (Throwable ignored) {}
 
             String tabText = (isSelected ? "§l" : "") + t.getTitle();
+            boolean isLockedBlackMarket = (t == Tab.BLACK_MARKET && !account.isBlackMarketUnlocked());
             if (t == Tab.MAIL) {
                 int unread = account.getStoryProgress().getUnreadMailCount();
                 if (unread > 0) {
                     tabText += " §c(" + unread + ")";
                 }
-            } else if (t == Tab.BLACK_MARKET && !account.isBlackMarketUnlocked()) {
-                tabText = "§8" + t.getTitle() + " §c🔒";
+            } else if (isLockedBlackMarket) {
+                tabText = "§8" + t.getTitle();
                 textColor = 0xFF64748B;
             }
-            drawClampedText(graphics, tabText, left + 22, ty + (tabHeight - 8) / 2, sidebarWidth - 26, textColor, false);
+            int textMaxW = isLockedBlackMarket ? (sidebarWidth - 38) : (sidebarWidth - 26);
+            drawClampedText(graphics, tabText, left + 22, ty + (tabHeight - 8) / 2, textMaxW, textColor, false);
+            if (isLockedBlackMarket) {
+                graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_LOCK_CLOSED, left + sidebarWidth - 14, ty + (tabHeight - 9) / 2, 0.0f, 0.0f, 9, 9, 16, 16, 16, 16);
+            }
 
             final Tab clickedTab = t;
             registerClick(left + 2, ty, left + sidebarWidth, ty + tabHeight, () -> {
@@ -572,20 +608,10 @@ public class MarketMainScreen extends Screen {
             sendMarketAction("TAB_OPENED", "MAIL", "", 0, 0.0);
         });
 
-        // Archetypes & Story Mission Banner
+        // Telemetry Deck: Cyber Bio-Body Integrity Scanner + Live Market Pulse Sparkline
         int archY = navY + navH + 8;
         int archH = height - (archY - top);
-        drawSprite(graphics, "card", left, archY, width, archH, 0xFF101622);
-
-        int curStage = account.getStoryStage();
-        String stageTitle = (curStage >= 1 && curStage <= com.playermarket.story.StoryQuests.STAGES.size())
-                ? com.playermarket.story.StoryQuests.STAGES.get(curStage - 1).name()
-                : "ЭТАП " + curStage;
-
-        int completedTasks = account.getStoryProgress().getCompletedTasks().size();
-        drawClampedText(graphics, "§a🎭 ВАШ АРХЕТИП: §f" + determineArchetype(account), left + 8, archY + 6, width - 16, 0xFF10B981, false);
-        drawClampedText(graphics, "§e📋 ЭТАП " + curStage + ": §f" + stageTitle + " §8(Выполнено задач: " + completedTasks + ")", left + 8, archY + 18, width - 16, 0xFFFBBF24, false);
-        drawClampedText(graphics, "§7Продавайте характеристики, выполняйте квесты и читайте «ПОЧТУ» для продвижения.", left + 8, archY + 32, width - 16, 0xFFCBD5E1, false);
+        renderTelemetryDeck(graphics, account, event, left, archY, width, archH);
     }
 
     // ==========================================
@@ -617,7 +643,7 @@ public class MarketMainScreen extends Screen {
         int cy = top - scrollOffset;
 
         // 1. Stage Info Banner
-        drawSprite(graphics, "panel", left, cy, width, headerBannerH, 0xFF141926);
+        drawSprite(graphics, "hud_bg", left, cy, width, headerBannerH, 0xFF141926);
         drawClampedText(graphics, "§e§lЭТАП " + currentStage + ": §f" + stageInfo.name() + " §8// §7" + stageInfo.subtitle(),
                 left + 10, cy + 6, width - 20, 0xFFFBBF24, false);
         drawClampedText(graphics, "§7Статус допуска: §a" + stageInfo.corporateStanding(),
@@ -709,6 +735,7 @@ public class MarketMainScreen extends Screen {
                 int bigBtnY = cy + 50;
                 drawButton(graphics, "btn_green", bigBtnX, bigBtnY, bigBtnW, bigBtnH, "ACCEPT FINAL SETTLEMENT (+100 000 CR)", mouseX, mouseY, () -> {
                     sendMarketAction("CHOOSE_FINAL_TRANSACTION", "FINAL_SETTLEMENT", "", 0, 0.0);
+                    this.onClose();
                 });
 
                 String finePrint = "SECTION 17.4: RECOVERY PROTOCOL & BIOLOGICAL SURRENDER. Irrevocable assignment of biological assets.";
@@ -955,7 +982,7 @@ public class MarketMainScreen extends Screen {
         for (AssetType.Category cat : AssetType.Category.values()) {
             boolean unlocked = cat.isUnlockedForStage(account.getStoryStage());
             boolean active = (assetFilter == cat);
-            String title = (unlocked ? "" : "🔒 ") + cat.getDisplayName();
+            String title = (unlocked ? "" : "[X] ") + cat.getDisplayName();
             drawPill(graphics, pillX, filterY, pillW, pillH, title, active, mouseX, mouseY, () -> {
                 assetFilter = cat;
                 scrollOffset = 0;
@@ -1058,22 +1085,26 @@ public class MarketMainScreen extends Screen {
             String statusStr = String.format(Locale.ROOT, "§7Продано: §e%.0f%% §8/ %.0f%%", totalSold * 100.0, maxAllowed * 100.0);
             drawClampedText(graphics, statusStr, left + 6 + titleW + 4, cy + 4, statusW, 0xFFFBBF24, false);
 
-            // === ROW 2: 6 EQUAL NON-OVERLAPPING BUTTONS OR LOCKED NOTICE ===
-            int actionW = width - 12;
+            // === ROW 2: 18x18 ITEM SLOT + 6 ACTION BUTTONS OR LOCKED NOTICE ===
+            int fullW = width - 12;
+            int row2Y = cy + 18;
+            int row2H = 16;
+            drawItemSlot(graphics, left + 6, row2Y - 1, getAssetIconStack(asset));
+            int row2Left = left + 27;
+            int actionW = width - 33;
             int btnCount = 6;
             int btnGap = 2;
             int singleBtnW = (actionW - (btnCount - 1) * btnGap) / btnCount;
-            int row2Y = cy + 18;
-            int row2H = 16;
 
             if (!catUnlocked) {
-                drawSprite(graphics, "hud_bg", left + 6, row2Y, actionW, row2H, 0xFF1E1424);
-                drawClampedText(graphics, "§c🔒 КАТЕГОРИЯ ЗАБЛОКИРОВАНА: §7Доступ открывается на §eЭтапе " + asset.getCategory().getRequiredStage() + " §7Программы Активов", left + 12, row2Y + 4, actionW - 16, 0xFFEF4444, false);
+                drawSprite(graphics, "hud_bg", row2Left, row2Y, actionW, row2H, 0xFF1E1424);
+                graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_LOCK_CLOSED, row2Left + 4, row2Y + 3, 0.0f, 0.0f, 10, 10, 16, 16, 16, 16);
+                drawClampedText(graphics, "§cКАТЕГОРИЯ ЗАБЛОКИРОВАНА: §7Доступ с §eЭтапа " + asset.getCategory().getRequiredStage(), row2Left + 17, row2Y + 4, actionW - 22, 0xFFEF4444, false);
             } else {
                 // 1. Permanent 10%
                 long p10 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.10, 0);
                 boolean a10 = canSellMore && (totalSold + 0.10 <= maxAllowed + 0.001);
-                int b0X = left + 6 + 0 * (singleBtnW + btnGap);
+                int b0X = row2Left + 0 * (singleBtnW + btnGap);
                 drawSmallButton(graphics, a10 ? "btn_green" : "btn_gray", b0X, row2Y, singleBtnW, row2H, "10%", mouseX, mouseY, () -> {
                     if (a10) sendMarketAction("SELL_ASSET", asset.getId(), "", 0, 0.10);
                 }, "Продать 10% характеристики навсегда за +" + p10 + " CR");
@@ -1081,7 +1112,7 @@ public class MarketMainScreen extends Screen {
                 // 2. Permanent 25%
                 long p25 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.25, 0);
                 boolean a25 = canSellMore && (totalSold + 0.25 <= maxAllowed + 0.001);
-                int b1X = left + 6 + 1 * (singleBtnW + btnGap);
+                int b1X = row2Left + 1 * (singleBtnW + btnGap);
                 drawSmallButton(graphics, a25 ? "btn_green" : "btn_gray", b1X, row2Y, singleBtnW, row2H, "25%", mouseX, mouseY, () -> {
                     if (a25) sendMarketAction("SELL_ASSET", asset.getId(), "", 0, 0.25);
                 }, "Продать 25% характеристики навсегда за +" + p25 + " CR");
@@ -1089,7 +1120,7 @@ public class MarketMainScreen extends Screen {
                 // 3. Permanent 50%
                 long p50 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.50, 0);
                 boolean a50 = canSellMore && (totalSold + 0.50 <= maxAllowed + 0.001);
-                int b2X = left + 6 + 2 * (singleBtnW + btnGap);
+                int b2X = row2Left + 2 * (singleBtnW + btnGap);
                 drawSmallButton(graphics, a50 ? "btn_green" : "btn_gray", b2X, row2Y, singleBtnW, row2H, "50%", mouseX, mouseY, () -> {
                     if (a50) sendMarketAction("SELL_ASSET", asset.getId(), "", 0, 0.50);
                 }, "Продать 50% характеристики навсегда за +" + p50 + " CR (в 5 раз больше, чем за 10%)");
@@ -1097,7 +1128,7 @@ public class MarketMainScreen extends Screen {
                 // 4. Lease 1 Day (20%)
                 long l1 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.20, 1);
                 boolean al1 = canSellMore && (totalSold + 0.20 <= maxAllowed + 0.001);
-                int b3X = left + 6 + 3 * (singleBtnW + btnGap);
+                int b3X = row2Left + 3 * (singleBtnW + btnGap);
                 drawSmallButton(graphics, al1 ? "btn_blue" : "btn_gray", b3X, row2Y, singleBtnW, row2H, "Лизинг 1д", mouseX, mouseY, () -> {
                     if (al1) sendMarketAction("LEASE_ASSET", asset.getId(), "", 1, 0.20);
                 }, "Лизинг 20% стата на 1 день: +" + l1 + " CR сразу + пассивный доход");
@@ -1105,7 +1136,7 @@ public class MarketMainScreen extends Screen {
                 // 5. Lease 3 Days (20%)
                 long l3 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.20, 3);
                 boolean al3 = canSellMore && (totalSold + 0.20 <= maxAllowed + 0.001);
-                int b4X = left + 6 + 4 * (singleBtnW + btnGap);
+                int b4X = row2Left + 4 * (singleBtnW + btnGap);
                 drawSmallButton(graphics, al3 ? "btn_amber" : "btn_gray", b4X, row2Y, singleBtnW, row2H, "Лизинг 3д", mouseX, mouseY, () -> {
                     if (al3) sendMarketAction("LEASE_ASSET", asset.getId(), "", 3, 0.20);
                 }, "Лизинг 20% стата на 3 дня: +" + l3 + " CR сразу + повышенный процент");
@@ -1113,7 +1144,7 @@ public class MarketMainScreen extends Screen {
                 // 6. Lease 5 Days (20%)
                 long l5 = MarketAttributeApplier.calculateSalePayoutCr(account, event, asset, 0.20, 5);
                 boolean al5 = canSellMore && (totalSold + 0.20 <= maxAllowed + 0.001);
-                int b5X = left + 6 + 5 * (singleBtnW + btnGap);
+                int b5X = row2Left + 5 * (singleBtnW + btnGap);
                 drawSmallButton(graphics, al5 ? "btn_amber" : "btn_gray", b5X, row2Y, singleBtnW, row2H, "Лизинг 5д", mouseX, mouseY, () -> {
                     if (al5) sendMarketAction("LEASE_ASSET", asset.getId(), "", 5, 0.20);
                 }, "Лизинг 20% стата на 5 дней: +" + l5 + " CR сразу + максимальный процент");
@@ -1122,7 +1153,7 @@ public class MarketMainScreen extends Screen {
             // === ROW 3: 2 EQUAL-WIDTH DIVIDEND BUTTONS ===
             int row3Y = cy + 38;
             int row3H = 24;
-            int divW = (actionW - 4) / 2;
+            int divW = (fullW - 4) / 2;
 
             String currentDiv = account.getSelectedDividends().getOrDefault(asset.getId(), asset.getDividendA().id());
             boolean selA = currentDiv.equals(asset.getDividendA().id());
@@ -1312,13 +1343,14 @@ public class MarketMainScreen extends Screen {
             drawSprite(graphics, "card", left, cy, width, itemH, 0xFF121622);
 
             String title = "§b§l" + upg.getTitle() + " §7[Ур. " + currentLvl + " / " + upg.getMaxLevel() + "]";
-            drawClampedText(graphics, title, left + 8, cy + 6, width / 2, 0xFF38BDF8, false);
+            drawItemSlot(graphics, left + 6, cy + 7, getUpgradeIconStack(upg));
+            drawClampedText(graphics, title, left + 28, cy + 6, width - 165, 0xFF38BDF8, false);
 
             String desc = isMax ? "§aМаксимальный уровень модификации достигнут." : upg.getSummaryForLevel(currentLvl + 1);
-            drawClampedText(graphics, "§7" + desc, left + 8, cy + 20, width - 150, 0xFF94A3B8, false);
+            drawClampedText(graphics, "§7" + desc, left + 28, cy + 20, width - 170, 0xFF94A3B8, false);
 
             if (!prereqMet) {
-                drawClampedText(graphics, prereqText, left + 8, cy + 34, width - 150, 0xFFEF4444, false);
+                drawClampedText(graphics, prereqText, left + 28, cy + 34, width - 170, 0xFFEF4444, false);
             }
 
             int btnW = 120;
@@ -1447,7 +1479,8 @@ public class MarketMainScreen extends Screen {
 
             drawSprite(graphics, "card_purple", cardX, cardY, cardW, cardH, 0xFF180E24);
 
-            drawClampedCenteredText(graphics, "§c§l☣ СЕКТОР 7: ЧЁРНЫЙ РЫНОК ЗАБЛОКИРОВАН ☣", cardX + cardW / 2, cardY + 8, cardW - 16, 0xFFEF4444, true);
+            graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_BLACKMARKET, cardX + 10, cardY + 7, 0.0f, 0.0f, 12, 12, 16, 16, 16, 16);
+            drawClampedCenteredText(graphics, "§c§lСЕКТОР 7: ЧЁРНЫЙ РЫНОК ЗАБЛОКИРОВАН", cardX + cardW / 2, cardY + 8, cardW - 40, 0xFFEF4444, true);
             drawClampedCenteredText(graphics, "§7У вас отсутствует допуск службы корпоративной безопасности.", cardX + cardW / 2, cardY + 22, cardW - 16, 0xFFCBD5E1, false);
 
             int stage = account.getStoryStage();
@@ -1492,17 +1525,18 @@ public class MarketMainScreen extends Screen {
             drawSprite(graphics, "card_purple", left, cy, width, itemH, 0xFF180E24);
 
             String status = active ? "§a[АКТИВЕН]" : (onCd ? ("§c[Перезарядка " + (cd / 20L) + "с]") : "§d[ГОТОВ]");
-            drawClampedText(graphics, "§d§l" + bm.getTitle() + "  " + status, left + 8, cy + 6, width - 140, 0xFFC084FC, false);
+            drawItemSlot(graphics, left + 6, cy + 8, getBlackMarketIconStack(bm));
+            drawClampedText(graphics, "§d§l" + bm.getTitle() + "  " + status, left + 28, cy + 6, width - 160, 0xFFC084FC, false);
 
             int btnW = 120;
             int btnH = 22;
             int btnX = left + width - btnW - 8;
             int btnY = cy + 18;
 
-            int textW = width - btnW - 24;
+            int textW = width - btnW - 44;
             String fullSummary = bm.getSummary();
             if (font.width(fullSummary) <= textW) {
-                graphics.text(font, "§7" + fullSummary, left + 8, cy + 22, 0xFF94A3B8, false);
+                graphics.text(font, "§7" + fullSummary, left + 28, cy + 22, 0xFF94A3B8, false);
             } else {
                 List<String> words = Arrays.asList(fullSummary.split(" "));
                 StringBuilder line1 = new StringBuilder();
@@ -1520,8 +1554,8 @@ public class MarketMainScreen extends Screen {
                         line2.append(w).append(" ");
                     }
                 }
-                graphics.text(font, "§7" + line1.toString().trim(), left + 8, cy + 20, 0xFF94A3B8, false);
-                drawClampedText(graphics, "§7" + line2.toString().trim(), left + 8, cy + 32, textW, 0xFF94A3B8, false);
+                graphics.text(font, "§7" + line1.toString().trim(), left + 28, cy + 20, 0xFF94A3B8, false);
+                drawClampedText(graphics, "§7" + line2.toString().trim(), left + 28, cy + 32, textW, 0xFF94A3B8, false);
             }
 
             boolean canAfford = (account.getCrBalance() >= bm.getCostCr() && playerDiamonds >= bm.getCostDiamonds());
@@ -1587,8 +1621,9 @@ public class MarketMainScreen extends Screen {
 
                 drawSprite(graphics, "card", left, cy, width, itemH, 0xFF121622);
 
-                drawClampedText(graphics, "§f" + stack.getCount() + "x §e" + stack.getHoverName().getString(), left + 8, cy + 6, width / 2, 0xFFFFFFFF, false);
-                drawClampedText(graphics, "§7Цена: §a" + unitPrice + " CR/шт §8| Итого: §a+" + totalPayout + " CR", left + 8, cy + 18, width / 2, 0xFF94A3B8, false);
+                drawItemSlot(graphics, left + 6, cy + 8, stack);
+                drawClampedText(graphics, "§f" + stack.getCount() + "x §e" + stack.getHoverName().getString(), left + 28, cy + 6, width / 2 - 20, 0xFFFFFFFF, false);
+                drawClampedText(graphics, "§7Цена: §a" + unitPrice + " CR/шт §8| Итого: §a+" + totalPayout + " CR", left + 28, cy + 18, width / 2 - 20, 0xFF94A3B8, false);
 
                 int btnW = 76;
                 int btnH = 18;
@@ -1623,8 +1658,9 @@ public class MarketMainScreen extends Screen {
 
                 drawSprite(graphics, "card", left, cy, width, itemH, 0xFF121622);
 
-                drawClampedText(graphics, "§f" + offer.bundleSize() + "x §b" + offer.displayName(), left + 8, cy + 6, width / 2, 0xFFFFFFFF, false);
-                drawClampedText(graphics, "§7Стоимость партии: §e" + offer.buyCostCr() + " CR", left + 8, cy + 18, width / 2, 0xFF94A3B8, false);
+                drawItemSlot(graphics, left + 6, cy + 8, new ItemStack(offer.item()));
+                drawClampedText(graphics, "§f" + offer.bundleSize() + "x §b" + offer.displayName(), left + 28, cy + 6, width / 2 - 20, 0xFFFFFFFF, false);
+                drawClampedText(graphics, "§7Стоимость партии: §e" + offer.buyCostCr() + " CR", left + 28, cy + 18, width / 2 - 20, 0xFF94A3B8, false);
 
                 int btnW = 100;
                 int btnH = 18;
@@ -1982,22 +2018,22 @@ public class MarketMainScreen extends Screen {
             scrollOffset = 0;
         });
         px += pillW + 4;
-        drawPill(graphics, px, pillY, pillW, pillH, "⚡ СРОЧНО", selectedNewsCategory.equalsIgnoreCase("BREAKING"), mouseX, mouseY, () -> {
+        drawPill(graphics, px, pillY, pillW, pillH, "СРОЧНО", selectedNewsCategory.equalsIgnoreCase("BREAKING"), mouseX, mouseY, () -> {
             selectedNewsCategory = "BREAKING";
             scrollOffset = 0;
         });
         px += pillW + 4;
-        drawPill(graphics, px, pillY, pillW, pillH, "🏢 КОРП", selectedNewsCategory.equalsIgnoreCase("CORP"), mouseX, mouseY, () -> {
+        drawPill(graphics, px, pillY, pillW, pillH, "КОРП", selectedNewsCategory.equalsIgnoreCase("CORP"), mouseX, mouseY, () -> {
             selectedNewsCategory = "CORP";
             scrollOffset = 0;
         });
         px += pillW + 4;
-        drawPill(graphics, px, pillY, pillW, pillH, "☣ ЧЁРНЫЙ", selectedNewsCategory.equalsIgnoreCase("DARK"), mouseX, mouseY, () -> {
+        drawPill(graphics, px, pillY, pillW, pillH, "ЧЁРНЫЙ", selectedNewsCategory.equalsIgnoreCase("DARK"), mouseX, mouseY, () -> {
             selectedNewsCategory = "DARK";
             scrollOffset = 0;
         });
         px += pillW + 4;
-        drawPill(graphics, px, pillY, pillW, pillH, "📚 ГАЙДЫ", selectedNewsCategory.equalsIgnoreCase("GUIDE"), mouseX, mouseY, () -> {
+        drawPill(graphics, px, pillY, pillW, pillH, "ГАЙДЫ", selectedNewsCategory.equalsIgnoreCase("GUIDE"), mouseX, mouseY, () -> {
             selectedNewsCategory = "GUIDE";
             scrollOffset = 0;
         });
@@ -2256,6 +2292,283 @@ public class MarketMainScreen extends Screen {
         if (minecraft != null && minecraft.getSoundManager() != null) {
             minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0f));
         }
+    }
+
+    private void drawItemSlot(GuiGraphicsExtractor graphics, int x, int y, ItemStack stack) {
+        drawSprite(graphics, "slot_dark", x, y, 18, 18, 0xFF0A0F18);
+        if (stack != null && !stack.isEmpty()) {
+            graphics.item(stack, x + 1, y + 1);
+        }
+    }
+
+    private void renderTelemetryDeck(GuiGraphicsExtractor graphics, PlayerMarketAccount account, MarketEvent event,
+                                     int left, int top, int width, int height) {
+        if (height < 42) {
+            drawSprite(graphics, "card", left, top, width, height, 0xFF101622);
+            drawClampedText(graphics, "§aАРХЕТИП: §f" + determineArchetype(account), left + 8, top + 6, width - 16, 0xFF10B981, false);
+            return;
+        }
+
+        int halfGap = 6;
+        int leftW = (width - halfGap) / 2;
+        int rightX = left + leftW + halfGap;
+        int rightW = width - leftW - halfGap;
+
+        // === LEFT MODULE: CYBER BIO-TELEMETRY BODY SCANNER ===
+        drawSprite(graphics, "card", left, top, leftW, height, 0xFF101622);
+        double headSold = avgSoldFraction(account, AssetType.OXYGEN_CAPACITY, AssetType.SATURATION_EFFICIENCY, AssetType.HUNGER_EFFICIENCY, AssetType.XP_GAIN, AssetType.LUCK);
+        double torsoSold = avgSoldFraction(account, AssetType.MAX_HEALTH, AssetType.NATURAL_REGENERATION, AssetType.ARMOR, AssetType.ARMOR_TOUGHNESS, AssetType.FIRE_RESISTANCE, AssetType.MAX_ABSORPTION);
+        double armsSold = avgSoldFraction(account, AssetType.ATTACK_DAMAGE, AssetType.ATTACK_SPEED, AssetType.MINING_SPEED, AssetType.BLOCK_REACH, AssetType.ENTITY_REACH);
+        double legsSold = avgSoldFraction(account, AssetType.MOVEMENT_SPEED, AssetType.JUMP_STRENGTH, AssetType.STEP_HEIGHT, AssetType.SPRINT_EFFICIENCY, AssetType.FALL_RESISTANCE);
+        int bioIntegrity = (int) Math.max(0, Math.min(100, Math.round((1.0 - (headSold + torsoSold + armsSold + legsSold) / 4.0) * 100.0)));
+
+        int bayW = 36;
+        int bayH = Math.max(40, height - 10);
+        int bayX = left + 6;
+        int bayY = top + (height - bayH) / 2;
+        drawBioBodyDiagram(graphics, bayX, bayY, bayW, bayH, headSold, torsoSold, armsSold, legsSold);
+
+        int infoX = bayX + bayW + 8;
+        int infoW = Math.max(40, left + leftW - infoX - 6);
+        String intColor = bioIntegrity >= 80 ? "§a" : (bioIntegrity >= 50 ? "§e" : "§c");
+        drawClampedText(graphics, "§b§lБИО-МОНИТОР", infoX, top + 6, infoW, 0xFF38BDF8, false);
+        drawClampedText(graphics, "§7ЦЕЛОСТНОСТЬ: " + intColor + "§l" + bioIntegrity + "%", infoX, top + 17, infoW, 0xFFE2E8F0, false);
+
+        String barSprite = bioIntegrity >= 80 ? "bar_green" : (bioIntegrity >= 50 ? "bar_amber" : "bar_red");
+        drawProgressBar(graphics, infoX, top + 28, Math.min(infoW, 130), 5, bioIntegrity / 100.0, barSprite);
+
+        int curStage = account.getStoryStage();
+        String stageTitle = (curStage >= 1 && curStage <= com.playermarket.story.StoryQuests.STAGES.size())
+                ? com.playermarket.story.StoryQuests.STAGES.get(curStage - 1).name()
+                : ("ЭТАП " + curStage);
+        int completedTasks = account.getStoryProgress().getCompletedTasks().size();
+        if (height >= 64) {
+            drawClampedText(graphics, "§eЭТАП " + curStage + ": §f" + stageTitle + " §8(" + completedTasks + ")", infoX, top + 38, infoW, 0xFFFBBF24, false);
+        }
+        if (height >= 76) {
+            drawClampedText(graphics, "§aАРХЕТИП: §7" + determineArchetype(account), infoX, top + 50, infoW, 0xFF10B981, false);
+        }
+        if (height >= 88) {
+            drawClampedText(graphics, "§8Активных статов в залоге: §f" + account.getSoldAssetCount() + " §8| Лизинг: §d" + account.getActiveLeases().size(), infoX, top + 62, infoW, 0xFF64748B, false);
+        }
+
+        // === RIGHT MODULE: ANIMATED LIVE MARKET PULSE SPARKLINE ===
+        drawSprite(graphics, "card", rightX, top, rightW, height, 0xFF101622);
+        double marketIdx = (event.getBodyMultiplier() + event.getMovementMultiplier()
+                + event.getResourcePriceMultiplier() + event.getContractRewardMultiplier()) / 4.0;
+        String trendTag = marketIdx >= 1.06 ? "§a▲ РОСТ " : (marketIdx <= 0.94 ? "§c▼ СПАД " : "§b● СТАБ ");
+        drawClampedText(graphics, "§a§lПУЛЬС БИРЖИ", rightX + 8, top + 6, rightW - 72, 0xFF10B981, false);
+        String idxLabel = String.format(Locale.ROOT, "%s%.0f%%", trendTag, marketIdx * 100.0);
+        int idxW = font.width(idxLabel);
+        graphics.text(font, idxLabel, rightX + rightW - idxW - 8, top + 6, 0xFFFFFFFF, false);
+
+        int plotX = rightX + 7;
+        int plotY = top + 18;
+        int plotW = Math.max(40, rightW - 14);
+        int plotH = Math.max(22, height - 34);
+        drawMarketSparkline(graphics, event, marketIdx, plotX, plotY, plotW, plotH);
+
+        String footerChips = String.format(Locale.ROOT,
+                "§8Т:§f%.2f §8| Д:§f%.2f §8| С:§f%.2f §8| К:§f%.2f",
+                event.getBodyMultiplier(), event.getMovementMultiplier(),
+                event.getResourcePriceMultiplier(), event.getContractRewardMultiplier());
+        drawClampedText(graphics, footerChips, rightX + 8, top + height - 12, rightW - 16, 0xFF94A3B8, false);
+    }
+
+    private void drawBioBodyDiagram(GuiGraphicsExtractor graphics, int bx, int by, int bw, int bh,
+                                    double headSold, double torsoSold, double armsSold, double legsSold) {
+        graphics.fill(bx, by, bx + bw, by + bh, 0xFF060A12);
+        graphics.fill(bx, by, bx + bw, by + 1, 0xFF155E75);
+        graphics.fill(bx, by + bh - 1, bx + bw, by + bh, 0xFF155E75);
+        graphics.fill(bx, by, bx + 1, by + bh, 0xFF155E75);
+        graphics.fill(bx + bw - 1, by, bx + bw, by + bh, 0xFF155E75);
+
+        int cx = bx + bw / 2;
+        int sy = by + Math.max(4, (bh - 42) / 2);
+
+        int headCol = zoneColor(headSold);
+        int torsoCol = zoneColor(torsoSold);
+        int armsCol = zoneColor(armsSold);
+        int legsCol = zoneColor(legsSold);
+
+        // Head
+        graphics.fill(cx - 4, sy, cx + 4, sy + 8, headCol);
+        graphics.fill(cx - 3, sy + 1, cx + 3, sy + 7, 0xFF0B1320);
+        graphics.fill(cx - 2, sy + 3, cx - 1, sy + 4, headCol);
+        graphics.fill(cx + 1, sy + 3, cx + 2, sy + 4, headCol);
+
+        // Neck + Shoulders/Torso
+        graphics.fill(cx - 1, sy + 8, cx + 1, sy + 10, torsoCol);
+        graphics.fill(cx - 5, sy + 10, cx + 5, sy + 24, torsoCol);
+        graphics.fill(cx - 4, sy + 11, cx + 4, sy + 23, 0xFF0B1320);
+        long pulseTick = (System.currentTimeMillis() / 400L) % 2L;
+        graphics.fill(cx - 1, sy + 14, cx + 1, sy + 16, pulseTick == 0L ? torsoCol : 0xFFFFFFFF);
+
+        // Left & Right Arms
+        graphics.fill(cx - 9, sy + 10, cx - 6, sy + 23, armsCol);
+        graphics.fill(cx - 8, sy + 11, cx - 7, sy + 22, 0xFF0B1320);
+        graphics.fill(cx + 6, sy + 10, cx + 9, sy + 23, armsCol);
+        graphics.fill(cx + 7, sy + 11, cx + 8, sy + 22, 0xFF0B1320);
+
+        // Left & Right Legs
+        graphics.fill(cx - 5, sy + 25, cx - 1, sy + 40, legsCol);
+        graphics.fill(cx - 4, sy + 26, cx - 2, sy + 39, 0xFF0B1320);
+        graphics.fill(cx + 1, sy + 25, cx + 5, sy + 40, legsCol);
+        graphics.fill(cx + 2, sy + 26, cx + 4, sy + 39, 0xFF0B1320);
+
+        // Subtle sweeping laser scanline
+        int scanOffset = (int) ((System.currentTimeMillis() / 55L) % Math.max(1, bh - 2));
+        graphics.fill(bx + 1, by + 1 + scanOffset, bx + bw - 1, by + 2 + scanOffset, 0x4438BDF8);
+    }
+
+    private void drawMarketSparkline(GuiGraphicsExtractor graphics, MarketEvent event, double marketIdx,
+                                     int px, int py, int pw, int ph) {
+        graphics.fill(px, py, px + pw, py + ph, 0xFF060A12);
+        graphics.fill(px, py, px + pw, py + 1, 0xFF1E293B);
+        graphics.fill(px, py + ph - 1, px + pw, py + ph, 0xFF1E293B);
+        graphics.fill(px, py, px + 1, py + ph, 0xFF1E293B);
+        graphics.fill(px + pw - 1, py, px + pw, py + ph, 0xFF1E293B);
+
+        // Reference grid lines (baseline 1.0x near center)
+        int midY = py + ph / 2;
+        graphics.fill(px + 1, midY, px + pw - 1, midY + 1, 0xFF162032);
+        for (int g = 1; g <= 3; g++) {
+            int gx = px + (pw * g) / 4;
+            graphics.fill(gx, py + 1, gx + 1, py + ph - 1, 0xFF0F172A);
+        }
+
+        int lineCol = marketIdx >= 1.08 ? 0xFF10B981
+                : (marketIdx <= 0.92 ? 0xFFEF4444
+                : (Math.abs(event.getBodyMultiplier() - event.getMovementMultiplier()) > 0.25 ? 0xFFF59E0B : 0xFF38BDF8));
+        int fillCol = (0x38 << 24) | (lineCol & 0x00FFFFFF);
+
+        int samples = 22;
+        double phase = (System.currentTimeMillis() / 240.0);
+        int innerW = Math.max(10, pw - 4);
+        int innerH = Math.max(10, ph - 6);
+        int prevX = -1;
+        int prevY = -1;
+
+        for (int s = 0; s < samples; s++) {
+            double normX = (double) s / (samples - 1);
+            int sx = px + 2 + (int) Math.round(normX * innerW);
+            double wave = Math.sin(phase + s * 0.55 + event.ordinal() * 1.1) * 0.14
+                    + Math.cos(phase * 0.6 + s * 1.15) * 0.08;
+            double targetNorm = Math.max(0.12, Math.min(0.92, ((marketIdx - 0.65) / 0.75) + wave));
+            int sy = py + ph - 3 - (int) Math.round(targetNorm * innerH);
+
+            // Soft shaded bar column below curve
+            if (sy < py + ph - 2) {
+                graphics.fill(sx, sy, Math.min(px + pw - 2, sx + Math.max(1, innerW / samples)), py + ph - 2, fillCol);
+            }
+            if (prevX >= 0) {
+                int yMin = Math.min(prevY, sy);
+                int yMax = Math.max(prevY, sy);
+                graphics.fill(sx, yMin, sx + 1, yMax + 1, lineCol);
+                graphics.fill(prevX, prevY, sx + 1, prevY + 1, lineCol);
+            }
+            if (s == samples - 1) {
+                graphics.fill(sx - 1, sy - 1, sx + 2, sy + 2, 0xFFFFFFFF);
+            }
+            prevX = sx;
+            prevY = sy;
+        }
+    }
+
+    private static double avgSoldFraction(PlayerMarketAccount account, AssetType... types) {
+        if (types.length == 0) return 0.0;
+        double sum = 0.0;
+        for (AssetType t : types) {
+            sum += account.getTotalSoldFraction(t);
+        }
+        return sum / types.length;
+    }
+
+    private static int zoneColor(double soldFrac) {
+        if (soldFrac >= 0.45) return 0xFFEF4444;
+        if (soldFrac >= 0.15) return 0xFFF59E0B;
+        return 0xFF10B981;
+    }
+
+    private static ItemStack getAssetIconStack(AssetType asset) {
+        return new ItemStack(switch (asset) {
+            case MAX_HEALTH -> Items.GOLDEN_APPLE;
+            case NATURAL_REGENERATION -> Items.GLISTERING_MELON_SLICE;
+            case SATURATION_EFFICIENCY -> Items.COOKED_BEEF;
+            case HUNGER_EFFICIENCY -> Items.BREAD;
+            case OXYGEN_CAPACITY -> Items.TURTLE_HELMET;
+            case FIRE_RESISTANCE -> Items.MAGMA_CREAM;
+            case FALL_RESISTANCE -> Items.FEATHER;
+            case MAX_ABSORPTION -> Items.GOLDEN_CHESTPLATE;
+            case MOVEMENT_SPEED -> Items.SUGAR;
+            case JUMP_STRENGTH -> Items.RABBIT_FOOT;
+            case SPRINT_EFFICIENCY -> Items.LEATHER_BOOTS;
+            case SWIM_SPEED -> Items.COD;
+            case STEP_HEIGHT -> Items.LADDER;
+            case ATTACK_DAMAGE -> Items.DIAMOND_SWORD;
+            case ATTACK_SPEED -> Items.IRON_SWORD;
+            case ARMOR -> Items.IRON_CHESTPLATE;
+            case ARMOR_TOUGHNESS -> Items.NETHERITE_CHESTPLATE;
+            case KNOCKBACK_RESISTANCE -> Items.SHIELD;
+            case ENTITY_REACH -> Items.TRIDENT;
+            case PROJECTILE_RESISTANCE -> Items.ARROW;
+            case EXPLOSION_RESISTANCE -> Items.TNT;
+            case CRITICAL_DAMAGE -> Items.NETHERITE_AXE;
+            case KNOCKBACK_POWER -> Items.PISTON;
+            case MINING_SPEED -> Items.DIAMOND_PICKAXE;
+            case UNDERWATER_MINING -> Items.PRISMARINE_CRYSTALS;
+            case LUCK -> Items.EMERALD;
+            case XP_GAIN -> Items.EXPERIENCE_BOTTLE;
+            case BLOCK_REACH -> Items.BRICKS;
+            case POTION_EFFECTIVENESS -> Items.BREWING_STAND;
+            case PROJECTILE_ACCURACY -> Items.SPECTRAL_ARROW;
+        });
+    }
+
+    private static ItemStack getUpgradeIconStack(UpgradeType upg) {
+        return new ItemStack(switch (upg) {
+            case REINFORCED_HEART -> Items.GOLDEN_APPLE;
+            case RAPID_RECOVERY -> Items.GLISTERING_MELON_SLICE;
+            case ADRENALINE_SYSTEM -> Items.REDSTONE;
+            case ENHANCED_LUNGS -> Items.TURTLE_HELMET;
+            case STRONG_LEGS -> Items.RABBIT_FOOT;
+            case METABOLISM_UPGRADE -> Items.GOLDEN_CARROT;
+            case REINFORCED_BONES -> Items.BONE;
+            case THERMAL_ADAPTATION -> Items.MAGMA_CREAM;
+            case MUSCLE_OVERCLOCK -> Items.BLAZE_POWDER;
+            case FAST_REFLEXES -> Items.FEATHER;
+            case REINFORCED_SKIN -> Items.IRON_CHESTPLATE;
+            case IMPACT_DAMPENER -> Items.SLIME_BALL;
+            case PRECISION_TARGETING -> Items.SPYGLASS;
+            case PROJECTILE_CALIBRATION -> Items.BOW;
+            case COMBAT_FOCUS -> Items.DIAMOND_SWORD;
+            case MINING_PROTOCOL -> Items.DIAMOND_PICKAXE;
+            case LUCKY_CHIP -> Items.EMERALD;
+            case XP_ACCELERATOR -> Items.EXPERIENCE_BOTTLE;
+            case ORE_SCANNER -> Items.COMPASS;
+            case EFFICIENT_METABOLISM -> Items.APPLE;
+            case AQUATIC_PROPULSION -> Items.HEART_OF_THE_SEA;
+            case PRECISION_HANDS -> Items.SHEARS;
+            case PREMIUM_ACCOUNT -> Items.GOLD_INGOT;
+            case BROKER_LICENSE -> Items.PAPER;
+            case MARKET_INSURANCE -> Items.SHIELD;
+            case VIP_CLIENT -> Items.NETHER_STAR;
+            case PRICE_LOCK -> Items.AMETHYST_SHARD;
+            case DIAMOND_CASHBACK -> Items.DIAMOND;
+        });
+    }
+
+    private static ItemStack getBlackMarketIconStack(BlackMarketItem bm) {
+        return new ItemStack(switch (bm) {
+            case SECOND_CHANCE -> Items.TOTEM_OF_UNDYING;
+            case BERSERKER_PROTOCOL -> Items.NETHERITE_SWORD;
+            case PHANTOM_STEP -> Items.ENDER_PEARL;
+            case SYNTHETIC_HEART -> Items.ENCHANTED_GOLDEN_APPLE;
+            case OVERCLOCKED_MIND -> Items.CLOCK;
+            case EMERGENCY_BATTERY -> Items.REDSTONE_BLOCK;
+            case GOLDEN_CONTRACT -> Items.GOLD_BLOCK;
+            case ASSET_INSURANCE -> Items.SHIELD;
+        });
     }
 
     private String determineArchetype(PlayerMarketAccount account) {

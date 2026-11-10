@@ -141,5 +141,16 @@
   "build.playermarket.survivor.desc": "Reinforced vital shielding, armored frame and immediate biological recovery.",
   "build.playermarket.fragile_millionaire": "Fragile Millionaire",
   "build.playermarket.fragile_millionaire.title": "HOLLOW OLIGARCH",
-  "build.playermarket.fragile_millionaire.desc": "Immense CR capital hoarded at the expense of nearly all human bodily traits."
+  "build.playermarket.fragile_millionaire.desc": "Immense CR capital hoarded at the expense of nearly all human bodily traits.",
+
+  "ending.playermarket.phase1.title": "FINAL SETTLEMENT",
+  "ending.playermarket.phase1.sub": "Settlement approved. Corporate payout transferred to account.",
+  "ending.playermarket.phase2.title": "ASSET LIQUIDATION",
+  "ending.playermarket.phase2.sub": "Recovering pledged biometric collateral per executed contract...",
+  "ending.playermarket.phase3.title": "SANCTIONS ENFORCED",
+  "ending.playermarket.phase3.sub": "Revoking terminal privileges and sealing market portfolio...",
+  "ending.playermarket.phase4.title": "SECTION 17.4",
+  "ending.playermarket.phase4.sub": "Applying permanent structural mobility constraint. Action is irreversible.",
+  "ending.playermarket.phase5.title": "ACCESS REVOKED",
+  "ending.playermarket.phase5.sub": "Ownership transferred to the Corporation. You are no longer the client."
 }
