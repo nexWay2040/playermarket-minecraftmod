@@ -5,11 +5,13 @@
 	"name": "Player Market",
 	"description": "EVERYTHING HAS A PRICE. Your body, your assets, our market. Sell player stats for CR, trade resources, buy diamond augmentations, and build corporate archetypes.",
 	"authors": [
+		"nexWay2040",
 		"Player Market Corp."
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://github.com/nexWay2040/playermarket-minecraftmod",
+		"sources": "https://github.com/nexWay2040/playermarket-minecraftmod",
+		"issues": "https://github.com/nexWay2040/playermarket-minecraftmod/issues"
 	},
 	"license": "CC0-1.0",
 	"icon": "assets/playermarket/icon.png",

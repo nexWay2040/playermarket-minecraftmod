@@ -53,3 +53,6 @@ In addition to custom pixel-art UI frames and shaders, the terminal textures inc
    - `tab_news.png`: Market broadcast antenna.
 6. **Leg Brace Entity Overlay (`textures/entity/leg_brace.png`)**:
    - 64x64 mechanical exoskeleton support brace for the right leg, visible on all players.
+7. **Analog-Horror Ending Assets (`textures/gui/screamer.png`, `textures/gui/screamer_alt.png`, `sounds/screamer.ogg`)**:
+   - `screamer.png` & `screamer_alt.png`: 512x512 CRT analog-horror portraits displayed on a pitch-black blackout frame before the final Section 17.4 server disconnect.
+   - `sounds/screamer.ogg`: 44.1 kHz Mono Ogg Vorbis (`1.95s`) adapted from CC0 Jumpscare 1 (`freesound.org/people/zombyKlr/sounds/712416/` by `zombyKlr`).
