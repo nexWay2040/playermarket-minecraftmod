@@ -345,7 +345,7 @@ public class MarketAttributeApplier {
         if (permSold <= 0.001) return 0L;
 
         long originalBasis = account.getPermanentSalePayoutBasis().getOrDefault(asset.getId(), Math.round(asset.getFullValueCr() * permSold));
-        double commission = MarketConfig.get().buybackCommission; // Default 0.30 (500 -> 650)
+        double commission = MarketConfig.get().buybackCommission; // Default 1.35 (500 -> 1175)
 
         // Broker License discount
         int brokerLvl = account.getUpgradeLevel(UpgradeType.BROKER_LICENSE);
@@ -355,7 +355,7 @@ public class MarketAttributeApplier {
         if (account.hasDividend("broker_instinct")) {
             commission -= 0.10;
         }
-        commission = Math.max(0.05, commission);
+        commission = Math.max(0.45, commission);
 
         double total = originalBasis * (1.0 + commission);
         if (event != null) {
@@ -366,11 +366,16 @@ public class MarketAttributeApplier {
             total *= eventMult;
         }
 
-        // Anti-exploit floor: buyback must always cost at least +15% over the payout received
-        long minAntiExploitCost = Math.round(originalBasis * 1.15);
+        // Anti-exploit floor: buyback must always cost at least +75% over the payout received
+        long minAntiExploitCost = Math.round(originalBasis * 1.75);
         total = Math.max(total, minAntiExploitCost);
 
         return Math.max(10L, Math.round(total));
+    }
+
+    public static long calculateLeaseCancelCostCr(LeaseContract lease) {
+        if (lease == null) return 75L;
+        return Math.max(75L, Math.round(lease.payoutCr() * 1.50));
     }
 
     public static int calculateUpgradeDiamondCost(PlayerMarketAccount account, MarketEvent event, UpgradeType upgrade, int targetLevel) {

@@ -177,6 +177,7 @@ public class MarketNetworking {
         PlayerMarketAccount account = savedData.getOrCreateAccount(player.getUUID());
         MarketEvent event = savedData.getActiveEvent();
         long gameTick = server.overworld().getGameTime();
+        long dayIndex = server.overworld().getOverworldClockTime() / 24000L;
 
         ActionType actionType;
         try {
@@ -377,7 +378,19 @@ public class MarketNetworking {
                     return;
                 }
 
+                int diamondEquivalentPerUnit = getDiamondExchangeEquivalent(stack.getItem());
                 int countToSell = stack.getCount();
+                if (diamondEquivalentPerUnit > 0) {
+                    int remainingQuota = account.getRemainingDailyDiamondExchange(dayIndex);
+                    int maxUnits = remainingQuota / diamondEquivalentPerUnit;
+                    if (maxUnits <= 0) {
+                        sendSyncToPlayer(player, "§cДневной лимит обмена алмазов (" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + "/день) исчерпан!");
+                        playErrorSound(player);
+                        return;
+                    }
+                    countToSell = Math.min(countToSell, maxUnits);
+                }
+
                 long unitPrice = ResourceValuationEngine.evaluateUnitSellCr(stack, account, event);
                 long totalPayout = unitPrice * countToSell;
                 if (account.hasDividend("corporate_focus") || account.hasDividend("scholar_yield")) {
@@ -389,7 +402,13 @@ public class MarketNetworking {
                 }
 
                 String itemName = stack.getHoverName().getString();
-                inv.setItem(slot, ItemStack.EMPTY);
+                if (diamondEquivalentPerUnit > 0) {
+                    account.recordDiamondExchange(dayIndex, countToSell * diamondEquivalentPerUnit);
+                }
+                stack.shrink(countToSell);
+                if (stack.isEmpty()) {
+                    inv.setItem(slot, ItemStack.EMPTY);
+                }
                 inv.setChanged();
 
                 account.addCr(totalPayout);
@@ -403,6 +422,9 @@ public class MarketNetworking {
                 com.playermarket.story.StoryManager.onResourceSold(player, account, totalPayout);
 
                 status = "§aПРОДАНО " + countToSell + "x " + itemName + " за +" + totalPayout + " CR";
+                if (diamondEquivalentPerUnit > 0) {
+                    status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + ")";
+                }
                 playSuccessSound(player);
             }
 
@@ -415,20 +437,40 @@ public class MarketNetworking {
 
                 Item targetItem = targetStack.getItem();
                 String itemName = targetStack.getHoverName().getString();
+                int diamondEquivalentPerUnit = getDiamondExchangeEquivalent(targetItem);
+                int maxAllowedUnits = Integer.MAX_VALUE;
+                if (diamondEquivalentPerUnit > 0) {
+                    int remainingQuota = account.getRemainingDailyDiamondExchange(dayIndex);
+                    maxAllowedUnits = remainingQuota / diamondEquivalentPerUnit;
+                    if (maxAllowedUnits <= 0) {
+                        sendSyncToPlayer(player, "§cДневной лимит обмена алмазов (" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + "/день) исчерпан!");
+                        playErrorSound(player);
+                        return;
+                    }
+                }
+
                 int totalCount = 0;
                 long totalPayout = 0L;
 
                 for (int i = 0; i < 36; i++) {
+                    if (totalCount >= maxAllowedUnits) break;
                     ItemStack s = inv.getItem(i);
                     if (!s.isEmpty() && s.is(targetItem) && !isUnsellableMarketCard(s)) {
                         long unitVal = ResourceValuationEngine.evaluateUnitSellCr(s, account, event);
-                        totalCount += s.getCount();
-                        totalPayout += unitVal * s.getCount();
-                        inv.setItem(i, ItemStack.EMPTY);
+                        int take = Math.min(s.getCount(), maxAllowedUnits - totalCount);
+                        totalCount += take;
+                        totalPayout += unitVal * take;
+                        s.shrink(take);
+                        if (s.isEmpty()) {
+                            inv.setItem(i, ItemStack.EMPTY);
+                        }
                     }
                 }
 
                 if (totalCount <= 0) return;
+                if (diamondEquivalentPerUnit > 0) {
+                    account.recordDiamondExchange(dayIndex, totalCount * diamondEquivalentPerUnit);
+                }
                 inv.setChanged();
 
                 if (account.isGoldenContractArmed()) {
@@ -447,6 +489,9 @@ public class MarketNetworking {
                 com.playermarket.story.StoryManager.onResourceSold(player, account, totalPayout);
 
                 status = "§aОПТОМ ПРОДАНО " + totalCount + "x " + itemName + " за +" + totalPayout + " CR";
+                if (diamondEquivalentPerUnit > 0) {
+                    status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + ")";
+                }
                 playSuccessSound(player);
             }
 
@@ -461,10 +506,26 @@ public class MarketNetworking {
                 }
                 if (match == null) return;
 
+                int diamondEquivalentPerUnit = getDiamondExchangeEquivalent(match.item());
+                int diamondCostUnits = diamondEquivalentPerUnit * match.bundleSize();
+                if (diamondCostUnits > 0) {
+                    int remainingQuota = account.getRemainingDailyDiamondExchange(dayIndex);
+                    if (remainingQuota < diamondCostUnits) {
+                        sendSyncToPlayer(player, "§cДневной лимит обмена алмазов исчерпан ("
+                                + account.getDiamondsExchangedOnDay(dayIndex) + "/" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + " за день)!");
+                        playErrorSound(player);
+                        return;
+                    }
+                }
+
                 if (!account.spendCr(match.buyCostCr())) {
                     sendSyncToPlayer(player, "§cНедостаточно CR! Требуется " + match.buyCostCr() + " CR.");
                     playErrorSound(player);
                     return;
+                }
+
+                if (diamondCostUnits > 0) {
+                    account.recordDiamondExchange(dayIndex, diamondCostUnits);
                 }
 
                 ItemStack purchased = new ItemStack(match.item(), match.bundleSize());
@@ -481,6 +542,9 @@ public class MarketNetworking {
                         "Каталог сырья", -match.buyCostCr(), 0);
 
                 status = "§aКУПЛЕНО " + match.bundleSize() + "x " + itemName + " (-" + match.buyCostCr() + " CR)";
+                if (diamondCostUnits > 0) {
+                    status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + ")";
+                }
                 playSuccessSound(player);
             }
 
@@ -708,9 +772,9 @@ public class MarketNetworking {
                     playErrorSound(player);
                     return;
                 }
-                long earlyPenaltyFee = Math.max(50L, Math.round(foundLease.payoutCr() * 1.25));
+                long earlyPenaltyFee = MarketAttributeApplier.calculateLeaseCancelCostCr(foundLease);
                 if (!account.spendCr(earlyPenaltyFee)) {
-                    sendSyncToPlayer(player, "§cНедостаточно CR! Требуется: " + earlyPenaltyFee + " CR (выплата + штраф 25%).");
+                    sendSyncToPlayer(player, "§cНедостаточно CR! Требуется: " + earlyPenaltyFee + " CR (выплата + штраф 50%).");
                     playErrorSound(player);
                     return;
                 }
@@ -720,7 +784,7 @@ public class MarketNetworking {
                         account.getSelectedDividends().remove(asset.getId());
                     }
                     account.addTransaction(gameTick, "ДОСРОЧНОЕ РАСТОРЖЕНИЕ", "Лизинг: " + asset.getDisplayName(),
-                            "Возврат стата (штраф 25% за раннее прекращение)", -earlyPenaltyFee, 0);
+                            "Возврат стата (штраф 50% за раннее прекращение)", -earlyPenaltyFee, 0);
                 });
                 MarketAttributeApplier.syncPlayerModifiers(player);
                 status = "§aЛизинг досрочно расторгнут! Характеристика возвращена (-" + earlyPenaltyFee + " CR)";
@@ -821,6 +885,12 @@ public class MarketNetworking {
             return Math.round(raw * 100.0) / 100.0;
         }
         return -1.0;
+    }
+
+    private static int getDiamondExchangeEquivalent(Item item) {
+        if (item == Items.DIAMOND) return 1;
+        if (item == Items.DIAMOND_BLOCK) return 9;
+        return 0;
     }
 
     private static boolean isUnsellableMarketCard(ItemStack stack) {

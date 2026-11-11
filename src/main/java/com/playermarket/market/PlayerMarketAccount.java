@@ -8,6 +8,8 @@ import java.util.*;
 
 public class PlayerMarketAccount {
 
+    public static final int MAX_DAILY_DIAMOND_EXCHANGE = 10;
+
     public record AccountOverview(
             long crBalance,
             long totalCrEarned,
@@ -22,7 +24,9 @@ public class PlayerMarketAccount {
             boolean receivedCrumpledLetter,
             boolean readCrumpledLetter,
             boolean marketCardBlocked,
-            boolean permanentImpaired
+            boolean permanentImpaired,
+            long lastDiamondExchangeDay,
+            int diamondsExchangedToday
     ) {
         public static final Codec<AccountOverview> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.LONG.fieldOf("crBalance").forGetter(AccountOverview::crBalance),
@@ -38,7 +42,9 @@ public class PlayerMarketAccount {
                 Codec.BOOL.optionalFieldOf("receivedCrumpledLetter", false).forGetter(AccountOverview::receivedCrumpledLetter),
                 Codec.BOOL.optionalFieldOf("readCrumpledLetter", false).forGetter(AccountOverview::readCrumpledLetter),
                 Codec.BOOL.optionalFieldOf("marketCardBlocked", false).forGetter(AccountOverview::marketCardBlocked),
-                Codec.BOOL.optionalFieldOf("permanentImpaired", false).forGetter(AccountOverview::permanentImpaired)
+                Codec.BOOL.optionalFieldOf("permanentImpaired", false).forGetter(AccountOverview::permanentImpaired),
+                Codec.LONG.optionalFieldOf("lastDiamondExchangeDay", -1L).forGetter(AccountOverview::lastDiamondExchangeDay),
+                Codec.INT.optionalFieldOf("diamondsExchangedToday", 0).forGetter(AccountOverview::diamondsExchangedToday)
         ).apply(instance, AccountOverview::new));
     }
 
@@ -70,6 +76,8 @@ public class PlayerMarketAccount {
     private boolean readCrumpledLetter = false;
     private boolean marketCardBlocked = false;
     private boolean permanentImpaired = false;
+    private long lastDiamondExchangeDay = -1L;
+    private int diamondsExchangedToday = 0;
 
     private final Map<String, Double> permanentSoldFractions = new LinkedHashMap<>();
     private final Map<String, Long> permanentSalePayoutBasis = new LinkedHashMap<>();
@@ -115,6 +123,8 @@ public class PlayerMarketAccount {
         this.readCrumpledLetter = overview.readCrumpledLetter();
         this.marketCardBlocked = overview.marketCardBlocked();
         this.permanentImpaired = overview.permanentImpaired();
+        this.lastDiamondExchangeDay = overview.lastDiamondExchangeDay();
+        this.diamondsExchangedToday = Math.max(0, overview.diamondsExchangedToday());
 
         this.permanentSoldFractions.putAll(permanentSoldFractions);
         this.permanentSalePayoutBasis.putAll(permanentSalePayoutBasis);
@@ -135,8 +145,38 @@ public class PlayerMarketAccount {
                 totalDealsCount, blackMarketUnlocked, secondChanceArmed, goldenContractArmed,
                 getEndingState(), isAccountClosed(),
                 isReceivedCrumpledLetter(), isReadCrumpledLetter(),
-                isMarketCardBlocked(), isPermanentImpaired()
+                isMarketCardBlocked(), isPermanentImpaired(),
+                lastDiamondExchangeDay, diamondsExchangedToday
         );
+    }
+
+    public long getLastDiamondExchangeDay() {
+        return lastDiamondExchangeDay;
+    }
+
+    public int getDiamondsExchangedToday() {
+        return diamondsExchangedToday;
+    }
+
+    public int getDiamondsExchangedOnDay(long dayIndex) {
+        return (dayIndex == lastDiamondExchangeDay) ? diamondsExchangedToday : 0;
+    }
+
+    public int getRemainingDailyDiamondExchange(long dayIndex) {
+        return Math.max(0, MAX_DAILY_DIAMOND_EXCHANGE - getDiamondsExchangedOnDay(dayIndex));
+    }
+
+    public boolean recordDiamondExchange(long dayIndex, int count) {
+        if (count <= 0) return true;
+        if (lastDiamondExchangeDay != dayIndex) {
+            lastDiamondExchangeDay = dayIndex;
+            diamondsExchangedToday = 0;
+        }
+        if (diamondsExchangedToday + count > MAX_DAILY_DIAMOND_EXCHANGE) {
+            return false;
+        }
+        diamondsExchangedToday += count;
+        return true;
     }
 
     public void ensureDefaultContracts() {
@@ -528,6 +568,8 @@ public class PlayerMarketAccount {
         this.readCrumpledLetter = false;
         this.marketCardBlocked = false;
         this.permanentImpaired = false;
+        this.lastDiamondExchangeDay = -1L;
+        this.diamondsExchangedToday = 0;
         ensureDefaultContracts();
     }
 

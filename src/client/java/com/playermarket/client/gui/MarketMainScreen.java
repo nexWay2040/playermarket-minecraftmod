@@ -8,6 +8,7 @@ import com.playermarket.network.MarketNetworking;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -64,9 +65,16 @@ public class MarketMainScreen extends Screen {
     private static final Identifier ICON_DIAMOND = PlayerMarketMod.id("textures/gui/icons/currency_diamond.png");
     private static final Identifier ICON_LOCK_CLOSED = PlayerMarketMod.id("textures/gui/icons/lock_closed.png");
     private static final Identifier ICON_BLACKMARKET = PlayerMarketMod.id("textures/gui/icons/tab_blackmarket.png");
+    private static final Identifier BODY_HEAD = PlayerMarketMod.id("textures/gui/body/body_head.png");
+    private static final Identifier BODY_TORSO = PlayerMarketMod.id("textures/gui/body/body_torso.png");
+    private static final Identifier BODY_HEART = PlayerMarketMod.id("textures/gui/body/body_heart.png");
+    private static final Identifier BODY_ARMS = PlayerMarketMod.id("textures/gui/body/body_arms.png");
+    private static final Identifier BODY_LEGS = PlayerMarketMod.id("textures/gui/body/body_legs.png");
+    private static final Identifier BODY_BRACE = PlayerMarketMod.id("textures/gui/body/body_brace.png");
 
     private UpgradeType.Category upgradeFilter = UpgradeType.Category.BODY;
     private boolean resourceCatalogMode = false; // false = sell inventory, true = buy catalog
+    private boolean bioViewMode3D = true; // true = 3D live player model + zone reticles, false = 2D detailed anatomy
     private String selectedMailId = null;
 
     private int scrollOffset = 0;
@@ -544,45 +552,48 @@ public class MarketMainScreen extends Screen {
                                  int left, int top, int width, int height, int mouseX, int mouseY) {
         maxScroll = 0;
         int cardWidth = (width - 12) / 3;
-        int cardHeight = 60;
+        int cardHeight = 52;
 
         // Card 1: Balance & Liquidity
         drawCard(graphics, left, top, cardWidth, cardHeight, mouseX, mouseY);
-        drawClampedText(graphics, "§7БАЛАНС СЧЁТА", left + 8, top + 6, cardWidth - 16, 0xFF94A3B8, false);
-        drawClampedText(graphics, "§a§l" + formatNumber(account.getCrBalance()) + " CR", left + 8, top + 18, cardWidth - 16, 0xFF10B981, false);
-        drawClampedText(graphics, "§8Доход: §7" + formatNumber(account.getTotalCrEarned()) + " CR", left + 8, top + 34, cardWidth - 16, 0xFF64748B, false);
-        drawClampedText(graphics, "§8Расход: §7" + formatNumber(account.getTotalCrSpent()) + " CR", left + 8, top + 44, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§7БАЛАНС СЧЁТА", left + 8, top + 5, cardWidth - 16, 0xFF94A3B8, false);
+        drawClampedText(graphics, "§a§l" + formatNumber(account.getCrBalance()) + " CR", left + 8, top + 16, cardWidth - 16, 0xFF10B981, false);
+        drawClampedText(graphics, "§8Доход: §7" + formatNumber(account.getTotalCrEarned()) + " CR", left + 8, top + 28, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§8Расход: §7" + formatNumber(account.getTotalCrSpent()) + " CR", left + 8, top + 38, cardWidth - 16, 0xFF64748B, false);
 
         // Card 2: Sold Assets Valuation
         int c2Left = left + cardWidth + 6;
         drawCard(graphics, c2Left, top, cardWidth, cardHeight, mouseX, mouseY);
-        drawClampedText(graphics, "§7АКТИВЫ", c2Left + 8, top + 6, cardWidth - 16, 0xFF94A3B8, false);
-        drawClampedText(graphics, "§6§l" + formatNumber(account.getTotalSoldAssetsValuation()) + " CR", c2Left + 8, top + 18, cardWidth - 16, 0xFFF59E0B, false);
-        drawClampedText(graphics, "§8Статов: §f" + account.getSoldAssetCount() + " шт.", c2Left + 8, top + 34, cardWidth - 16, 0xFF64748B, false);
-        drawClampedText(graphics, "§8Лизинг: §d" + account.getActiveLeases().size() + " шт.", c2Left + 8, top + 44, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§7АКТИВЫ", c2Left + 8, top + 5, cardWidth - 16, 0xFF94A3B8, false);
+        drawClampedText(graphics, "§6§l" + formatNumber(account.getTotalSoldAssetsValuation()) + " CR", c2Left + 8, top + 16, cardWidth - 16, 0xFFF59E0B, false);
+        drawClampedText(graphics, "§8Статов: §f" + account.getSoldAssetCount() + " шт.", c2Left + 8, top + 28, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§8Лизинг: §d" + account.getActiveLeases().size() + " шт.", c2Left + 8, top + 38, cardWidth - 16, 0xFF64748B, false);
 
         // Card 3: Upgrades & Diamonds
         int c3Left = c2Left + cardWidth + 6;
         drawCard(graphics, c3Left, top, cardWidth, cardHeight, mouseX, mouseY);
-        drawClampedText(graphics, "§7АЛМАЗЫ & VIP", c3Left + 8, top + 6, cardWidth - 16, 0xFF94A3B8, false);
-        drawClampedText(graphics, "§b§l" + diamonds + " ♦ §7(инв.)", c3Left + 8, top + 18, cardWidth - 16, 0xFF38BDF8, false);
-        drawClampedText(graphics, "§8Вложено: §b" + account.getTotalDiamondsSpent() + " ♦", c3Left + 8, top + 34, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§7АЛМАЗЫ & VIP", c3Left + 8, top + 5, cardWidth - 16, 0xFF94A3B8, false);
+        drawClampedText(graphics, "§b§l" + diamonds + " ♦ §7(инв.)", c3Left + 8, top + 16, cardWidth - 16, 0xFF38BDF8, false);
+        long dayIdx = (minecraft != null && minecraft.level != null) ? (minecraft.level.getOverworldClockTime() / 24000L) : 0L;
+        int remExch = account.getRemainingDailyDiamondExchange(dayIdx);
+        drawClampedText(graphics, "§8Обмен: §b" + remExch + "/10§8/дн. | Влож: §b" + account.getTotalDiamondsSpent(), c3Left + 8, top + 28, cardWidth - 16, 0xFF64748B, false);
         int vipLvl = account.getUpgradeLevel(UpgradeType.VIP_CLIENT);
-        drawClampedText(graphics, "§8VIP: §e" + (vipLvl > 0 ? "Ур. " + vipLvl : "Базовый"), c3Left + 8, top + 44, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§8VIP: §e" + (vipLvl > 0 ? "Ур. " + vipLvl : "Базовый"), c3Left + 8, top + 38, cardWidth - 16, 0xFF64748B, false);
 
         // Market Event Banner
-        int bannerY = top + cardHeight + 8;
-        drawSprite(graphics, "hud_bg", left, bannerY, width, 52, 0xFF141A26);
-        drawClampedText(graphics, "§6§lСВОДКА РЫНКА: §f" + event.getHeadline(), left + 8, bannerY + 6, width - 16, 0xFFFBBF24, false);
-        drawClampedText(graphics, "§7" + event.getDescription(), left + 8, bannerY + 18, width - 16, 0xFF94A3B8, false);
+        int bannerY = top + cardHeight + 6;
+        int bannerH = 42;
+        drawSprite(graphics, "hud_bg", left, bannerY, width, bannerH, 0xFF141A26);
+        drawClampedText(graphics, "§6§lСВОДКА РЫНКА: §f" + event.getHeadline(), left + 8, bannerY + 5, width - 16, 0xFFFBBF24, false);
+        drawClampedText(graphics, "§7" + event.getDescription(), left + 8, bannerY + 16, width - 16, 0xFF94A3B8, false);
         String eventMods = String.format(Locale.ROOT, "§8Множители: Тело x%.2f | Движение x%.2f | Ресурсы x%.2f | Выкуп x%.2f",
                 event.getBodyMultiplier(), event.getMovementMultiplier(), event.getResourceBuyMultiplier(), event.getBuybackCostMultiplier());
-        drawClampedText(graphics, eventMods, left + 8, bannerY + 34, width - 16, 0xFF64748B, false);
+        drawClampedText(graphics, eventMods, left + 8, bannerY + 28, width - 16, 0xFF64748B, false);
 
         // Quick Navigation Buttons
-        int navY = bannerY + 58;
+        int navY = bannerY + bannerH + 5;
         int navW = (width - 18) / 4;
-        int navH = 24;
+        int navH = 20;
 
         drawButton(graphics, "btn_amber", left, navY, navW, navH, "ПРОГРАММА", mouseX, mouseY, () -> {
             activeTab = Tab.STORY;
@@ -608,10 +619,10 @@ public class MarketMainScreen extends Screen {
             sendMarketAction("TAB_OPENED", "MAIL", "", 0, 0.0);
         });
 
-        // Telemetry Deck: Cyber Bio-Body Integrity Scanner + Live Market Pulse Sparkline
-        int archY = navY + navH + 8;
+        // Telemetry Deck: Hybrid 3D/2D Cyber Bio-Scanner + Live Market Pulse Sparkline
+        int archY = navY + navH + 6;
         int archH = height - (archY - top);
-        renderTelemetryDeck(graphics, account, event, left, archY, width, archH);
+        renderTelemetryDeck(graphics, account, event, left, archY, width, archH, mouseX, mouseY);
     }
 
     // ==========================================
@@ -1046,7 +1057,7 @@ public class MarketMainScreen extends Screen {
                     .findFirst();
             if (activeLease.isPresent()) {
                 LeaseContract lc = activeLease.get();
-                long cancelCost = Math.max(50L, Math.round(lc.payoutCr() * 1.25));
+                long cancelCost = MarketAttributeApplier.calculateLeaseCancelCostCr(lc);
                 int clW = 74;
                 int clH = 12;
                 curRightX -= clW;
@@ -1194,7 +1205,7 @@ public class MarketMainScreen extends Screen {
         int infoH = 26;
         drawSprite(graphics, "hud_bg", left, top, width, infoH, 0xFF131A26);
         drawClampedText(graphics, "§b§lОБРАТНЫЙ ВЫКУП ХАРАКТЕРИСТИК: §fВосстановление полной биологической нормы.", left + 8, top + 4, width - 16, 0xFF38BDF8, false);
-        drawClampedText(graphics, "§7Выкуп снимает все постоянные дебаффы. Лицензия брокера снижает комиссию выкупа.", left + 8, top + 14, width - 16, 0xFF94A3B8, false);
+        drawClampedText(graphics, "§7Обратный выкуп стоит заметно дороже продажи (+75%..+135%). Лицензия брокера снижает комиссию.", left + 8, top + 14, width - 16, 0xFF94A3B8, false);
 
         int listY = top + infoH + 6;
         int listH = height - (listY - top);
@@ -1236,9 +1247,10 @@ public class MarketMainScreen extends Screen {
 
             drawSprite(graphics, "card", left, cy, width, itemH, 0xFF121622);
 
-            drawClampedText(graphics, "§f§l" + asset.getDisplayName() + " §7[" + asset.getCategory().getDisplayName() + "]", left + 8, cy + 6, width / 2, 0xFFFFFFFF, false);
-            drawClampedText(graphics, String.format(Locale.ROOT, "§eПродано навсегда: %.0f%% §8| Базис выплаты: %d CR",
-                    permSold * 100.0, account.getPermanentSalePayoutBasis().getOrDefault(asset.getId(), 0L)), left + 8, cy + 20, width / 2, 0xFFFBBF24, false);
+            drawItemSlot(graphics, left + 6, cy + 14, getAssetIconStack(asset));
+            drawClampedText(graphics, "§f§l" + asset.getDisplayName() + " §7[" + asset.getCategory().getDisplayName() + "]", left + 28, cy + 6, width - 170, 0xFFFFFFFF, false);
+            drawClampedText(graphics, String.format(Locale.ROOT, "§eПродано навсегда: %.0f%% §8| Базис: %d CR",
+                    permSold * 100.0, account.getPermanentSalePayoutBasis().getOrDefault(asset.getId(), 0L)), left + 28, cy + 20, width - 170, 0xFFFBBF24, false);
 
             int btnW = 130;
             int btnH = 22;
@@ -1261,14 +1273,14 @@ public class MarketMainScreen extends Screen {
 
             String aName = AssetType.byId(lease.assetId()).map(AssetType::getDisplayName).orElse(lease.assetId());
             double daysLeft = Math.max(0.0, (lease.endTick() - gameTick) / 24000.0);
-            long cancelCost = Math.max(50L, Math.round(lease.payoutCr() * 1.25));
+            long cancelCost = MarketAttributeApplier.calculateLeaseCancelCostCr(lease);
             boolean canAfford = account.getCrBalance() >= cancelCost;
 
             drawSprite(graphics, "card_amber", left, cy, width, itemH, 0xFF181410);
 
             drawClampedText(graphics, "§6§lЛизинг: §f" + aName + " §c-" + Math.round(lease.fraction() * 100) + "% §8(Осталось: " + String.format(Locale.ROOT, "%.1f", daysLeft) + " дн.)",
                     left + 8, cy + 6, width - 150, 0xFFFBBF24, false);
-            drawClampedText(graphics, "§7Досрочный возврат: " + formatNumber(cancelCost) + " CR §8(выплата + штраф 25%)",
+            drawClampedText(graphics, "§7Досрочный возврат: " + formatNumber(cancelCost) + " CR §8(выплата + штраф 50%)",
                     left + 8, cy + 20, width - 150, 0xFFCBD5E1, false);
 
             int btnW = 140;
@@ -1589,6 +1601,18 @@ public class MarketMainScreen extends Screen {
             scrollOffset = 0;
         });
 
+        long dayIndex = (minecraft != null && minecraft.level != null) ? (minecraft.level.getOverworldClockTime() / 24000L) : 0L;
+        int remainingDiamondQuota = account.getRemainingDailyDiamondExchange(dayIndex);
+        String quotaBadge = String.format(Locale.ROOT, "Лимит алмазов: §b%d/%d§7/дн.",
+                remainingDiamondQuota, PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE);
+        int quotaBadgeW = font.width(quotaBadge) + 22;
+        if (left + (toggleW * 2) + 12 + quotaBadgeW <= left + width) {
+            int qx = left + width - quotaBadgeW;
+            drawSprite(graphics, "hud_bg", qx, top, quotaBadgeW, toggleH, remainingDiamondQuota > 0 ? 0xFF0E1826 : 0xFF281016);
+            graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_DIAMOND, qx + 4, top + 3, 0.0f, 0.0f, 10, 10, 16, 16, 16, 16);
+            drawClampedText(graphics, quotaBadge, qx + 17, top + 4, quotaBadgeW - 20, 0xFFCBD5E1, false);
+        }
+
         int listY = top + 22;
         int listH = height - (listY - top);
 
@@ -1617,13 +1641,19 @@ public class MarketMainScreen extends Screen {
 
                 ItemStack stack = inv.getItem(slot);
                 long unitPrice = ResourceValuationEngine.evaluateUnitSellCr(stack, account, event);
-                long totalPayout = unitPrice * stack.getCount();
+                int eqPerUnit = stack.is(Items.DIAMOND_BLOCK) ? 9 : (stack.is(Items.DIAMOND) ? 1 : 0);
+                int sellableUnits = eqPerUnit > 0 ? Math.min(stack.getCount(), remainingDiamondQuota / eqPerUnit) : stack.getCount();
+                long totalPayout = unitPrice * Math.max(1, sellableUnits);
 
                 drawSprite(graphics, "card", left, cy, width, itemH, 0xFF121622);
 
                 drawItemSlot(graphics, left + 6, cy + 8, stack);
-                drawClampedText(graphics, "§f" + stack.getCount() + "x §e" + stack.getHoverName().getString(), left + 28, cy + 6, width / 2 - 20, 0xFFFFFFFF, false);
-                drawClampedText(graphics, "§7Цена: §a" + unitPrice + " CR/шт §8| Итого: §a+" + totalPayout + " CR", left + 28, cy + 18, width / 2 - 20, 0xFF94A3B8, false);
+                String nameLine = "§f" + stack.getCount() + "x §e" + stack.getHoverName().getString();
+                if (eqPerUnit > 0) {
+                    nameLine += " §8(§bост. " + (remainingDiamondQuota / eqPerUnit) + "§8)";
+                }
+                drawClampedText(graphics, nameLine, left + 28, cy + 6, width / 2 - 20, 0xFFFFFFFF, false);
+                drawClampedText(graphics, "§7Цена: §a" + unitPrice + " CR/шт §8| Итого: §a+" + (sellableUnits > 0 ? totalPayout : 0L) + " CR", left + 28, cy + 18, width / 2 - 20, 0xFF94A3B8, false);
 
                 int btnW = 76;
                 int btnH = 18;
@@ -1631,13 +1661,17 @@ public class MarketMainScreen extends Screen {
                 int btnX2 = left + width - btnW - 6;
                 int btnY = cy + 8;
 
-                drawSmallButton(graphics, "btn_green", btnX1, btnY, btnW, btnH, "Слот (+" + totalPayout + ")", mouseX, mouseY, () -> {
-                    sendMarketAction("SELL_INVENTORY_SLOT", "", "", slot, 0.0);
-                });
+                boolean canSellItem = (eqPerUnit == 0) || (sellableUnits > 0);
+                String slotTip = canSellItem ? null : "Дневной лимит обмена алмазов (10/день) исчерпан!";
+                drawSmallButton(graphics, canSellItem ? "btn_green" : "btn_gray", btnX1, btnY, btnW, btnH,
+                        canSellItem ? ("Слот (+" + totalPayout + ")") : "Лимит 10/дн.", mouseX, mouseY, () -> {
+                    if (canSellItem) sendMarketAction("SELL_INVENTORY_SLOT", "", "", slot, 0.0);
+                }, slotTip);
 
-                drawSmallButton(graphics, "btn_amber", btnX2, btnY, btnW, btnH, "Оптом всё", mouseX, mouseY, () -> {
-                    sendMarketAction("SELL_ALL_MATCHING_ITEM", "", "", slot, 0.0);
-                });
+                drawSmallButton(graphics, canSellItem ? "btn_amber" : "btn_gray", btnX2, btnY, btnW, btnH,
+                        eqPerUnit > 0 ? (canSellItem ? "Обм. до " + (remainingDiamondQuota / eqPerUnit) : "Лимит") : "Оптом всё", mouseX, mouseY, () -> {
+                    if (canSellItem) sendMarketAction("SELL_ALL_MATCHING_ITEM", "", "", slot, 0.0);
+                }, slotTip);
             }
 
             clearScissor(graphics);
@@ -1654,12 +1688,18 @@ public class MarketMainScreen extends Screen {
                 int cy = listY + (i * spacing) - scrollOffset;
                 if (cy + itemH < listY || cy > listY + listH) continue;
 
-                boolean canAfford = account.getCrBalance() >= offer.buyCostCr();
+                int eqPerUnit = offer.item() == Items.DIAMOND_BLOCK ? 9 : (offer.item() == Items.DIAMOND ? 1 : 0);
+                boolean withinQuota = (eqPerUnit == 0) || (remainingDiamondQuota >= eqPerUnit * offer.bundleSize());
+                boolean canAfford = withinQuota && (account.getCrBalance() >= offer.buyCostCr());
 
                 drawSprite(graphics, "card", left, cy, width, itemH, 0xFF121622);
 
                 drawItemSlot(graphics, left + 6, cy + 8, new ItemStack(offer.item()));
-                drawClampedText(graphics, "§f" + offer.bundleSize() + "x §b" + offer.displayName(), left + 28, cy + 6, width / 2 - 20, 0xFFFFFFFF, false);
+                String titleLine = "§f" + offer.bundleSize() + "x §b" + offer.displayName();
+                if (eqPerUnit > 0) {
+                    titleLine += " §8(§bост. " + remainingDiamondQuota + "/10§8)";
+                }
+                drawClampedText(graphics, titleLine, left + 28, cy + 6, width / 2 - 20, 0xFFFFFFFF, false);
                 drawClampedText(graphics, "§7Стоимость партии: §e" + offer.buyCostCr() + " CR", left + 28, cy + 18, width / 2 - 20, 0xFF94A3B8, false);
 
                 int btnW = 100;
@@ -1667,9 +1707,11 @@ public class MarketMainScreen extends Screen {
                 int btnX = left + width - btnW - 8;
                 int btnY = cy + 8;
 
-                drawSmallButton(graphics, canAfford ? "btn_blue" : "btn_gray", btnX, btnY, btnW, btnH, "Купить (-" + offer.buyCostCr() + ")", mouseX, mouseY, () -> {
+                String buyBtnText = !withinQuota ? "Лимит 10/дн." : ("Купить (-" + offer.buyCostCr() + ")");
+                String buyTip = !withinQuota ? "Дневной лимит обмена алмазов (10/день) исчерпан!" : null;
+                drawSmallButton(graphics, canAfford ? "btn_blue" : "btn_gray", btnX, btnY, btnW, btnH, buyBtnText, mouseX, mouseY, () -> {
                     if (canAfford) sendMarketAction("BUY_CATALOG_RESOURCE", offer.itemId(), "", 0, 0.0);
-                });
+                }, buyTip);
             }
 
             clearScissor(graphics);
@@ -1726,7 +1768,7 @@ public class MarketMainScreen extends Screen {
                 int lRowY = cy + 22 + li * 24;
                 double daysLeft = Math.max(0.0, (lease.endTick() - gameTick) / 24000.0);
                 String aName = AssetType.byId(lease.assetId()).map(AssetType::getDisplayName).orElse(lease.assetId());
-                long cancelCost = Math.max(50L, Math.round(lease.payoutCr() * 1.25));
+                long cancelCost = MarketAttributeApplier.calculateLeaseCancelCostCr(lease);
                 boolean canAfford = account.getCrBalance() >= cancelCost;
 
                 drawClampedText(graphics, String.format(Locale.ROOT, "• §f%s: §c-%.0f%% §8(Осталось: §d%.1f дн.§8)", aName, lease.fraction() * 100.0, daysLeft),
@@ -2302,7 +2344,7 @@ public class MarketMainScreen extends Screen {
     }
 
     private void renderTelemetryDeck(GuiGraphicsExtractor graphics, PlayerMarketAccount account, MarketEvent event,
-                                     int left, int top, int width, int height) {
+                                     int left, int top, int width, int height, int mouseX, int mouseY) {
         if (height < 42) {
             drawSprite(graphics, "card", left, top, width, height, 0xFF101622);
             drawClampedText(graphics, "§aАРХЕТИП: §f" + determineArchetype(account), left + 8, top + 6, width - 16, 0xFF10B981, false);
@@ -2314,42 +2356,66 @@ public class MarketMainScreen extends Screen {
         int rightX = left + leftW + halfGap;
         int rightW = width - leftW - halfGap;
 
-        // === LEFT MODULE: CYBER BIO-TELEMETRY BODY SCANNER ===
+        // === LEFT MODULE: HYBRID 3D LIVE PLAYER / 2D HOLO-BODY SCANNER ===
         drawSprite(graphics, "card", left, top, leftW, height, 0xFF101622);
-        double headSold = avgSoldFraction(account, AssetType.OXYGEN_CAPACITY, AssetType.SATURATION_EFFICIENCY, AssetType.HUNGER_EFFICIENCY, AssetType.XP_GAIN, AssetType.LUCK);
-        double torsoSold = avgSoldFraction(account, AssetType.MAX_HEALTH, AssetType.NATURAL_REGENERATION, AssetType.ARMOR, AssetType.ARMOR_TOUGHNESS, AssetType.FIRE_RESISTANCE, AssetType.MAX_ABSORPTION);
-        double armsSold = avgSoldFraction(account, AssetType.ATTACK_DAMAGE, AssetType.ATTACK_SPEED, AssetType.MINING_SPEED, AssetType.BLOCK_REACH, AssetType.ENTITY_REACH);
-        double legsSold = avgSoldFraction(account, AssetType.MOVEMENT_SPEED, AssetType.JUMP_STRENGTH, AssetType.STEP_HEIGHT, AssetType.SPRINT_EFFICIENCY, AssetType.FALL_RESISTANCE);
+
+        AssetType[] headAssets = {AssetType.OXYGEN_CAPACITY, AssetType.SATURATION_EFFICIENCY, AssetType.HUNGER_EFFICIENCY, AssetType.XP_GAIN, AssetType.LUCK};
+        AssetType[] torsoAssets = {AssetType.MAX_HEALTH, AssetType.NATURAL_REGENERATION, AssetType.ARMOR, AssetType.ARMOR_TOUGHNESS, AssetType.FIRE_RESISTANCE, AssetType.MAX_ABSORPTION, AssetType.POTION_EFFECTIVENESS};
+        AssetType[] armAssets = {AssetType.ATTACK_DAMAGE, AssetType.ATTACK_SPEED, AssetType.MINING_SPEED, AssetType.UNDERWATER_MINING, AssetType.BLOCK_REACH, AssetType.ENTITY_REACH, AssetType.KNOCKBACK_POWER, AssetType.CRITICAL_DAMAGE};
+        AssetType[] legAssets = {AssetType.MOVEMENT_SPEED, AssetType.JUMP_STRENGTH, AssetType.STEP_HEIGHT, AssetType.SPRINT_EFFICIENCY, AssetType.SWIM_SPEED, AssetType.FALL_RESISTANCE, AssetType.KNOCKBACK_RESISTANCE};
+
+        double headSold = avgSoldFraction(account, headAssets);
+        double torsoSold = avgSoldFraction(account, torsoAssets);
+        double armsSold = avgSoldFraction(account, armAssets);
+        double legsSold = avgSoldFraction(account, legAssets);
         int bioIntegrity = (int) Math.max(0, Math.min(100, Math.round((1.0 - (headSold + torsoSold + armsSold + legsSold) / 4.0) * 100.0)));
 
-        int bayW = 36;
-        int bayH = Math.max(40, height - 10);
-        int bayX = left + 6;
+        int bayW = Math.min(68, Math.max(48, (int) (leftW * 0.34)));
+        int bayH = Math.max(52, height - 10);
+        int bayX = left + 5;
         int bayY = top + (height - bayH) / 2;
-        drawBioBodyDiagram(graphics, bayX, bayY, bayW, bayH, headSold, torsoSold, armsSold, legsSold);
+        boolean braced = account.isPermanentImpaired() || account.getStoryStage() >= 5 || legsSold >= 0.40;
+
+        drawBioBodyDiagram(graphics, account, bayX, bayY, bayW, bayH,
+                headSold, torsoSold, armsSold, legsSold, braced,
+                headAssets, torsoAssets, armAssets, legAssets, mouseX, mouseY);
 
         int infoX = bayX + bayW + 8;
         int infoW = Math.max(40, left + leftW - infoX - 6);
+        int toggleBtnW = 24;
+        int toggleBtnH = 12;
+        drawSmallButton(graphics, "btn_blue", infoX + infoW - toggleBtnW, top + 4, toggleBtnW, toggleBtnH,
+                bioViewMode3D ? "3D" : "2D", mouseX, mouseY,
+                () -> bioViewMode3D = !bioViewMode3D,
+                bioViewMode3D ? "Переключить на детализированную 2D-голограмму тела" : "Переключить на живую 3D-модель игрока");
+
         String intColor = bioIntegrity >= 80 ? "§a" : (bioIntegrity >= 50 ? "§e" : "§c");
-        drawClampedText(graphics, "§b§lБИО-МОНИТОР", infoX, top + 6, infoW, 0xFF38BDF8, false);
-        drawClampedText(graphics, "§7ЦЕЛОСТНОСТЬ: " + intColor + "§l" + bioIntegrity + "%", infoX, top + 17, infoW, 0xFFE2E8F0, false);
+        drawClampedText(graphics, "§b§lБИО-МОНИТОР", infoX, top + 6, Math.max(30, infoW - toggleBtnW - 4), 0xFF38BDF8, false);
+        drawClampedText(graphics, "§7НОРМА: " + intColor + "§l" + bioIntegrity + "%", infoX, top + 17, infoW, 0xFFE2E8F0, false);
 
         String barSprite = bioIntegrity >= 80 ? "bar_green" : (bioIntegrity >= 50 ? "bar_amber" : "bar_red");
-        drawProgressBar(graphics, infoX, top + 28, Math.min(infoW, 130), 5, bioIntegrity / 100.0, barSprite);
+        drawProgressBar(graphics, infoX, top + 28, Math.min(infoW, 145), 4, bioIntegrity / 100.0, barSprite);
 
-        int curStage = account.getStoryStage();
-        String stageTitle = (curStage >= 1 && curStage <= com.playermarket.story.StoryQuests.STAGES.size())
-                ? com.playermarket.story.StoryQuests.STAGES.get(curStage - 1).name()
-                : ("ЭТАП " + curStage);
-        int completedTasks = account.getStoryProgress().getCompletedTasks().size();
-        if (height >= 64) {
-            drawClampedText(graphics, "§eЭТАП " + curStage + ": §f" + stageTitle + " §8(" + completedTasks + ")", infoX, top + 38, infoW, 0xFFFBBF24, false);
-        }
-        if (height >= 76) {
-            drawClampedText(graphics, "§aАРХЕТИП: §7" + determineArchetype(account), infoX, top + 50, infoW, 0xFF10B981, false);
-        }
-        if (height >= 88) {
-            drawClampedText(graphics, "§8Активных статов в залоге: §f" + account.getSoldAssetCount() + " §8| Лизинг: §d" + account.getActiveLeases().size(), infoX, top + 62, infoW, 0xFF64748B, false);
+        // 4 Interactive Tarkov-style body zone health rows connected to scanner bay
+        int zoneListTop = top + 36;
+        int rowStep = height >= 94 ? 12 : 10;
+        drawZoneRow(graphics, bayX + bayW - 1, bayY + Math.round(bayH * 0.16f), infoX, zoneListTop + 0 * rowStep, infoW,
+                "ГОЛОВА", headSold, account, AssetType.Category.PROFESSIONAL, headAssets, mouseX, mouseY);
+        drawZoneRow(graphics, bayX + bayW - 1, bayY + Math.round(bayH * 0.36f), infoX, zoneListTop + 1 * rowStep, infoW,
+                "ТОРАКС", torsoSold, account, AssetType.Category.BODY, torsoAssets, mouseX, mouseY);
+        drawZoneRow(graphics, bayX + bayW - 1, bayY + Math.round(bayH * 0.46f), infoX, zoneListTop + 2 * rowStep, infoW,
+                "РУКИ", armsSold, account, AssetType.Category.COMBAT, armAssets, mouseX, mouseY);
+        drawZoneRow(graphics, bayX + bayW - 1, bayY + Math.round(bayH * 0.74f), infoX, zoneListTop + 3 * rowStep, infoW,
+                "НОГИ", legsSold, account, AssetType.Category.MOVEMENT, legAssets, mouseX, mouseY);
+
+        int footerStart = zoneListTop + 4 * rowStep + 2;
+        if (top + height - footerStart >= 11) {
+            int curStage = account.getStoryStage();
+            String stageTitle = (curStage >= 1 && curStage <= com.playermarket.story.StoryQuests.STAGES.size())
+                    ? com.playermarket.story.StoryQuests.STAGES.get(curStage - 1).name()
+                    : ("ЭТАП " + curStage);
+            drawClampedText(graphics, "§eЭт." + curStage + ": §7" + stageTitle + " §8| " + determineArchetype(account),
+                    infoX, top + height - 12, infoW, 0xFF94A3B8, false);
         }
 
         // === RIGHT MODULE: ANIMATED LIVE MARKET PULSE SPARKLINE ===
@@ -2375,50 +2441,195 @@ public class MarketMainScreen extends Screen {
         drawClampedText(graphics, footerChips, rightX + 8, top + height - 12, rightW - 16, 0xFF94A3B8, false);
     }
 
-    private void drawBioBodyDiagram(GuiGraphicsExtractor graphics, int bx, int by, int bw, int bh,
-                                    double headSold, double torsoSold, double armsSold, double legsSold) {
-        graphics.fill(bx, by, bx + bw, by + bh, 0xFF060A12);
-        graphics.fill(bx, by, bx + bw, by + 1, 0xFF155E75);
-        graphics.fill(bx, by + bh - 1, bx + bw, by + bh, 0xFF155E75);
-        graphics.fill(bx, by, bx + 1, by + bh, 0xFF155E75);
-        graphics.fill(bx + bw - 1, by, bx + bw, by + bh, 0xFF155E75);
+    private void drawBioBodyDiagram(GuiGraphicsExtractor graphics, PlayerMarketAccount account,
+                                    int bx, int by, int bw, int bh,
+                                    double headSold, double torsoSold, double armsSold, double legsSold,
+                                    boolean showLegBrace,
+                                    AssetType[] headAssets, AssetType[] torsoAssets,
+                                    AssetType[] armAssets, AssetType[] legAssets,
+                                    int mouseX, int mouseY) {
+        graphics.fill(bx, by, bx + bw, by + bh, 0xFF050911);
 
-        int cx = bx + bw / 2;
-        int sy = by + Math.max(4, (bh - 42) / 2);
+        // Subtle diagnostic grid lines inside bay
+        for (int gy = by + 10; gy < by + bh - 4; gy += 12) {
+            graphics.fill(bx + 2, gy, bx + bw - 2, gy + 1, 0xFF0D1726);
+        }
+        int midX = bx + bw / 2;
+        graphics.fill(midX, by + 3, midX + 1, by + bh - 3, 0xFF0D1726);
+
+        // Corner medical scanner brackets
+        int brkCol = 0xFF22D3EE;
+        graphics.fill(bx, by, bx + 6, by + 1, brkCol);
+        graphics.fill(bx, by, bx + 1, by + 6, brkCol);
+        graphics.fill(bx + bw - 6, by, bx + bw, by + 1, brkCol);
+        graphics.fill(bx + bw - 1, by, bx + bw, by + 6, brkCol);
+        graphics.fill(bx, by + bh - 1, bx + 6, by + bh, brkCol);
+        graphics.fill(bx, by + bh - 6, bx + 1, by + bh, brkCol);
+        graphics.fill(bx + bw - 6, by + bh - 1, bx + bw, by + bh, brkCol);
+        graphics.fill(bx + bw - 1, by + bh - 6, bx + bw, by + bh, brkCol);
 
         int headCol = zoneColor(headSold);
         int torsoCol = zoneColor(torsoSold);
         int armsCol = zoneColor(armsSold);
         int legsCol = zoneColor(legsSold);
 
-        // Head
-        graphics.fill(cx - 4, sy, cx + 4, sy + 8, headCol);
-        graphics.fill(cx - 3, sy + 1, cx + 3, sy + 7, 0xFF0B1320);
-        graphics.fill(cx - 2, sy + 3, cx - 1, sy + 4, headCol);
-        graphics.fill(cx + 1, sy + 3, cx + 2, sy + 4, headCol);
+        // Zone slice Y boundaries inside scanner bay
+        int zHeadEnd = by + Math.round(bh * 0.28f);
+        int zTorsoEnd = by + Math.round(bh * 0.57f);
 
-        // Neck + Shoulders/Torso
-        graphics.fill(cx - 1, sy + 8, cx + 1, sy + 10, torsoCol);
-        graphics.fill(cx - 5, sy + 10, cx + 5, sy + 24, torsoCol);
-        graphics.fill(cx - 4, sy + 11, cx + 4, sy + 23, 0xFF0B1320);
-        long pulseTick = (System.currentTimeMillis() / 400L) % 2L;
-        graphics.fill(cx - 1, sy + 14, cx + 1, sy + 16, pulseTick == 0L ? torsoCol : 0xFFFFFFFF);
+        // Soft pulsing hazard highlight behind/framing damaged body regions (especially clear around 3D player!)
+        int pulseAlpha = (int) (0x22 + Math.abs(Math.sin(System.currentTimeMillis() / 320.0)) * 0x24);
+        if (headSold > 0.01) {
+            graphics.fill(bx + 3, by + 4, bx + bw - 3, zHeadEnd, (pulseAlpha << 24) | (headCol & 0x00FFFFFF));
+        }
+        if (torsoSold > 0.01) {
+            graphics.fill(bx + 10, zHeadEnd + 1, bx + bw - 10, zTorsoEnd, (pulseAlpha << 24) | (torsoCol & 0x00FFFFFF));
+        }
+        if (armsSold > 0.01) {
+            graphics.fill(bx + 2, zHeadEnd + 1, bx + 10, zTorsoEnd, (pulseAlpha << 24) | (armsCol & 0x00FFFFFF));
+            graphics.fill(bx + bw - 10, zHeadEnd + 1, bx + bw - 2, zTorsoEnd, (pulseAlpha << 24) | (armsCol & 0x00FFFFFF));
+        }
+        if (legsSold > 0.01) {
+            graphics.fill(bx + 5, zTorsoEnd + 1, bx + bw - 5, by + bh - 3, (pulseAlpha << 24) | (legsCol & 0x00FFFFFF));
+        }
 
-        // Left & Right Arms
-        graphics.fill(cx - 9, sy + 10, cx - 6, sy + 23, armsCol);
-        graphics.fill(cx - 8, sy + 11, cx - 7, sy + 22, 0xFF0B1320);
-        graphics.fill(cx + 6, sy + 10, cx + 9, sy + 23, armsCol);
-        graphics.fill(cx + 7, sy + 11, cx + 8, sy + 22, 0xFF0B1320);
+        if (bioViewMode3D && minecraft != null && minecraft.player != null) {
+            // Render real animated 3D player skin following cursor
+            int entityScale = Math.max(18, Math.min(40, (int) (bh * 0.42)));
+            try {
+                InventoryScreen.extractEntityInInventoryFollowsMouse(
+                        graphics, bx + 2, by + 2, bx + bw - 2, by + bh - 2,
+                        entityScale, 0.0625f, (float) mouseX, (float) mouseY, minecraft.player);
+            } catch (Throwable ignored) {
+                render2DHoloBody(graphics, bx, by, bw, bh, headCol, torsoCol, armsCol, legsCol, torsoSold, showLegBrace);
+            }
+        } else {
+            render2DHoloBody(graphics, bx, by, bw, bh, headCol, torsoCol, armsCol, legsCol, torsoSold, showLegBrace);
+        }
 
-        // Left & Right Legs
-        graphics.fill(cx - 5, sy + 25, cx - 1, sy + 40, legsCol);
-        graphics.fill(cx - 4, sy + 26, cx - 2, sy + 39, 0xFF0B1320);
-        graphics.fill(cx + 1, sy + 25, cx + 5, sy + 40, legsCol);
-        graphics.fill(cx + 2, sy + 26, cx + 4, sy + 39, 0xFF0B1320);
+        // Left-side anatomical slice target markers for visual depth
+        graphics.fill(bx + 2, by + 6, bx + 4, by + 8, headCol);
+        graphics.fill(bx + 2, zHeadEnd + 4, bx + 4, zHeadEnd + 6, torsoCol);
+        graphics.fill(bx + 2, zHeadEnd + 14, bx + 4, zHeadEnd + 16, armsCol);
+        graphics.fill(bx + 2, zTorsoEnd + 8, bx + 4, zTorsoEnd + 10, legsCol);
 
-        // Subtle sweeping laser scanline
-        int scanOffset = (int) ((System.currentTimeMillis() / 55L) % Math.max(1, bh - 2));
-        graphics.fill(bx + 1, by + 1 + scanOffset, bx + bw - 1, by + 2 + scanOffset, 0x4438BDF8);
+        // Register clickable/hoverable body zone boxes directly on the model
+        registerClick(bx + 2, by + 2, bx + bw - 2, zHeadEnd, () -> {
+            assetFilter = AssetType.Category.PROFESSIONAL;
+            activeTab = Tab.SELL_ASSETS;
+            scrollOffset = 0;
+        }, buildZoneTooltip("ГОЛОВА // РАЗУМ И ВОСПРИЯТИЕ", headSold, account, headAssets));
+
+        registerClick(bx + 10, zHeadEnd + 1, bx + bw - 10, zTorsoEnd, () -> {
+            assetFilter = AssetType.Category.BODY;
+            activeTab = Tab.SELL_ASSETS;
+            scrollOffset = 0;
+        }, buildZoneTooltip("ТОРАКС // СЕРДЦЕ И ОРГАНЫ", torsoSold, account, torsoAssets));
+
+        registerClick(bx + 2, zHeadEnd + 1, bx + 10, zTorsoEnd, () -> {
+            assetFilter = AssetType.Category.COMBAT;
+            activeTab = Tab.SELL_ASSETS;
+            scrollOffset = 0;
+        }, buildZoneTooltip("РУКИ // БОЙ И ИНСТРУМЕНТ", armsSold, account, armAssets));
+
+        registerClick(bx + bw - 10, zHeadEnd + 1, bx + bw - 2, zTorsoEnd, () -> {
+            assetFilter = AssetType.Category.COMBAT;
+            activeTab = Tab.SELL_ASSETS;
+            scrollOffset = 0;
+        }, buildZoneTooltip("РУКИ // БОЙ И ИНСТРУМЕНТ", armsSold, account, armAssets));
+
+        registerClick(bx + 2, zTorsoEnd + 1, bx + bw - 2, by + bh - 2, () -> {
+            assetFilter = AssetType.Category.MOVEMENT;
+            activeTab = Tab.SELL_ASSETS;
+            scrollOffset = 0;
+        }, buildZoneTooltip("НОГИ // МОБИЛЬНОСТЬ И ШАГ", legsSold, account, legAssets));
+
+        // Sweeping laser scanline
+        int scanOffset = (int) ((System.currentTimeMillis() / 55L) % Math.max(1, bh - 4));
+        graphics.fill(bx + 2, by + 2 + scanOffset, bx + bw - 2, by + 3 + scanOffset, 0x5522D3EE);
+    }
+
+    private void render2DHoloBody(GuiGraphicsExtractor graphics, int bx, int by, int bw, int bh,
+                                  int headCol, int torsoCol, int armsCol, int legsCol,
+                                  double torsoSold, boolean showLegBrace) {
+        int drawH = Math.max(48, Math.min(bh - 4, 96));
+        int drawW = Math.round(drawH * (64.0f / 96.0f));
+        if (drawW > bw - 4) {
+            drawW = bw - 4;
+            drawH = Math.round(drawW * (96.0f / 64.0f));
+        }
+        int hx = bx + (bw - drawW) / 2;
+        int hy = by + (bh - drawH) / 2;
+
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BODY_ARMS, hx, hy, 0.0f, 0.0f, drawW, drawH, 64, 96, 64, 96, armsCol);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BODY_LEGS, hx, hy, 0.0f, 0.0f, drawW, drawH, 64, 96, 64, 96, legsCol);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BODY_TORSO, hx, hy, 0.0f, 0.0f, drawW, drawH, 64, 96, 64, 96, torsoCol);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BODY_HEAD, hx, hy, 0.0f, 0.0f, drawW, drawH, 64, 96, 64, 96, headCol);
+
+        long beatPeriod = torsoSold > 0.25 ? 260L : 520L;
+        boolean heartFlash = ((System.currentTimeMillis() / beatPeriod) % 2L) == 0L;
+        int heartTint = torsoSold > 0.01
+                ? (heartFlash ? 0xFFFF3333 : 0xFFCC1111)
+                : (heartFlash ? 0xFF34D399 : 0xFF10B981);
+        graphics.blit(RenderPipelines.GUI_TEXTURED, BODY_HEART, hx, hy, 0.0f, 0.0f, drawW, drawH, 64, 96, 64, 96, heartTint);
+
+        if (showLegBrace) {
+            graphics.blit(RenderPipelines.GUI_TEXTURED, BODY_BRACE, hx, hy, 0.0f, 0.0f, drawW, drawH, 64, 96, 64, 96, 0xFFE2E8F0);
+        }
+    }
+
+    private void drawZoneRow(GuiGraphicsExtractor graphics, int bayEdgeX, int bayAnchorY,
+                             int rx, int ry, int rw, String label, double soldFrac,
+                             PlayerMarketAccount account, AssetType.Category jumpCat,
+                             AssetType[] zoneAssets, int mouseX, int mouseY) {
+        int pct = (int) Math.max(0, Math.min(100, Math.round((1.0 - soldFrac) * 100.0)));
+        int col = zoneColor(soldFrac);
+        boolean hovered = mouseX >= rx - 2 && mouseX <= rx + rw && mouseY >= ry - 1 && mouseY <= ry + 9;
+
+        // Tarkov-style thin connector dot + bridge line from scanner bay into the row
+        graphics.fill(bayEdgeX, bayAnchorY, bayEdgeX + 3, bayAnchorY + 1, col);
+        graphics.fill(rx - 4, ry + 4, rx - 1, ry + 5, col);
+
+        if (hovered) {
+            graphics.fill(rx - 1, ry - 1, rx + rw, ry + 9, 0x3338BDF8);
+        }
+
+        int pctW = font.width(pct + "%");
+        graphics.text(font, label, rx, ry + 1, hovered ? 0xFFFFFFFF : 0xFFCBD5E1, false);
+        graphics.text(font, pct + "%", rx + rw - pctW, ry + 1, col, false);
+
+        int barX = rx + 42;
+        int barW = rw - 42 - pctW - 4;
+        if (barW >= 18) {
+            String spr = soldFrac < 0.01 ? "bar_green" : (soldFrac < 0.45 ? "bar_amber" : "bar_red");
+            drawProgressBar(graphics, barX, ry + 2, barW, 4, Math.max(0.0, 1.0 - soldFrac), spr);
+        }
+
+        registerClick(rx - 1, ry - 1, rx + rw, ry + 9, () -> {
+            assetFilter = jumpCat;
+            activeTab = Tab.SELL_ASSETS;
+            scrollOffset = 0;
+        }, buildZoneTooltip(label, soldFrac, account, zoneAssets));
+    }
+
+    private static String buildZoneTooltip(String title, double soldFrac, PlayerMarketAccount account, AssetType... assets) {
+        int intact = (int) Math.max(0, Math.min(100, Math.round((1.0 - soldFrac) * 100.0)));
+        StringBuilder sb = new StringBuilder();
+        sb.append(intact >= 99 ? "§a§l" : (intact >= 55 ? "§e§l" : "§c§l"))
+                .append(title).append(" — ").append(intact).append("% нормы\n");
+        int shown = 0;
+        for (AssetType a : assets) {
+            double total = account.getTotalSoldFraction(a);
+            if (total > 0.001) {
+                sb.append("§c• ").append(a.getShortName()).append(": -").append(Math.round(total * 100)).append("%\n");
+                shown++;
+            }
+        }
+        if (shown == 0) {
+            sb.append("§7Потерь нет. Биологические параметры стабильны.\n");
+        }
+        sb.append("§8Нажмите для перехода к характеристикам этой зоны");
+        return sb.toString().trim();
     }
 
     private void drawMarketSparkline(GuiGraphicsExtractor graphics, MarketEvent event, double marketIdx,
@@ -2478,15 +2689,21 @@ public class MarketMainScreen extends Screen {
     private static double avgSoldFraction(PlayerMarketAccount account, AssetType... types) {
         if (types.length == 0) return 0.0;
         double sum = 0.0;
+        double max = 0.0;
         for (AssetType t : types) {
-            sum += account.getTotalSoldFraction(t);
+            double v = account.getTotalSoldFraction(t);
+            sum += v;
+            if (v > max) max = v;
         }
-        return sum / types.length;
+        double avg = sum / types.length;
+        // Blend peak stat loss with zone average so even a single sold stat lights up the zone clearly
+        return Math.min(1.0, max * 0.55 + avg * 0.45);
     }
 
     private static int zoneColor(double soldFrac) {
-        if (soldFrac >= 0.45) return 0xFFEF4444;
-        if (soldFrac >= 0.15) return 0xFFF59E0B;
+        if (soldFrac >= 0.35) return 0xFFEF4444;
+        if (soldFrac >= 0.14) return 0xFFF59E0B;
+        if (soldFrac > 0.005) return 0xFFFACC15;
         return 0xFF10B981;
     }
 

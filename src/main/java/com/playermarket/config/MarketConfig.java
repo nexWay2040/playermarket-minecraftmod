@@ -23,7 +23,7 @@ public class MarketConfig {
     public double resourceBuyMarkup = 1.40;
     public long diamondBuyPriceCr = 1200L;
     public long diamondSellPriceCr = 650L;
-    public double buybackCommission = 0.50; // 50% commission: base * 1.50
+    public double buybackCommission = 1.35; // 135% corporate buyback markup: base * 2.35
     public double upgradePriceMultiplier = 1.0;
     public double maxAttributeSaleFraction = 0.80; // Max 80% of any attribute can be sold
     public int maxUpgradeLevelCap = 3;
@@ -105,7 +105,15 @@ public class MarketConfig {
                     if (loaded.customResourceBasePrices == null || loaded.customResourceBasePrices.isEmpty()) {
                         loaded.initDefaults();
                     }
+                    boolean upgraded = false;
+                    if (loaded.buybackCommission < 1.0) {
+                        loaded.buybackCommission = 1.35;
+                        upgraded = true;
+                    }
                     INSTANCE = loaded;
+                    if (upgraded) {
+                        save();
+                    }
                 }
             } catch (Exception e) {
                 PlayerMarketMod.LOGGER.error("Failed to load playermarket.json config, using defaults", e);
