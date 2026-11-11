@@ -5,6 +5,7 @@ import com.playermarket.PlayerMarketMod;
 import com.playermarket.client.gui.CrumpledLetterScreen;
 import com.playermarket.client.gui.MarketMainScreen;
 import com.playermarket.client.hud.MarketHudOverlay;
+import com.playermarket.client.render.OreScannerRenderer;
 import com.playermarket.client.render.PlayerBraceRenderLayer;
 import com.playermarket.item.CrumpledLetterItem;
 import com.playermarket.item.MarketAccessCardItem;
@@ -69,11 +70,22 @@ public class PlayerMarketClient implements ClientModInitializer {
             context.client().execute(() -> ClientMarketState.applySync(payload));
         });
 
-        // Register In-Game HUD overlay
+        // Register In-Game HUD overlay & Ore Scanner sonar pulse renderer
         HudElementRegistry.addLast(PlayerMarketMod.id("market_hud"), MarketHudOverlay::render);
+        OreScannerRenderer.register();
 
-        // Keybinding listener for key 'M' (Only opens terminal if player actually carries the Access Card)
+        // Keybinding listener for key 'M' + ending cinematic screen lock + scanner tick
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            OreScannerRenderer.tickScan(client);
+            if (MarketHudOverlay.isEndingCinematicPlaying()) {
+                if (client.gui != null && client.gui.screen() != null
+                        && !(client.gui.screen() instanceof net.minecraft.client.gui.screens.DisconnectedScreen)
+                        && !(client.gui.screen() instanceof net.minecraft.client.gui.screens.GenericWaitingScreen)) {
+                    client.gui.setScreen(null);
+                }
+                while (openMarketKey.consumeClick()) {}
+                return;
+            }
             while (openMarketKey.consumeClick()) {
                 if (client.player != null && client.gui != null && client.gui.screen() == null) {
                     if (ClientMarketState.getAccount().isMarketCardBlocked() || ClientMarketState.getAccount().isAccountClosed()) {

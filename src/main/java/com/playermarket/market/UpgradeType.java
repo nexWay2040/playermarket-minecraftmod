@@ -38,8 +38,8 @@ public enum UpgradeType {
     ENHANCED_LUNGS(
             "enhanced_lungs", Category.BODY,
             new int[]{10, 20, 36},
-            new double[]{1.0, 2.0, 3.5},
-            new String[]{"+1.0 Бонус кислорода", "+2.0 Бонус кислорода", "+3.5 Бонус кислорода"},
+            new double[]{2.0, 4.0, 8.0},
+            new String[]{"+2.0 Кислород и +35% под водой", "+4.0 Кислород и +70% под водой", "+8.0 Кислород и +120% под водой"},
             Attributes.OXYGEN_BONUS, AttributeModifier.Operation.ADD_VALUE,
             null, 0
     ),
@@ -161,9 +161,9 @@ public enum UpgradeType {
     ),
     ORE_SCANNER(
             "ore_scanner", Category.PROFESSIONAL,
-            new int[]{18, 36, 68},
-            new double[]{10.0, 16.0, 24.0},
-            new String[]{"Радар ценных руд (10м)", "Радар ценных руд (16м)", "Радар ценных руд (24м)"},
+            new int[]{16, 32, 60},
+            new double[]{5.0, 8.0, 12.0},
+            new String[]{"Сонар руд 5м (Алмаз, Золото, Изумруд, Обломки)", "Сонар руд 8м (+Железо и Редстоун)", "Сонар руд 12м (макс. радиус сонара + HUD)"},
             null, null,
             MINING_PROTOCOL, 1
     ),
@@ -179,7 +179,7 @@ public enum UpgradeType {
             "aquatic_propulsion", Category.PROFESSIONAL,
             new int[]{10, 22, 40},
             new double[]{0.35, 0.70, 1.20},
-            new String[]{"+35% Скор. в воде и под водой", "+70% Скор. в воде и под водой", "+120% Скор. в воде и под водой"},
+            new String[]{"+35% Скор. в воде и копания в воде", "+70% Скор. в воде и копания в воде", "+120% Скор. в воде и копания в воде"},
             Attributes.WATER_MOVEMENT_EFFICIENCY, AttributeModifier.Operation.ADD_VALUE,
             null, 0
     ),
@@ -219,9 +219,13 @@ public enum UpgradeType {
     ),
     VIP_CLIENT(
             "vip_client", Category.CORPORATE,
-            new int[]{25, 50, 96},
+            new int[]{24, 48, 92},
             new double[]{1.0, 2.0, 3.0},
-            new String[]{"VIP I: Каталог и +15% дивиденды", "VIP II: Скидка -10% ♦ и +30% див.", "VIP III: Скидка -20% ♦ и Чёрный рынок"},
+            new String[]{
+                    "Лимит +5 ♦/дн. (15), +15% дивиденды, Каталог",
+                    "Лимит +12 ♦/дн. (22), скидка -10% ♦ на чипы, +30% див.",
+                    "Лимит +25 ♦/дн. (35), скидка -20% ♦, +50% див., Чёрный рынок"
+            },
             null, null,
             PREMIUM_ACCOUNT, 1
     ),
@@ -370,6 +374,39 @@ public enum UpgradeType {
     public String getSummaryForLevel(int level) {
         int idx = Math.clamp(level - 1, 0, levelSummaries.length - 1);
         return levelSummaries[idx];
+    }
+
+    public String getMechanicDescription() {
+        return switch (this) {
+            case REINFORCED_HEART -> "Постоянно увеличивает максимум здоровья персонажа.";
+            case RAPID_RECOVERY -> "Усиливает любое лечение и регенерацию от сытости.";
+            case ADRENALINE_SYSTEM -> "Постоянно ускоряет базовый бег и передвижение.";
+            case ENHANCED_LUNGS -> "Продлевает запас воздуха и ускоряет добычу под водой.";
+            case STRONG_LEGS -> "Увеличивает высоту прыжка — легче перепрыгивать блоки.";
+            case METABOLISM_UPGRADE -> "Сокращает пассивный расход сытости и штрафы голода.";
+            case REINFORCED_BONES -> "Смягчает урон от падения и повышает безопасную высоту.";
+            case THERMAL_ADAPTATION -> "Снижает урон от огня и сокращает длительность горения.";
+            case MUSCLE_OVERCLOCK -> "Мультипликативно усиливает любой урон в ближнем бою.";
+            case FAST_REFLEXES -> "Ускоряет перезарядку ударов оружием и инструментами.";
+            case REINFORCED_SKIN -> "Даёт постоянную встроенную броню поверх экипировки.";
+            case IMPACT_DAMPENER -> "Снижает отбрасывание от атак монстров и взрывов.";
+            case PRECISION_TARGETING -> "Увеличивает дистанцию атак по мобам в ближнем бою.";
+            case PROJECTILE_CALIBRATION -> "Усиливает урон луков, арбалетов, трезубцев и снежков.";
+            case COMBAT_FOCUS -> "Увеличивает множитель урона критических атак в прыжке.";
+            case MINING_PROTOCOL -> "Ускоряет добычу любых блоков всеми инструментами.";
+            case LUCKY_CHIP -> "Повышает параметр Удачи для редкого лута и рыбалки.";
+            case XP_ACCELERATOR -> "Умножает весь получаемый опыт из сфер, мобов и руд.";
+            case ORE_SCANNER -> "Каждые 3с подсвечивает руды контуром сквозь стены + счётчик HUD.";
+            case EFFICIENT_METABOLISM -> "Снижает истощение от спринта, копания и лизинга.";
+            case AQUATIC_PROPULSION -> "Ускоряет плавание и работу под водой почти без штрафа.";
+            case PRECISION_HANDS -> "Позволяет ставить и ломать блоки с большего расстояния.";
+            case PREMIUM_ACCOUNT -> "Увеличивает выплаты CR за продажу статов, сырья и контракты.";
+            case BROKER_LICENSE -> "Снижает комиссию корпорации при обратном выкупе активов.";
+            case MARKET_INSURANCE -> "Смягчает дебаффы и риск лизинга характеристик.";
+            case VIP_CLIENT -> "Повышает суточный лимит продажи ♦, дивиденды и даёт скидку ♦.";
+            case PRICE_LOCK -> "Защищает от падения курса при кризисах и держит мин. планку CR.";
+            case DIAMOND_CASHBACK -> "При покупке чипов от 4 ♦ даёт шанс мгновенно вернуть часть ♦.";
+        };
     }
 
     public Holder<Attribute> getVanillaAttribute() {

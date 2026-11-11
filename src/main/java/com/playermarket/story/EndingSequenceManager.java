@@ -25,22 +25,30 @@ public class EndingSequenceManager {
         MarketSavedData savedData = MarketSavedData.get(server);
         SharedCampaignData campaignData = savedData.getCampaignData();
 
-        // 1. Set independent ending lifecycle flags
+        // 1. Set independent ending lifecycle flags & clear any active market events
         campaignData.setEndingStarted(true);
         campaignData.setEndingApplied(true);
         campaignData.setEndingState("FINAL_SETTLEMENT_ACTIVE");
         campaignData.setEndingStartedTick(server.overworld().getGameTime());
+        savedData.setActiveEvent(com.playermarket.market.MarketEvent.STABLE_MARKET, server.overworld().getGameTime());
 
         // 2. Process all connected players and registered participants
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             campaignData.getImpairedPlayers().add(player.getUUID());
             PlayerMarketAccount account = savedData.getOrCreateAccount(player.getUUID());
 
-            account.addCr(100000L);
+            account.addCr(1_000_000L);
             account.setMarketCardBlocked(true);
             account.setPermanentImpaired(true);
             account.setEndingState("SETTLED");
+            account.getActiveLeases().clear();
+            account.getContracts().clear();
             account.getStoryProgress().setFinalChoice("ACCOUNT_SETTLEMENT");
+
+            player.closeContainer();
+            player.setDeltaMovement(0.0, 0.0, 0.0);
+            player.needsSync = true;
+            MarketAttributeApplier.syncPlayerModifiers(player);
 
             // Transform all access cards in inventory into BLOCKED MARKET CARD item
             for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
@@ -61,6 +69,8 @@ public class EndingSequenceManager {
             account.setMarketCardBlocked(true);
             account.setPermanentImpaired(true);
             account.setEndingState("SETTLED");
+            account.getActiveLeases().clear();
+            account.getContracts().clear();
         }
 
         // 3. Persist to disk BEFORE sending any network sequences
@@ -120,12 +130,15 @@ public class EndingSequenceManager {
             long elapsed = server.overworld().getGameTime() - campaignData.getEndingStartedTick();
 
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                // Freeze controls & darken vision during cinematic
+                // Lock movement, rotation, containers & jump completely during the 10-second sequence
+                player.closeContainer();
+                player.setDeltaMovement(0.0, Math.min(0.0, player.getDeltaMovement().y), 0.0);
+                player.needsSync = true;
                 player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 255, false, false, false));
                 player.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 40, 0, false, false, false));
 
                 if (elapsed == 0) {
-                    player.sendSystemMessage(Component.literal("§6§l[FINAL SETTLEMENT] §eСчёт одобрен // +100,000 CR начислено."));
+                    player.sendSystemMessage(Component.literal("§6§l[FINAL SETTLEMENT] §eСчёт одобрен // +1,000,000 CR начислено."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 0.8f);
                 } else if (elapsed == 40) {

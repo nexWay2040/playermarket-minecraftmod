@@ -24,6 +24,12 @@ public class MarketHudOverlay {
     private static final Identifier ICON_CR = PlayerMarketMod.id("textures/gui/icons/currency_cr.png");
     private static final Identifier ICON_DIAMOND = PlayerMarketMod.id("textures/gui/icons/currency_diamond.png");
 
+    public static boolean isEndingCinematicPlaying() {
+        SharedCampaignData campaign = ClientMarketState.getSharedCampaign();
+        return "FINAL_SETTLEMENT_ACTIVE".equals(campaign.getEndingState())
+                || (campaign.isEndingStarted() && !campaign.isDisconnectSent() && !"SETTLED".equals(campaign.getEndingState()));
+    }
+
     public static void render(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.level == null) return;
@@ -33,8 +39,7 @@ public class MarketHudOverlay {
         SharedCampaignData campaign = ClientMarketState.getSharedCampaign();
 
         // Fullscreen responsive ending cinematic renders even while screen closes / card is blocked
-        if ("FINAL_SETTLEMENT_ACTIVE".equals(campaign.getEndingState())
-                || (campaign.isEndingStarted() && !campaign.isDisconnectSent() && !"SETTLED".equals(campaign.getEndingState()))) {
+        if (isEndingCinematicPlaying()) {
             renderEndingCinematic(graphics, client, campaign);
             return;
         }
@@ -74,6 +79,11 @@ public class MarketHudOverlay {
 
         if (event != MarketEvent.STABLE_MARKET) {
             lines.add("§6Событие: §e" + event.getHeadline());
+        }
+
+        String scannerReport = ClientMarketState.getOreScannerReport();
+        if (account.getUpgradeLevel(UpgradeType.ORE_SCANNER) > 0 && scannerReport != null && !scannerReport.equals("OFFLINE")) {
+            lines.add("§bСонар: §7" + scannerReport);
         }
 
         // Active Story Quest tracker (compact single line)
@@ -217,7 +227,7 @@ public class MarketHudOverlay {
         int step;
         if (elapsedMs < 2000L) {
             step = 1;
-            tag = "[ CONTRACT EXECUTED // +100,000 CR ]";
+            tag = "[ CONTRACT EXECUTED // +1,000,000 CR ]";
             title = Component.translatableWithFallback("ending.playermarket.phase1.title", "FINAL SETTLEMENT").getString();
             subtitle = Component.translatableWithFallback("ending.playermarket.phase1.sub",
                     "Расчёт одобрен. Средства зачислены на корпоративный счёт.").getString();

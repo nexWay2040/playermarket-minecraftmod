@@ -384,11 +384,12 @@ public class MarketNetworking {
 
                 int diamondEquivalentPerUnit = getDiamondExchangeEquivalent(stack.getItem());
                 int countToSell = stack.getCount();
+                int dailyLimit = account.getDailyDiamondExchangeLimit();
                 if (diamondEquivalentPerUnit > 0) {
                     int remainingQuota = account.getRemainingDailyDiamondExchange(dayIndex);
                     int maxUnits = remainingQuota / diamondEquivalentPerUnit;
                     if (maxUnits <= 0) {
-                        sendSyncToPlayer(player, "§cДневной лимит обмена алмазов (" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + "/день) исчерпан!");
+                        sendSyncToPlayer(player, "§cДневной лимит обмена алмазов (" + dailyLimit + "/день) исчерпан!");
                         playErrorSound(player);
                         return;
                     }
@@ -428,7 +429,7 @@ public class MarketNetworking {
 
                 status = "§aПРОДАНО " + countToSell + "x " + itemName + " за +" + totalPayout + " CR";
                 if (diamondEquivalentPerUnit > 0) {
-                    status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + ")";
+                    status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + dailyLimit + ")";
                 }
                 playSuccessSound(player);
             }
@@ -444,11 +445,12 @@ public class MarketNetworking {
                 String itemName = targetStack.getHoverName().getString();
                 int diamondEquivalentPerUnit = getDiamondExchangeEquivalent(targetItem);
                 int maxAllowedUnits = Integer.MAX_VALUE;
+                int dailyLimit = account.getDailyDiamondExchangeLimit();
                 if (diamondEquivalentPerUnit > 0) {
                     int remainingQuota = account.getRemainingDailyDiamondExchange(dayIndex);
                     maxAllowedUnits = remainingQuota / diamondEquivalentPerUnit;
                     if (maxAllowedUnits <= 0) {
-                        sendSyncToPlayer(player, "§cДневной лимит обмена алмазов (" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + "/день) исчерпан!");
+                        sendSyncToPlayer(player, "§cДневной лимит обмена алмазов (" + dailyLimit + "/день) исчерпан!");
                         playErrorSound(player);
                         return;
                     }
@@ -496,7 +498,7 @@ public class MarketNetworking {
 
                 status = "§aОПТОМ ПРОДАНО " + totalCount + "x " + itemName + " за +" + totalPayout + " CR";
                 if (diamondEquivalentPerUnit > 0) {
-                    status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + ")";
+                    status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + dailyLimit + ")";
                 }
                 playSuccessSound(player);
             }
@@ -514,11 +516,12 @@ public class MarketNetworking {
 
                 int diamondEquivalentPerUnit = getDiamondExchangeEquivalent(match.item());
                 int diamondCostUnits = diamondEquivalentPerUnit * match.bundleSize();
+                int dailyLimit = account.getDailyDiamondExchangeLimit();
                 if (diamondCostUnits > 0) {
                     int remainingQuota = account.getRemainingDailyDiamondExchange(dayIndex);
                     if (remainingQuota < diamondCostUnits) {
                         sendSyncToPlayer(player, "§cДневной лимит обмена алмазов исчерпан ("
-                                + account.getDiamondsExchangedOnDay(dayIndex) + "/" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + " за день)!");
+                                + account.getDiamondsExchangedOnDay(dayIndex) + "/" + dailyLimit + " за день)!");
                         playErrorSound(player);
                         return;
                     }
@@ -550,7 +553,7 @@ public class MarketNetworking {
 
                 status = "§aКУПЛЕНО " + match.bundleSize() + "x " + itemName + " (-" + match.buyCostCr() + " CR)";
                 if (diamondCostUnits > 0) {
-                    status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE + ")";
+                    status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + dailyLimit + ")";
                 }
                 playSuccessSound(player);
             }

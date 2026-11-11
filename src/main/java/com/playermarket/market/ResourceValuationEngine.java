@@ -358,12 +358,15 @@ public class ResourceValuationEngine {
             value += 25.0;
         }
 
-        // Market event modifier
+        // Market event modifier & Price Lock guaranteed floor
         if (activeEvent != null) {
             double eventMult = activeEvent.getResourcePriceMultiplier();
-            if (account != null && account.getUpgradeLevel(UpgradeType.PRICE_LOCK) >= 1 && eventMult < 1.0) {
+            int priceLockLvl = account != null ? account.getUpgradeLevel(UpgradeType.PRICE_LOCK) : 0;
+            if (priceLockLvl >= 1 && eventMult < 1.0) {
                 eventMult = 1.0;
             }
+            if (priceLockLvl == 2) eventMult = Math.max(eventMult, 1.08);
+            else if (priceLockLvl >= 3) eventMult = Math.max(eventMult, 1.18);
             value *= eventMult;
         }
 

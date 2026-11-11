@@ -3,6 +3,11 @@
 	"package": "com.playermarket.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
+		"KeyboardInputFreezeMixin",
+		"MinecraftFreezeMixin",
+		"GuiFreezeMixin",
+		"MouseHandlerFreezeMixin",
+		"KeyboardHandlerFreezeMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

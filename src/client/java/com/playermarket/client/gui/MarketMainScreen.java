@@ -601,8 +601,9 @@ public class MarketMainScreen extends Screen {
         drawClampedText(graphics, "§7АЛМАЗЫ & VIP", c3Left + 8, top + 5, cardWidth - 16, 0xFF94A3B8, false);
         drawClampedText(graphics, "§b§l" + diamonds + " ♦ §7(инв.)", c3Left + 8, top + 16, cardWidth - 16, 0xFF38BDF8, false);
         long dayIdx = (minecraft != null && minecraft.level != null) ? (minecraft.level.getOverworldClockTime() / 24000L) : 0L;
+        int dailyLim = account.getDailyDiamondExchangeLimit();
         int remExch = account.getRemainingDailyDiamondExchange(dayIdx);
-        drawClampedText(graphics, "§8Обм: §b" + remExch + "/10 §8| Вл: §b" + account.getTotalDiamondsSpent() + " ♦", c3Left + 8, top + 28, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§8Обм: §b" + remExch + "/" + dailyLim + " §8| Вл: §b" + account.getTotalDiamondsSpent() + " ♦", c3Left + 8, top + 28, cardWidth - 16, 0xFF64748B, false);
         int vipLvl = account.getUpgradeLevel(UpgradeType.VIP_CLIENT);
         drawClampedText(graphics, "§8VIP: §e" + (vipLvl > 0 ? "Ур. " + vipLvl : "Базовый"), c3Left + 8, top + 38, cardWidth - 16, 0xFF64748B, false);
 
@@ -756,7 +757,7 @@ public class MarketMainScreen extends Screen {
                 drawSprite(graphics, "hud_bg", left, cy, width, 70, 0xFF200A0E);
                 drawClampedText(graphics, "§4§lФИНАНСОВЫЙ РАСЧЁТ ЗАВЕРШЁН // СТАТЬЯ 17.4 ВСТУПИЛА В СИЛУ", left + 8, cy + 6, width - 16, 0xFFEF4444, false);
                 drawClampedText(graphics, "§cПрава на биологические активы переданы корпорации. Доступ к бирже аннулирован.", left + 8, cy + 20, width - 16, 0xFFEF4444, false);
-                drawClampedText(graphics, "§7Ортопедический фиксатор активен на правой ноге. Скорость снижена, добыча блоков: 0.5x.", left + 8, cy + 34, width - 16, 0xFFCBD5E1, false);
+                drawClampedText(graphics, "§7Ортопедический фиксатор активен на правой ноге. Скорость -12%, добыча -22% (прыжок в норме).", left + 8, cy + 34, width - 16, 0xFFCBD5E1, false);
                 drawClampedText(graphics, "§8«Вы больше не клиент. Вы — корпоративный актив.»", left + 8, cy + 48, width - 16, 0xFF64748B, false);
                 cy += 76;
             } else {
@@ -764,13 +765,13 @@ public class MarketMainScreen extends Screen {
                 drawSprite(graphics, "card_amber", left, cy, width, cardH, 0xFF241A0A);
                 drawClampedText(graphics, "§6§lФИНАНСОВЫЙ ДОГОВОР // ACCOUNT SETTLEMENT", left + 10, cy + 8, width - 20, 0xFFFBBF24, false);
                 drawClampedText(graphics, "§fВсе этапы Программы Активов завершены. Корпорация производит окончательный расчёт.", left + 10, cy + 22, width - 20, 0xFFE2E8F0, false);
-                drawClampedText(graphics, "§7Выплата +100 000 CR начисляется на счета всех зарегистрированных участников.", left + 10, cy + 34, width - 20, 0xFFCBD5E1, false);
+                drawClampedText(graphics, "§7Выплата +1 000 000 CR начисляется на счета всех зарегистрированных участников.", left + 10, cy + 34, width - 20, 0xFFCBD5E1, false);
 
-                int bigBtnW = 280;
+                int bigBtnW = 290;
                 int bigBtnH = 24;
                 int bigBtnX = left + (width - bigBtnW) / 2;
                 int bigBtnY = cy + 49;
-                drawButton(graphics, "btn_green", bigBtnX, bigBtnY, bigBtnW, bigBtnH, "ACCEPT FINAL SETTLEMENT (+100 000 CR)", mouseX, mouseY, () -> {
+                drawButton(graphics, "btn_green", bigBtnX, bigBtnY, bigBtnW, bigBtnH, "ACCEPT FINAL SETTLEMENT (+1 000 000 CR)", mouseX, mouseY, () -> {
                     sendMarketAction("CHOOSE_FINAL_TRANSACTION", "FINAL_SETTLEMENT", "", 0, 0.0);
                     this.onClose();
                 });
@@ -1427,8 +1428,8 @@ public class MarketMainScreen extends Screen {
             }
         }
 
-        int itemH = 50;
-        int spacing = 54;
+        int itemH = 60;
+        int spacing = 64;
         maxScroll = Math.max(0, list.size() * spacing - listH);
 
         setScissor(graphics, left, listY, left + width, listY + listH);
@@ -1452,30 +1453,47 @@ public class MarketMainScreen extends Screen {
                 }
             }
 
-            drawSprite(graphics, "card", left, cy, width, itemH, 0xFF121622);
+            drawSprite(graphics, isMax ? "card_selected" : "card", left, cy, width, itemH, 0xFF121622);
+
+            int btnW = 112;
+            int btnH = 22;
+            int btnX = left + width - btnW - 8;
+            int btnY = cy + 19;
+            int textW = width - btnW - 42;
 
             String title = "§b§l" + upg.getTitle() + " §7[Ур. " + currentLvl + " / " + upg.getMaxLevel() + "]";
             drawItemSlot(graphics, left + 6, cy + 7, getUpgradeIconStack(upg));
-            drawClampedText(graphics, title, left + 28, cy + 6, width - 165, 0xFF38BDF8, false);
+            drawClampedText(graphics, title, left + 28, cy + 5, textW, 0xFF38BDF8, false);
 
-            String desc = isMax ? "§aМаксимальный уровень модификации достигнут." : upg.getSummaryForLevel(currentLvl + 1);
-            drawClampedText(graphics, "§7" + desc, left + 28, cy + 20, width - 170, 0xFF94A3B8, false);
+            String activeLine = currentLvl > 0
+                    ? ("§aТекущее: §f" + upg.getSummaryForLevel(currentLvl))
+                    : ("§7Ур. 1 даст: §f" + upg.getSummaryForLevel(1));
+            drawClampedText(graphics, activeLine, left + 28, cy + 16, textW, 0xFFE2E8F0, false);
 
+            String subInfo;
             if (!prereqMet) {
-                drawClampedText(graphics, prereqText, left + 28, cy + 34, width - 170, 0xFFEF4444, false);
+                subInfo = prereqText;
+            } else if (!isMax && currentLvl > 0) {
+                subInfo = "§eУр. " + (currentLvl + 1) + ": §f" + upg.getSummaryForLevel(currentLvl + 1);
+            } else {
+                subInfo = "§7" + upg.getMechanicDescription();
             }
-
-            int btnW = 120;
-            int btnH = 22;
-            int btnX = left + width - btnW - 8;
-            int btnY = cy + 14;
+            List<net.minecraft.util.FormattedCharSequence> subLines = font.split(Component.literal(subInfo), textW);
+            int sy = cy + 27;
+            for (int lineIdx = 0; lineIdx < Math.min(2, subLines.size()); lineIdx++) {
+                graphics.text(font, subLines.get(lineIdx), left + 28, sy, 0xFF94A3B8, false);
+                sy += 9;
+            }
 
             boolean canAfford = !isMax && prereqMet && (playerDiamonds >= nextCost);
             String btnText = isMax ? "МАКСИМУМ" : ("Купить (" + nextCost + " ♦)");
+            String tip = (currentLvl > 0 ? "§aАктивно сейчас: §f" + upg.getSummaryForLevel(currentLvl) + "\n" : "")
+                    + (!isMax ? "§eСледующий ур.: §f" + upg.getSummaryForLevel(currentLvl + 1) + "\n" : "§aПрокачано на максимум!\n")
+                    + "§7" + upg.getMechanicDescription();
 
-            drawButton(graphics, canAfford ? "btn_blue" : "btn_gray", btnX, btnY, btnW, btnH, btnText, mouseX, mouseY, () -> {
+            drawSmallButton(graphics, canAfford ? "btn_blue" : "btn_gray", btnX, btnY, btnW, btnH, btnText, mouseX, mouseY, () -> {
                 if (canAfford) sendMarketAction("BUY_DIAMOND_UPGRADE", upg.getId(), "", 0, 0.0);
-            });
+            }, tip);
         }
 
         clearScissor(graphics);
@@ -1719,9 +1737,10 @@ public class MarketMainScreen extends Screen {
         });
 
         long dayIndex = (minecraft != null && minecraft.level != null) ? (minecraft.level.getOverworldClockTime() / 24000L) : 0L;
+        int dailyDiamondLimit = account.getDailyDiamondExchangeLimit();
         int remainingDiamondQuota = account.getRemainingDailyDiamondExchange(dayIndex);
         String quotaBadge = String.format(Locale.ROOT, "Лимит алмазов: §b%d/%d§7/дн.",
-                remainingDiamondQuota, PlayerMarketAccount.MAX_DAILY_DIAMOND_EXCHANGE);
+                remainingDiamondQuota, dailyDiamondLimit);
         int quotaBadgeW = font.width(quotaBadge) + 22;
         if (left + (toggleW * 2) + 12 + quotaBadgeW <= left + width) {
             int qx = left + width - quotaBadgeW;
@@ -1779,9 +1798,9 @@ public class MarketMainScreen extends Screen {
                 int btnY = cy + 8;
 
                 boolean canSellItem = (eqPerUnit == 0) || (sellableUnits > 0);
-                String slotTip = canSellItem ? null : "Дневной лимит обмена алмазов (10/день) исчерпан!";
+                String slotTip = canSellItem ? null : "Дневной лимит обмена алмазов (" + dailyDiamondLimit + "/день) исчерпан!";
                 drawSmallButton(graphics, canSellItem ? "btn_green" : "btn_gray", btnX1, btnY, btnW, btnH,
-                        canSellItem ? ("Слот (+" + totalPayout + ")") : "Лимит 10/дн.", mouseX, mouseY, () -> {
+                        canSellItem ? ("Слот (+" + totalPayout + ")") : ("Лимит " + dailyDiamondLimit + "/дн."), mouseX, mouseY, () -> {
                     if (canSellItem) sendMarketAction("SELL_INVENTORY_SLOT", "", "", slot, 0.0);
                 }, slotTip);
 
@@ -1814,7 +1833,7 @@ public class MarketMainScreen extends Screen {
                 drawItemSlot(graphics, left + 6, cy + 8, new ItemStack(offer.item()));
                 String titleLine = "§f" + offer.bundleSize() + "x §b" + offer.displayName();
                 if (eqPerUnit > 0) {
-                    titleLine += " §8(§bост. " + remainingDiamondQuota + "/10§8)";
+                    titleLine += " §8(§bост. " + remainingDiamondQuota + "/" + dailyDiamondLimit + "§8)";
                 }
                 drawClampedText(graphics, titleLine, left + 28, cy + 6, width / 2 - 20, 0xFFFFFFFF, false);
                 drawClampedText(graphics, "§7Стоимость партии: §e" + offer.buyCostCr() + " CR", left + 28, cy + 18, width / 2 - 20, 0xFF94A3B8, false);
@@ -1824,8 +1843,8 @@ public class MarketMainScreen extends Screen {
                 int btnX = left + width - btnW - 8;
                 int btnY = cy + 8;
 
-                String buyBtnText = !withinQuota ? "Лимит 10/дн." : ("Купить (-" + offer.buyCostCr() + ")");
-                String buyTip = !withinQuota ? "Дневной лимит обмена алмазов (10/день) исчерпан!" : null;
+                String buyBtnText = !withinQuota ? ("Лимит " + dailyDiamondLimit + "/дн.") : ("Купить (-" + offer.buyCostCr() + ")");
+                String buyTip = !withinQuota ? "Дневной лимит обмена алмазов (" + dailyDiamondLimit + "/день) исчерпан!" : null;
                 drawSmallButton(graphics, canAfford ? "btn_blue" : "btn_gray", btnX, btnY, btnW, btnH, buyBtnText, mouseX, mouseY, () -> {
                     if (canAfford) sendMarketAction("BUY_CATALOG_RESOURCE", offer.itemId(), "", 0, 0.0);
                 }, buyTip);
@@ -2462,10 +2481,10 @@ public class MarketMainScreen extends Screen {
         int contentW = modalW - 24;
         String[] clauses = {
                 "§fПодписывая Финальный Расчёт (ACCEPT FINAL SETTLEMENT), оператор безоговорочно соглашается со следующими последствиями:",
-                "§e1. Финансовый расчёт: §7На ваш счёт начисляется +100 000 CR, после чего лицевой счёт закрывается.",
+                "§e1. Финансовый расчёт: §7На ваш счёт начисляется +1 000 000 CR, после чего лицевой счёт закрывается.",
                 "§c2. Ликвидация активов: §7Все биологические характеристики переходят в исключительную собственность Корпорации.",
                 "§c3. Аннулирование доступа: §7Карта Доступа [M] превращается в заблокированный носитель, а терминал отключается навсегда.",
-                "§64. Механическая фиксация: §7На правую ногу устанавливается постоянный ортопедический фиксатор (виден на скине, навсегда снижает скорость на 25% и замедляет добычу блоков в 2 раза — 0.5x).",
+                "§64. Механическая фиксация: §7На правую ногу устанавливается лёгкий несъёмный ортез (скорость -12%, добыча блоков -22%, прыжок полностью сохранён).",
                 "§45. Разрыв сессии: §7После истечения 10-секундной процедуры происходит принудительное отключение от сервера без возможности отмены."
         };
 

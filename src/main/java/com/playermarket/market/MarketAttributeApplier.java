@@ -84,16 +84,20 @@ public class MarketAttributeApplier {
             maxAbsInst.setBaseValue(20.0);
         }
 
+        boolean impaired = account.isPermanentImpaired();
         boolean emergencyBatteryActive = account.isBlackMarketEffectActive(BlackMarketItem.EMERGENCY_BATTERY, currentTick);
         boolean assetInsuranceActive = account.isBlackMarketEffectActive(BlackMarketItem.ASSET_INSURANCE, currentTick);
         int marketInsuranceLvl = account.getUpgradeLevel(UpgradeType.MARKET_INSURANCE);
 
-        // 2. Apply Sold Asset Debuffs
+        // 2. Apply Sold Asset Debuffs (strongly attenuated post-ending so Section 17.4 feels playable with mild friction)
         if (!emergencyBatteryActive) {
             for (AssetType asset : AssetType.values()) {
                 if (asset.getVanillaAttribute() == null || asset.getOperation() == null) continue;
+                if (impaired && (asset == AssetType.BLOCK_REACH || asset == AssetType.MINING_SPEED || asset == AssetType.UNDERWATER_MINING || asset == AssetType.MOVEMENT_SPEED || asset == AssetType.JUMP_STRENGTH || asset == AssetType.FALL_RESISTANCE)) {
+                    continue;
+                }
                 double permFrac = account.getPermanentSoldFraction(asset);
-                double leaseFrac = account.getLeasedFraction(asset);
+                double leaseFrac = impaired ? 0.0 : account.getLeasedFraction(asset);
                 if (marketInsuranceLvl > 0 && leaseFrac > 0.0) {
                     double shield = UpgradeType.MARKET_INSURANCE.getValueForLevel(marketInsuranceLvl);
                     leaseFrac *= (1.0 - shield * 0.5);
@@ -102,12 +106,14 @@ public class MarketAttributeApplier {
                 if (assetInsuranceActive) {
                     totalFrac *= 0.5;
                 }
+                if (impaired) {
+                    totalFrac *= 0.25;
+                }
                 if (totalFrac > 0.001) {
                     double amount = totalFrac * asset.getModifierScalePer100Percent();
                     addModifier(player, asset.getVanillaAttribute(), "sold_" + asset.getId(), amount, asset.getOperation());
 
                     // Special case: selling FALL_RESISTANCE also shrinks SAFE_FALL_DISTANCE from 3.0 down to 0.5 blocks
-                    // so falling from 3, 2, or even 1 block deals damage!
                     if (asset == AssetType.FALL_RESISTANCE) {
                         double safeDistReduction = -2.75 * totalFrac;
                         addModifier(player, Attributes.SAFE_FALL_DISTANCE, "sold_safe_fall_dist", safeDistReduction, AttributeModifier.Operation.ADD_VALUE);
@@ -115,18 +121,20 @@ public class MarketAttributeApplier {
                 }
             }
 
-            // Lease Burden Penalty: active 3d-5d leases impose a corporate debt strain
-            int longLeaseCount = 0;
-            for (LeaseContract lease : account.getActiveLeases()) {
-                if (lease.durationDays() >= 3) longLeaseCount++;
-            }
-            if (longLeaseCount > 0) {
-                double strain = -0.04 * longLeaseCount;
-                if (marketInsuranceLvl > 0) {
-                    strain *= (1.0 - UpgradeType.MARKET_INSURANCE.getValueForLevel(marketInsuranceLvl) * 0.5);
+            // Lease Burden Penalty: active 3d-5d leases impose a corporate debt strain (disabled post-ending)
+            if (!impaired) {
+                int longLeaseCount = 0;
+                for (LeaseContract lease : account.getActiveLeases()) {
+                    if (lease.durationDays() >= 3) longLeaseCount++;
                 }
-                addModifier(player, Attributes.MOVEMENT_SPEED, "lease_burden_speed", strain, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
-                addModifier(player, Attributes.BLOCK_BREAK_SPEED, "lease_burden_mining", strain, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
+                if (longLeaseCount > 0) {
+                    double strain = -0.04 * longLeaseCount;
+                    if (marketInsuranceLvl > 0) {
+                        strain *= (1.0 - UpgradeType.MARKET_INSURANCE.getValueForLevel(marketInsuranceLvl) * 0.5);
+                    }
+                    addModifier(player, Attributes.MOVEMENT_SPEED, "lease_burden_speed", strain, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
+                    addModifier(player, Attributes.BLOCK_BREAK_SPEED, "lease_burden_mining", strain, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
+                }
             }
         } else {
             // Emergency Battery grants +15% key stats while suppressing debuffs
@@ -153,6 +161,9 @@ public class MarketAttributeApplier {
             addModifier(player, upgrade.getVanillaAttribute(), "upgrade_" + upgrade.getId(), value, upgrade.getOperation());
             if (upgrade == UpgradeType.REINFORCED_BONES) {
                 addModifier(player, Attributes.SAFE_FALL_DISTANCE, "upgrade_safe_fall", 1.2 * lvl, AttributeModifier.Operation.ADD_VALUE);
+            } else if (upgrade == UpgradeType.ENHANCED_LUNGS || upgrade == UpgradeType.AQUATIC_PROPULSION) {
+                double subSpeed = 0.35 * lvl;
+                addModifier(player, Attributes.SUBMERGED_MINING_SPEED, "upgrade_submerged_" + upgrade.getId(), subSpeed, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
             }
         }
 
@@ -171,11 +182,14 @@ public class MarketAttributeApplier {
             addModifier(player, Attributes.BLOCK_BREAK_SPEED, "bm_overclock_mining", 0.25, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
         }
 
-        // 6. Apply Permanent Debuff if player accepted Final Settlement (Account Revoked / Impaired):
-        // Preserve full 1-block jump clearance, but halve block mining speed (0.5x) and reduce movement speed
-        if (account.isPermanentImpaired()) {
-            addModifier(player, Attributes.MOVEMENT_SPEED, "permanent_impaired_speed", -0.25, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
-            addModifier(player, Attributes.BLOCK_BREAK_SPEED, "permanent_impaired_mining", -0.50, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
+        // 6. Apply Mild Permanent Debuff if player accepted Final Settlement (Section 17.4):
+        // Preserve full 1-block jumps and normal feel with mild corporate exoskeleton friction (-12% speed, -22% mining)
+        if ("FINAL_SETTLEMENT_ACTIVE".equals(data.getCampaignData().getEndingState())) {
+            addModifier(player, Attributes.MOVEMENT_SPEED, "ending_cinematic_freeze_spd", -1.0, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
+            addModifier(player, Attributes.JUMP_STRENGTH, "ending_cinematic_freeze_jmp", -1.0, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
+        } else if (impaired) {
+            addModifier(player, Attributes.MOVEMENT_SPEED, "permanent_impaired_speed", -0.12, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
+            addModifier(player, Attributes.BLOCK_BREAK_SPEED, "permanent_impaired_mining", -0.22, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
         }
 
         // Clamp current health if Max Health decreased
@@ -461,11 +475,17 @@ public class MarketAttributeApplier {
 
         MarketSavedData data = MarketSavedData.get(server);
         long gameTime = server.overworld().getGameTime();
+        var sharedCampaign = data.getCampaignData();
+        boolean worldSettled = sharedCampaign.isEndingStarted()
+                || sharedCampaign.isEndingApplied()
+                || "SETTLED".equals(sharedCampaign.getEndingState());
 
-        // Check dynamic Market Event rotation:
-        // Initial 3-minute onboarding period (3,600 ticks), then switch every ~4 minutes (4,800 ticks)
-        // so players actively experience booms and crashes during a ~15-20 minute session.
-        if (gameTime >= 3600L && gameTime >= data.getNextEventSwitchTick()) {
+        if (worldSettled && data.getActiveEvent() != MarketEvent.STABLE_MARKET) {
+            data.setActiveEvent(MarketEvent.STABLE_MARKET, gameTime);
+        }
+
+        // Check dynamic Market Event rotation (disabled once ending/settlement has locked market access)
+        if (!worldSettled && gameTime >= 3600L && gameTime >= data.getNextEventSwitchTick()) {
             MarketEvent[] events = MarketEvent.values();
             MarketEvent current = data.getActiveEvent();
             MarketEvent next = current;
@@ -478,6 +498,8 @@ public class MarketAttributeApplier {
 
             boolean isCrash = next.isNegativeEvent();
             for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                PlayerMarketAccount pAcc = data.getOrCreateAccount(p.getUUID());
+                if (pAcc.isPermanentImpaired() || pAcc.isMarketCardBlocked()) continue;
                 if (isCrash) {
                     p.sendOverlayMessage(Component.literal("§c§l⚡ ОБВАЛ РЫНКА: " + next.getHeadline() + " ⚡"));
                     p.level().playSound(null, p.getX(), p.getY(), p.getZ(),
@@ -495,11 +517,11 @@ public class MarketAttributeApplier {
         }
 
         // Fast stunt tracking (every 2 ticks = 10 Hz)
-        if (gameTime % 2L == 0L) {
-            var campaign = data.getCampaignData();
+        if (!worldSettled && gameTime % 2L == 0L) {
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 PlayerMarketAccount account = data.getOrCreateAccount(player.getUUID());
-                if (com.playermarket.story.CorporateTaskTracker.tickFast(player, account, campaign, data, gameTime)) {
+                if (account.isPermanentImpaired() || account.isMarketCardBlocked()) continue;
+                if (com.playermarket.story.CorporateTaskTracker.tickFast(player, account, sharedCampaign, data, gameTime)) {
                     com.playermarket.story.StoryManager.checkAllQuests(player, account);
                 }
             }
@@ -511,6 +533,12 @@ public class MarketAttributeApplier {
 
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 PlayerMarketAccount account = data.getOrCreateAccount(player.getUUID());
+                if (account.isPermanentImpaired() || account.isMarketCardBlocked()) {
+                    if (gameTime % 100L == 0L) {
+                        MarketNetworking.sendSyncToPlayer(player);
+                    }
+                    continue;
+                }
                 boolean needsSync = false;
 
                 // 1. Progress survival/environment contracts & Active Campaign Objectives

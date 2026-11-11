@@ -1,11 +1,19 @@
 package com.playermarket.mixin;
 
+import com.playermarket.item.BlockedMarketCardItem;
+import com.playermarket.item.CrumpledLetterItem;
+import com.playermarket.item.MarketAccessCardItem;
 import com.playermarket.market.*;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Player.class)
 public abstract class PlayerMarketMixin {
@@ -44,12 +52,36 @@ public abstract class PlayerMarketMixin {
         return experience;
     }
 
+    @Inject(method = "dropEquipment", at = @At("HEAD"))
+    private void playermarket$vanishCardsOnDeath(ServerLevel level, CallbackInfo ci) {
+        Player self = (Player) (Object) this;
+        Inventory inv = self.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack s = inv.getItem(i);
+            if (isVanishingCard(s)) {
+                inv.setItem(i, ItemStack.EMPTY);
+            }
+        }
+        if (self.containerMenu != null && isVanishingCard(self.containerMenu.getCarried())) {
+            self.containerMenu.setCarried(ItemStack.EMPTY);
+        }
+    }
+
+    private static boolean isVanishingCard(ItemStack s) {
+        return s != null && !s.isEmpty() && (s.is(MarketAccessCardItem.MARKET_ACCESS_CARD)
+                || s.is(BlockedMarketCardItem.BLOCKED_MARKET_CARD)
+                || s.is(CrumpledLetterItem.CRUMPLED_LETTER));
+    }
+
     @ModifyVariable(method = "causeFoodExhaustion", at = @At("HEAD"), argsOnly = true, ordinal = 0)
     private float playermarket$modifyFoodExhaustion(float exhaustion) {
         if (exhaustion <= 0.0F) return exhaustion;
         Player self = (Player) (Object) this;
         if (self instanceof ServerPlayer sp && sp.level().getServer() != null) {
             PlayerMarketAccount acc = MarketSavedData.get(sp.level().getServer()).getOrCreateAccount(sp.getUUID());
+            if (acc.isPermanentImpaired()) {
+                return exhaustion;
+            }
             double soldSat = acc.getTotalSoldFraction(AssetType.SATURATION_EFFICIENCY);
             double soldHunger = acc.getTotalSoldFraction(AssetType.HUNGER_EFFICIENCY);
             int activeLeases = acc.getActiveLeases().size();

@@ -162,8 +162,19 @@ public class PlayerMarketAccount {
         return (dayIndex == lastDiamondExchangeDay) ? diamondsExchangedToday : 0;
     }
 
+    public int getDailyDiamondExchangeLimit() {
+        int vipLvl = getUpgradeLevel(UpgradeType.VIP_CLIENT);
+        int vipBonus = switch (vipLvl) {
+            case 1 -> 5;
+            case 2 -> 12;
+            case 3 -> 25;
+            default -> vipLvl > 3 ? 25 : 0;
+        };
+        return MAX_DAILY_DIAMOND_EXCHANGE + vipBonus;
+    }
+
     public int getRemainingDailyDiamondExchange(long dayIndex) {
-        return Math.max(0, MAX_DAILY_DIAMOND_EXCHANGE - getDiamondsExchangedOnDay(dayIndex));
+        return Math.max(0, getDailyDiamondExchangeLimit() - getDiamondsExchangedOnDay(dayIndex));
     }
 
     public boolean recordDiamondExchange(long dayIndex, int count) {
@@ -172,7 +183,8 @@ public class PlayerMarketAccount {
             lastDiamondExchangeDay = dayIndex;
             diamondsExchangedToday = 0;
         }
-        if (diamondsExchangedToday + count > MAX_DAILY_DIAMOND_EXCHANGE) {
+        int limit = getDailyDiamondExchangeLimit();
+        if (diamondsExchangedToday + count > limit) {
             return false;
         }
         diamondsExchangedToday += count;
