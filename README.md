@@ -7,7 +7,7 @@ A dystopian RPG-economy and co-op narrative Fabric mod for **Minecraft Java Edit
 [![Minecraft 26.3](https://img.shields.io/badge/Minecraft-26.3-10B981?style=flat-square)](#requirements)
 [![Fabric Loader](https://img.shields.io/badge/Fabric%20Loader-%E2%89%A50.20.1-141923?style=flat-square)](#requirements)
 [![License CC0-1.0](https://img.shields.io/badge/License-CC0--1.0-94A3B8?style=flat-square)](LICENSE)
-[![Release v1.0.0-pre](https://img.shields.io/badge/Release-v1.0.0%20(Pre--Release)-F59E0B?style=flat-square)](#releases)
+[![Release v1.0.0-pre](https://img.shields.io/badge/Release-v1.0.0%20(Pre--Release)-F59E0B?style=flat-square)](https://github.com/nexWay2040/playermarket-minecraftmod/releases/tag/v1.0.0)
 
 ---
 
