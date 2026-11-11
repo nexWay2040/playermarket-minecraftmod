@@ -217,42 +217,47 @@ public class MarketHudOverlay {
         int sw = client.getWindow().getGuiScaledWidth();
         int sh = client.getWindow().getGuiScaledHeight();
         long elapsedMs = ClientMarketState.getLocalEndingElapsedMs();
-        float progress = Math.min(1.0f, elapsedMs / 10000.0f);
+        float progress = Math.min(1.0f, elapsedMs / 8000.0f);
 
         // Smooth dark vignette intensifying as liquidation proceeds
         int bgAlpha = (int) (0x48 + progress * 0x70);
-        int bgTint = (bgAlpha << 24) | (elapsedMs >= 6000L ? 0x160408 : 0x05080F);
+        int bgTint = (bgAlpha << 24) | (elapsedMs >= 4800L ? 0x160408 : 0x05080F);
         graphics.fill(0, 0, sw, sh, bgTint);
 
         // Responsive top & bottom cinematic letterbox bars (slide in smoothly over first 500ms)
         float slide = Math.min(1.0f, elapsedMs / 500.0f);
         int targetBarH = Math.max(24, Math.min(48, sh / 7));
         int barH = Math.max(4, Math.round(targetBarH * slide));
-        int accent = elapsedMs >= 4000L ? 0xFFEF4444 : 0xFF10B981;
+        int accent = elapsedMs >= 3200L ? 0xFFEF4444 : 0xFF10B981;
         graphics.fill(0, 0, sw, barH, 0xF205070B);
         graphics.fill(0, barH - 1, sw, barH, accent);
         graphics.fill(0, sh - barH, sw, sh, 0xF205070B);
         graphics.fill(0, sh - barH, sw, sh - barH + 1, accent);
 
-        // Determine current cinematic phase matching EndingSequenceManager ticks (0..200)
+        // Timeline: 0..8000ms (5 phases) -> 8000..9200ms (blackout) -> 9200..11150ms (1.95s screamer) -> 11150ms+ (cut black until disconnect)
         String tag;
         String title;
-        if (elapsedMs >= 9000L) {
-            // Pure pitch-black blackout before sudden analog-horror screamer
+        if (elapsedMs >= 8000L) {
+            // Pure pitch-black blackout before & immediately after the 1.95s screamer
             graphics.fill(0, 0, sw, sh, 0xFF000000);
 
-            if (elapsedMs < 10700L) {
+            if (elapsedMs < 9200L) {
                 com.playermarket.client.PlayerMarketClient.resetEndingScreamer();
-                if (elapsedMs < 9360L && ((elapsedMs / 60L) % 2L) == 0L) {
+                if (elapsedMs < 8320L && ((elapsedMs / 60L) % 2L) == 0L) {
                     String msg = "SIGNAL TERMINATED // DISCONNECTING...";
                     graphics.text(font, msg, (sw - font.width(msg)) / 2, sh / 2 - 4, 0xFF7F1D1D, false);
                 }
                 return;
             }
 
-            // SUDDEN FULLSCREEN SCREAMER WITH SOUND BEFORE KICK
+            // Cut immediately back to black void once the 1.95s screamer sound completes (never linger silently)
+            if (elapsedMs >= 11150L) {
+                return;
+            }
+
+            // SUDDEN FULLSCREEN SCREAMER WITH SOUND (exact 1950ms window synced to screamer.ogg)
             com.playermarket.client.PlayerMarketClient.triggerEndingScreamerOnce();
-            long scareMs = elapsedMs - 10700L;
+            long scareMs = elapsedMs - 9200L;
             boolean whiteStrobe = scareMs < 85L || (scareMs > 760L && scareMs < 820L);
             boolean redStrobe = (scareMs >= 85L && scareMs < 170L) || ((scareMs / 55L) % 8L == 0L);
 
@@ -304,28 +309,28 @@ public class MarketHudOverlay {
         String subtitle;
         int titleColor;
         int step;
-        if (elapsedMs < 1800L) {
+        if (elapsedMs < 1600L) {
             step = 1;
             tag = "[ CONTRACT EXECUTED // +1,000,000 CR ]";
             title = Component.translatableWithFallback("ending.playermarket.phase1.title", "FINAL SETTLEMENT").getString();
             subtitle = Component.translatableWithFallback("ending.playermarket.phase1.sub",
                     "Расчёт одобрен. Средства зачислены на корпоративный счёт.").getString();
             titleColor = 0xFFFBBF24;
-        } else if (elapsedMs < 3600L) {
+        } else if (elapsedMs < 3200L) {
             step = 2;
             tag = "[ BIOMETRIC COLLATERAL RECOVERY ]";
             title = Component.translatableWithFallback("ending.playermarket.phase2.title", "ЛИКВИДАЦИЯ АКТИВОВ").getString();
             subtitle = Component.translatableWithFallback("ending.playermarket.phase2.sub",
                     "Сбор биологического залога согласно условиям сделки...").getString();
             titleColor = 0xFFF59E0B;
-        } else if (elapsedMs < 5400L) {
+        } else if (elapsedMs < 4800L) {
             step = 3;
             tag = "[ CORPORATE REGISTRY OVERRIDE ]";
             title = Component.translatableWithFallback("ending.playermarket.phase3.title", "САНКЦИИ АКТИВИРОВАНЫ").getString();
             subtitle = Component.translatableWithFallback("ending.playermarket.phase3.sub",
                     "Аннулирование доступа к терминалу и конфискация портфеля...").getString();
             titleColor = 0xFFEF4444;
-        } else if (elapsedMs < 7200L) {
+        } else if (elapsedMs < 6400L) {
             step = 4;
             tag = "[ SECTION 17.4 ENFORCEMENT ]";
             title = Component.translatableWithFallback("ending.playermarket.phase4.title", "СТАТЬЯ 17.4").getString();
@@ -378,13 +383,13 @@ public class MarketHudOverlay {
         }
 
         // Animated transfer progress bar
-        float phaseProgress = Math.min(1.0f, Math.max(0.0f, elapsedMs / 9000.0f));
+        float phaseProgress = Math.min(1.0f, Math.max(0.0f, elapsedMs / 8000.0f));
         int barW = Math.min(240, cardW - 32);
         int barX = (sw - barW) / 2;
         int progY = cardY + cardH - 18;
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED, PlayerMarketMod.id("bar_bg"), barX, progY, barW, 6);
         int fillW = Math.max(4, Math.round(barW * phaseProgress));
-        String fillSprite = elapsedMs < 3600L ? "bar_green" : "bar_red";
+        String fillSprite = elapsedMs < 3200L ? "bar_green" : "bar_red";
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED, PlayerMarketMod.id(fillSprite), barX, progY, fillW, 6);
 
         // Telemetry counter inside bottom letterbox bar

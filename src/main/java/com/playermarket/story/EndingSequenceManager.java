@@ -19,17 +19,25 @@ import net.minecraft.world.item.ItemStack;
 import java.util.UUID;
 
 public class EndingSequenceManager {
+    private static long endingLastTickWallMs = 0L;
+    private static long endingAccumulatedActiveMs = 0L;
+    private static int lastCueStep = 0;
 
     public static void startSynchronizedFinalSettlement(MinecraftServer server) {
         if (server == null) return;
         MarketSavedData savedData = MarketSavedData.get(server);
         SharedCampaignData campaignData = savedData.getCampaignData();
 
-        // 1. Set independent ending lifecycle flags & clear any active market events
+        // 1. Set independent ending lifecycle flags & clear prior completion flags so it ALWAYS runs & kicks
         campaignData.setEndingStarted(true);
         campaignData.setEndingApplied(true);
+        campaignData.setCinematicCompleted(false);
+        campaignData.setDisconnectSent(false);
         campaignData.setEndingState("FINAL_SETTLEMENT_ACTIVE");
         campaignData.setEndingStartedTick(server.overworld().getGameTime());
+        endingLastTickWallMs = System.currentTimeMillis();
+        endingAccumulatedActiveMs = 0L;
+        lastCueStep = 0;
         savedData.setActiveEvent(com.playermarket.market.MarketEvent.STABLE_MARKET, server.overworld().getGameTime());
 
         // 2. Process all connected players and registered participants
@@ -103,6 +111,9 @@ public class EndingSequenceManager {
         campaignData.setEndingState("NONE");
         campaignData.getImpairedPlayers().clear();
         campaignData.getDisconnectedPlayers().clear();
+        endingLastTickWallMs = 0L;
+        endingAccumulatedActiveMs = 0L;
+        lastCueStep = 0;
 
         for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
             PlayerMarketAccount account = savedData.getOrCreateAccount(sp.getUUID());
@@ -121,61 +132,91 @@ public class EndingSequenceManager {
         MarketSavedData savedData = MarketSavedData.get(server);
         SharedCampaignData campaignData = savedData.getCampaignData();
 
-        // If disconnect was already sent, never run cinematic or disconnect logic again!
-        if (campaignData.isDisconnectSent() || "SETTLED".equals(campaignData.getEndingState())) {
+        if (!"FINAL_SETTLEMENT_ACTIVE".equals(campaignData.getEndingState())) {
             return;
         }
 
-        if ("FINAL_SETTLEMENT_ACTIVE".equals(campaignData.getEndingState())) {
-            long elapsed = server.overworld().getGameTime() - campaignData.getEndingStartedTick();
+        long nowMs = System.currentTimeMillis();
+        if (endingLastTickWallMs <= 0L) {
+            endingLastTickWallMs = nowMs;
+        }
+        long dtMs = Math.max(0L, Math.min(250L, nowMs - endingLastTickWallMs));
+        endingLastTickWallMs = nowMs;
+        endingAccumulatedActiveMs += dtMs;
 
-            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                // Lock movement, rotation, containers & jump completely during the 10-second sequence
-                player.closeContainer();
-                player.setDeltaMovement(0.0, Math.min(0.0, player.getDeltaMovement().y), 0.0);
-                player.needsSync = true;
-                player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 255, false, false, false));
-                if (elapsed < 180) {
-                    player.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 40, 0, false, false, false));
-                }
+        long tickElapsed = Math.max(0L, server.overworld().getGameTime() - campaignData.getEndingStartedTick());
+        long activeMs = Math.max(endingAccumulatedActiveMs, tickElapsed * 50L);
 
-                if (elapsed == 0) {
-                    player.sendSystemMessage(Component.literal("§6§l[FINAL SETTLEMENT] §eСчёт одобрен // +1,000,000 CR начислено."));
-                    player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                            SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 0.8f);
-                } else if (elapsed == 36) {
-                    player.sendSystemMessage(Component.literal("§c§l[ЛИКВИДАЦИЯ] §7Сбор биологического залога..."));
-                    player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                            SoundEvents.BEACON_DEACTIVATE, SoundSource.PLAYERS, 1.0f, 0.6f);
-                } else if (elapsed == 72) {
-                    player.sendSystemMessage(Component.literal("§4§l[САНКЦИИ] §cАннулирование доступа и портфеля..."));
-                    player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                            SoundEvents.ELDER_GUARDIAN_CURSE, SoundSource.PLAYERS, 0.8f, 0.7f);
-                } else if (elapsed == 108) {
-                    player.sendSystemMessage(Component.literal("§4§l[СТАТЬЯ 17.4] §7Применение постоянных модификаций..."));
-                    player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                            SoundEvents.ITEM_BREAK, SoundSource.PLAYERS, 1.0f, 0.5f);
-                    player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                            SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 0.8f, 0.6f);
-                } else if (elapsed == 144) {
-                    player.sendSystemMessage(Component.literal("§c§l[ДОСТУП АННУЛИРОВАН] §4Права собственности переданы корпорации."));
-                    player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                            SoundEvents.WITHER_SPAWN, SoundSource.PLAYERS, 0.7f, 0.5f);
-                } else if (elapsed >= 268) {
-                    // Finalize sequence after blackout (9.0-10.7s) + full jumpscare screamer (10.7-13.2s)
-                    campaignData.setEndingState("SETTLED");
-                    campaignData.setCinematicCompleted(true);
-                    campaignData.setDisconnectSent(true);
-                    savedData.setDirty();
+        int cueToFire = 0;
+        if (activeMs < 1600L && lastCueStep < 1) {
+            lastCueStep = 1;
+            cueToFire = 1;
+        } else if (activeMs >= 1600L && lastCueStep < 2) {
+            lastCueStep = 2;
+            cueToFire = 2;
+        } else if (activeMs >= 3200L && lastCueStep < 3) {
+            lastCueStep = 3;
+            cueToFire = 3;
+        } else if (activeMs >= 4800L && lastCueStep < 4) {
+            lastCueStep = 4;
+            cueToFire = 4;
+        } else if (activeMs >= 6400L && lastCueStep < 5) {
+            lastCueStep = 5;
+            cueToFire = 5;
+        }
 
-                    for (ServerPlayer target : server.getPlayerList().getPlayers()) {
-                        campaignData.getDisconnectedPlayers().add(target.getUUID());
-                        MarketAttributeApplier.syncPlayerModifiers(target);
-                        com.playermarket.network.MarketNetworking.sendSyncToPlayer(target, "");
-                        target.connection.disconnect(Component.literal("§c§lДОСТУП ЗАБЛОКИРОВАН // СТАТЬЯ 17.4\n§7Права на активы переданы корпорации.\n§8Вы больше не клиент."));
-                    }
-                    return;
-                }
+        for (ServerPlayer player : new java.util.ArrayList<>(server.getPlayerList().getPlayers())) {
+            // Lock movement, rotation, containers & jump completely during the sequence
+            player.closeContainer();
+            player.setDeltaMovement(0.0, Math.min(0.0, player.getDeltaMovement().y), 0.0);
+            player.needsSync = true;
+            player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 255, false, false, false));
+            if (activeMs < 8000L) {
+                player.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 40, 0, false, false, false));
+            }
+
+            if (cueToFire == 1) {
+                player.sendSystemMessage(Component.literal("§6§l[FINAL SETTLEMENT] §eСчёт одобрен // +1,000,000 CR начислено."));
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 0.8f);
+            } else if (cueToFire == 2) {
+                player.sendSystemMessage(Component.literal("§c§l[ЛИКВИДАЦИЯ] §7Сбор биологического залога..."));
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.BEACON_DEACTIVATE, SoundSource.PLAYERS, 1.0f, 0.6f);
+            } else if (cueToFire == 3) {
+                player.sendSystemMessage(Component.literal("§4§l[САНКЦИИ] §cАннулирование доступа и портфеля..."));
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.ELDER_GUARDIAN_CURSE, SoundSource.PLAYERS, 0.8f, 0.7f);
+            } else if (cueToFire == 4) {
+                player.sendSystemMessage(Component.literal("§4§l[СТАТЬЯ 17.4] §7Применение постоянных модификаций..."));
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.ITEM_BREAK, SoundSource.PLAYERS, 1.0f, 0.5f);
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 0.8f, 0.6f);
+            } else if (cueToFire == 5) {
+                player.sendSystemMessage(Component.literal("§c§l[ДОСТУП АННУЛИРОВАН] §4Права собственности переданы корпорации."));
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.WITHER_SPAWN, SoundSource.PLAYERS, 0.7f, 0.5f);
+            }
+        }
+
+        if (activeMs >= 11250L) {
+            // Finalize sequence immediately after the 1.95s blackout screamer (9.2s -> 11.15s)
+            campaignData.setEndingState("SETTLED");
+            campaignData.setCinematicCompleted(true);
+            campaignData.setDisconnectSent(true);
+            endingLastTickWallMs = 0L;
+            endingAccumulatedActiveMs = 0L;
+            lastCueStep = 0;
+            savedData.setDirty();
+
+            for (ServerPlayer target : new java.util.ArrayList<>(server.getPlayerList().getPlayers())) {
+                target.removeEffect(MobEffects.BLINDNESS);
+                target.removeEffect(MobEffects.SLOWNESS);
+                campaignData.getDisconnectedPlayers().add(target.getUUID());
+                MarketAttributeApplier.syncPlayerModifiers(target);
+                com.playermarket.network.MarketNetworking.sendSyncToPlayer(target, "");
+                target.connection.disconnect(Component.literal("§c§lДОСТУП ЗАБЛОКИРОВАН // СТАТЬЯ 17.4\n§7Права на активы переданы корпорации.\n§8Вы больше не клиент."));
             }
         }
     }

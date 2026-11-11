@@ -190,6 +190,7 @@ public class MarketCommands {
                             PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
                             acc.resetAll();
                             data.setDirty();
+                            com.playermarket.story.EndingSequenceManager.resetEnding(player);
                             MarketAttributeApplier.syncPlayerModifiers(player);
                             MarketNetworking.sendSyncToPlayer(player, "§eMarket account reset to factory defaults.");
                             ctx.getSource().sendSuccess(() -> Component.literal("§8[§aPLAYER MARKET§8] §eReset account for " + player.getName().getString()), true);

@@ -21,6 +21,7 @@ public class ClientMarketState {
     private static String lastStatusMessage = "";
     private static long lastStatusTimestampMs = 0L;
     private static long localEndingStartMs = 0L;
+    private static long lastSyncedEndingTick = -1L;
 
     public static void applySync(MarketNetworking.MarketSyncPayload payload) {
         PlayerMarketAccount.CODEC.parse(NbtOps.INSTANCE, payload.accountTag())
@@ -44,8 +45,11 @@ public class ClientMarketState {
         boolean endingActive = "FINAL_SETTLEMENT_ACTIVE".equals(sharedCampaign.getEndingState())
                 || (sharedCampaign.isEndingStarted() && !sharedCampaign.isCinematicCompleted() && !sharedCampaign.isDisconnectSent());
         if (endingActive) {
-            if (localEndingStartMs == 0L) {
+            long startedTick = sharedCampaign.getEndingStartedTick();
+            if (localEndingStartMs == 0L || startedTick != lastSyncedEndingTick) {
                 localEndingStartMs = System.currentTimeMillis();
+                lastSyncedEndingTick = startedTick;
+                PlayerMarketClient.resetEndingScreamer();
             }
             Minecraft mc = Minecraft.getInstance();
             if (mc.gui != null && (mc.gui.screen() instanceof MarketMainScreen || mc.gui.screen() instanceof CrumpledLetterScreen)) {
@@ -53,6 +57,7 @@ public class ClientMarketState {
             }
         } else {
             localEndingStartMs = 0L;
+            lastSyncedEndingTick = -1L;
         }
     }
 
@@ -70,6 +75,7 @@ public class ClientMarketState {
         lastStatusMessage = "";
         lastStatusTimestampMs = 0L;
         localEndingStartMs = 0L;
+        lastSyncedEndingTick = -1L;
     }
 
     public static PlayerMarketAccount getAccount() {
