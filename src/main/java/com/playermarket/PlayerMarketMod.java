@@ -12,11 +12,14 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.item.trading.Merchant;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -112,16 +115,50 @@ public class PlayerMarketMod implements ModInitializer {
             MarketNetworking.sendSyncToPlayer(newPlayer);
         });
 
-        // Track ore mining for Mining Contract & Active Story Quests
-        PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
-            if (!world.isClientSide() && player instanceof ServerPlayer sp && sp.level().getServer() != null) {
-                Block b = state.getBlock();
-                if (isOreBlock(b) && !sp.isCreative()) {
-                    MarketSavedData data = MarketSavedData.get(sp.level().getServer());
-                    PlayerMarketAccount acc = data.getOrCreateAccount(sp.getUUID());
-                    com.playermarket.story.SharedCampaignData campaign = data.getCampaignData();
+        // Track entity interactions: Creeper ignition (Controlled Downsizing) & Villager / Wandering Trader contacts
+        UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
+            if (!world.isClientSide() && player instanceof ServerPlayer sp && sp.level().getServer() != null && !sp.isSpectator()) {
+                ItemStack held = sp.getItemInHand(hand);
+                String entityPath = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).getPath();
+                MarketSavedData data = MarketSavedData.get(sp.level().getServer());
+                PlayerMarketAccount acc = data.getOrCreateAccount(sp.getUUID());
+                var campaign = data.getCampaignData();
+                boolean updated = false;
 
-                    acc.progressContracts("MINE_ORE", 1);
+                if (held.is(Items.FLINT_AND_STEEL) && "creeper".equals(entityPath)) {
+                    campaign.addContribution("downsizing_stunt", 1);
+                    com.playermarket.story.CorporateTaskTracker.advanceContract(sp, acc, "DOWNSIZE_ACT", 1);
+                    updated = true;
+                }
+                if (entity instanceof Merchant) {
+                    campaign.setObjective("villager_trade", 1);
+                    updated = true;
+                }
+                if (updated) {
+                    data.setDirty();
+                    com.playermarket.story.StoryManager.checkAllQuests(sp, acc);
+                    MarketNetworking.sendSyncToPlayer(sp);
+                }
+            }
+            return InteractionResult.PASS;
+        });
+
+        // Track ore mining & deepslate work for Contracts & Active Story Quests
+        PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
+            if (!world.isClientSide() && player instanceof ServerPlayer sp && sp.level().getServer() != null && !sp.isCreative()) {
+                MarketSavedData data = MarketSavedData.get(sp.level().getServer());
+                PlayerMarketAccount acc = data.getOrCreateAccount(sp.getUUID());
+                com.playermarket.story.SharedCampaignData campaign = data.getCampaignData();
+                boolean changed = false;
+
+                if (pos.getY() < 0) {
+                    campaign.addContribution("deepslate_work", 1);
+                    changed = true;
+                }
+
+                Block b = state.getBlock();
+                if (isOreBlock(b)) {
+                    com.playermarket.story.CorporateTaskTracker.advanceContract(sp, acc, "MINE_ORE", 1);
                     campaign.addContribution("ore_mined", 1);
 
                     if (pos.getY() <= 24) {
@@ -139,13 +176,16 @@ public class PlayerMarketMod implements ModInitializer {
                     if (b == Blocks.NETHER_QUARTZ_ORE || b == Blocks.ANCIENT_DEBRIS) {
                         campaign.addContribution("nether_ore_mined", 1);
                     }
+                    changed = true;
+                }
+                if (changed) {
                     data.setDirty();
                     com.playermarket.story.StoryManager.checkAllQuests(sp, acc);
                 }
             }
         });
 
-        // Track hostile kills for Combat Contract & Active Story Quests
+        // Track hostile kills, stunt kills & Black Market effects
         ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register((world, entity, killedEntity, damageSource) -> {
             if (entity instanceof ServerPlayer sp && world.getServer() != null) {
                 MarketSavedData data = MarketSavedData.get(world.getServer());
@@ -154,12 +194,27 @@ public class PlayerMarketMod implements ModInitializer {
                 long gameTick = world.getServer().overworld().getGameTime();
 
                 if (killedEntity instanceof Enemy && !sp.isCreative()) {
-                    acc.progressContracts("KILL_MOBS", 1);
+                    com.playermarket.story.CorporateTaskTracker.advanceContract(sp, acc, "KILL_MOBS", 1);
                     campaign.addContribution("hostile_kills", 1);
 
                     if (data.getActiveEvent() != MarketEvent.STABLE_MARKET) {
                         campaign.addContribution("event_combat_kills", 1);
                     }
+                    boolean isStunt = killedEntity.isOnFire()
+                            || sp.isInWater()
+                            || (sp.fallDistance > 0.0 && !sp.onGround())
+                            || data.getActiveEvent() != MarketEvent.STABLE_MARKET;
+                    if (isStunt) {
+                        campaign.addContribution("downsizing_stunt", 1);
+                        com.playermarket.story.CorporateTaskTracker.advanceContract(sp, acc, "STUNT_KILLS", 1);
+                    }
+                    if (killedEntity.isOnFire()) {
+                        com.playermarket.story.CorporateTaskTracker.advanceContract(sp, acc, "DOWNSIZE_ACT", 1);
+                    }
+                    if (acc.getSoldAssetCount() >= 3) {
+                        campaign.addContribution("handicapped_combat", 1);
+                    }
+
                     String entityPath = BuiltInRegistries.ENTITY_TYPE.getKey(killedEntity.getType()).getPath();
                     if (entityPath.contains("skeleton")) {
                         campaign.addContribution("skeleton_kills", 1);
@@ -169,6 +224,7 @@ public class PlayerMarketMod implements ModInitializer {
                     }
                     data.setDirty();
                     com.playermarket.story.StoryManager.checkAllQuests(sp, acc);
+                    MarketNetworking.sendSyncToPlayer(sp);
                 }
 
                 if (acc.isBlackMarketEffectActive(BlackMarketItem.SYNTHETIC_HEART, gameTick)) {

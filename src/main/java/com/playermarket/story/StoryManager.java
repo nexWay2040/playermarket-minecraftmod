@@ -166,84 +166,82 @@ public class StoryManager {
 
         switch (stage) {
             case 1 -> {
-                // S1 Active Tasks (fast ~2-3 min)
-                if (campaign.getObjective("visited_biomes_count") >= 2) {
-                    if (campaign.completeTask("s1_field_inspection") | story.completeTask("s1_field_inspection")) anyTaskCompleted = true;
-                }
-                if (campaign.getObjective("ore_mined") >= 4) {
-                    if (campaign.completeTask("s1_underground_audit") | story.completeTask("s1_underground_audit")) anyTaskCompleted = true;
-                }
                 if (hasAnySoldStats(account)) {
-                    if (campaign.completeTask("s1_first_sale") | story.completeTask("s1_first_sale")) anyTaskCompleted = true;
+                    if (completeStageTask(player, campaign, story, "s1_first_sale")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("night_stress_seconds") >= 5
-                        || campaign.getObjective("cave_stress_seconds") >= 5
-                        || (hasAnySoldStats(account) && campaign.getObjective("night_seconds") >= 5)) {
-                    if (campaign.completeTask("s1_asset_stress") | story.completeTask("s1_asset_stress")) anyTaskCompleted = true;
+                if (campaign.getObjective("icebreaker_seconds") >= 5) {
+                    if (completeStageTask(player, campaign, story, "s1_icebreaker")) anyTaskCompleted = true;
+                }
+                if (campaign.getObjective("resources_sold_count") >= 8) {
+                    if (completeStageTask(player, campaign, story, "s1_ficsit_sink")) anyTaskCompleted = true;
+                }
+                if (campaign.getObjective("dance_squats") >= 10) {
+                    if (completeStageTask(player, campaign, story, "s1_drg_dance")) anyTaskCompleted = true;
                 }
             }
             case 2 -> {
-                // S2 Active Tasks
-                if (campaign.getObjective("hostile_kills") >= 3) {
-                    if (campaign.completeTask("s2_combat_insurance") | story.completeTask("s2_combat_insurance")) anyTaskCompleted = true;
+                if (campaign.getObjective("max_survived_fall") >= 10) {
+                    if (completeStageTask(player, campaign, story, "s2_gravity_test")) anyTaskCompleted = true;
                 }
-                if (account.getTotalDiamondsSpent() >= 1) {
-                    if (campaign.completeTask("s2_diamond_procure") | story.completeTask("s2_diamond_procure")) anyTaskCompleted = true;
+                if (campaign.getObjective("no_armor_hazard_sec") >= 5) {
+                    if (completeStageTask(player, campaign, story, "s2_no_armor_dare")) anyTaskCompleted = true;
                 }
-                if (hasAnyBuyback(account)) {
-                    if (campaign.completeTask("s2_recovery_op") | story.completeTask("s2_recovery_op")) anyTaskCompleted = true;
+                if (account.getTotalDiamondsSpent() >= 1 || campaign.getObjective("diamonds_spent") >= 1) {
+                    if (completeStageTask(player, campaign, story, "s2_diamond_procure")) anyTaskCompleted = true;
                 }
-                if (countClaimedContracts(account) >= 1) {
-                    if (campaign.completeTask("s2_emergency_delivery") | story.completeTask("s2_emergency_delivery")) anyTaskCompleted = true;
+                if (countClaimedContracts(account, campaign) >= 1) {
+                    if (completeStageTask(player, campaign, story, "s2_emergency_delivery")) anyTaskCompleted = true;
                 }
             }
             case 3 -> {
-                // S3 Active Tasks
-                if (campaign.getObjective("deep_ore_mined") >= 3 || campaign.getObjective("ore_mined") >= 8) {
-                    if (campaign.completeTask("s3_deep_mining") | story.completeTask("s3_deep_mining")) anyTaskCompleted = true;
+                if (campaign.getObjective("paranoid_degrees") >= 1800) {
+                    if (completeStageTask(player, campaign, story, "s3_paranoid_audit")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("distance_traveled") >= 250) {
-                    if (campaign.completeTask("s3_terrain_survey") | story.completeTask("s3_terrain_survey")) anyTaskCompleted = true;
+                if (campaign.getObjective("near_death_clutch") >= 1) {
+                    if (completeStageTask(player, campaign, story, "s3_miracle_clutch")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("hostile_kills") >= 6) {
-                    if (campaign.completeTask("s3_equipment_test") | story.completeTask("s3_equipment_test")) anyTaskCompleted = true;
+                if (campaign.getObjective("poison_snack_eaten") >= 1) {
+                    if (completeStageTask(player, campaign, story, "s3_dark_kitchen")) anyTaskCompleted = true;
                 }
                 if (!account.getActiveLeases().isEmpty()
-                        || campaign.getObjective("night_seconds") >= 15
-                        || campaign.getObjective("cave_seconds") >= 15) {
-                    if (campaign.completeTask("s3_night_shift") | story.completeTask("s3_night_shift")) anyTaskCompleted = true;
+                        || hasAnyBuyback(account)
+                        || campaign.getObjective("buybacks_or_leases") >= 1) {
+                    if (completeStageTask(player, campaign, story, "s3_night_shift")) anyTaskCompleted = true;
                 }
             }
             case 4 -> {
-                // S4 Active Tasks
-                if (campaign.getObjective("ore_mined") >= 10) {
-                    if (campaign.completeTask("s4_corporate_salvage") | story.completeTask("s4_corporate_salvage")) anyTaskCompleted = true;
+                if (campaign.getObjective("downsizing_stunt") >= 1) {
+                    if (completeStageTask(player, campaign, story, "s4_downsizing")) anyTaskCompleted = true;
                 }
                 boolean hasBlackMarketDeal = !account.getBlackMarketActiveUntil().isEmpty()
+                        || campaign.getObjective("black_market_used") >= 1
                         || account.getHistory().stream().anyMatch(h -> h.category().contains("ЧЁРНЫЙ") || h.category().contains("BLACK"));
-                if (hasBlackMarketDeal || campaign.getObjective("event_combat_kills") >= 1 || countClaimedContracts(account) >= 2) {
-                    if (campaign.completeTask("s4_high_risk_contract") | story.completeTask("s4_high_risk_contract")) anyTaskCompleted = true;
+                if (hasBlackMarketDeal || campaign.getObjective("event_combat_kills") >= 1 || countClaimedContracts(account, campaign) >= 2) {
+                    if (completeStageTask(player, campaign, story, "s4_high_risk_contract")) anyTaskCompleted = true;
                 }
-                if (account.getTotalDealsCount() >= 5 || countTotalBuybacks(account) >= 2) {
-                    if (campaign.completeTask("s4_personal_recovery") | story.completeTask("s4_personal_recovery")) anyTaskCompleted = true;
+                if (campaign.getObjective("cloud_reached") >= 1) {
+                    if (completeStageTask(player, campaign, story, "s4_cloud_migration")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("ore_mined") >= 14 || campaign.getObjective("hostile_kills") >= 8) {
-                    if (campaign.completeTask("s4_cooperative_test") | story.completeTask("s4_cooperative_test")) anyTaskCompleted = true;
+                if (campaign.getObjective("handicapped_combat") >= 1
+                        || (account.getSoldAssetCount() >= 3 && account.getTotalDealsCount() >= 5)) {
+                    if (completeStageTask(player, campaign, story, "s4_handicapped_dare")) anyTaskCompleted = true;
                 }
             }
             case 5 -> {
-                // S5 Active Tasks
-                if (campaign.getObjective("underwater_seconds") >= 5) {
-                    if (campaign.completeTask("s5_underwater_audit") | story.completeTask("s5_underwater_audit")) anyTaskCompleted = true;
+                if (campaign.getObjective("cryo_sauna") >= 1) {
+                    if (completeStageTask(player, campaign, story, "s5_fire_and_water")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("distance_traveled") >= 400) {
-                    if (campaign.completeTask("s5_mobility_test") | story.completeTask("s5_mobility_test")) anyTaskCompleted = true;
+                if (campaign.getObjective("bare_hand_hits") >= 4) {
+                    if (completeStageTask(player, campaign, story, "s5_no_hands_brawl")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("ore_mined") >= 16 || account.getTotalCrEarned() >= 3000L) {
-                    if (campaign.completeTask("s5_resource_recovery") | story.completeTask("s5_resource_recovery")) anyTaskCompleted = true;
+                if (account.getTotalCrEarned() >= 3500L
+                        || account.getTotalDiamondsSpent() >= 3
+                        || campaign.getObjective("event_deals") >= 3) {
+                    if (completeStageTask(player, campaign, story, "s5_resource_recovery")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("hostile_kills") >= 10 && (diamondsInInventory >= 2 || account.getTotalDiamondsSpent() >= 3)) {
-                    if (campaign.completeTask("s5_final_field_eval") | story.completeTask("s5_final_field_eval")) anyTaskCompleted = true;
+                if ((campaign.getObjective("deep_audit_check") >= 1 && (diamondsInInventory >= 2 || account.getTotalDiamondsSpent() >= 2))
+                        || (diamondsInInventory >= 2 && account.getSoldAssetCount() >= 2 && countClaimedContracts(account, campaign) >= 2)) {
+                    if (completeStageTask(player, campaign, story, "s5_final_field_eval")) anyTaskCompleted = true;
                 }
             }
         }
@@ -270,11 +268,14 @@ public class StoryManager {
         }
 
         // 2. Check Side Quests
-        checkSideQuests(player, account, campaign, diamondsInInventory);
+        if (checkSideQuests(player, account, campaign, diamondsInInventory)) {
+            anyTaskCompleted = true;
+        }
 
         // 3. Check Unexpected Corporate Situations
         checkUnexpectedSituations(player, account, gameTick);
 
+        account.checkBlackMarketUnlock();
         if (anyTaskCompleted) {
             data.setDirty();
             if (MarketConfig.get().enableStoryToasts) {
@@ -284,22 +285,60 @@ public class StoryManager {
         }
     }
 
-    private static void checkSideQuests(ServerPlayer player, PlayerMarketAccount account, SharedCampaignData campaign, int diamondsInInventory) {
-        if (!MarketConfig.get().enableSideQuests) return;
-        StoryProgress story = account.getStoryProgress();
+    private static boolean completeStageTask(ServerPlayer player, SharedCampaignData campaign, StoryProgress story, String taskId) {
+        boolean newlyDone = campaign.completeTask(taskId);
+        story.completeTask(taskId);
+        if (newlyDone) {
+            String title = taskId;
+            for (int s = 1; s <= 5; s++) {
+                for (StoryQuests.StageTask t : StoryQuests.getTasksForStage(s)) {
+                    if (t.id().equals(taskId)) {
+                        title = t.title();
+                        break;
+                    }
+                }
+            }
+            player.sendSystemMessage(Component.literal("§8[§6ASSET PROGRAM§8] §a✔ Задача выполнена: §f«" + title + "»§7. Откройте [M] -> ПРОГРАММА."));
+        }
+        return newlyDone;
+    }
 
-        if (diamondsInInventory >= 4) { campaign.completeSideQuest("sq_diamond_rush"); story.completeSideQuest("sq_diamond_rush"); }
-        if (campaign.getObjective("deep_cavity_mined") >= 2) { campaign.completeSideQuest("sq_cave_diver"); story.completeSideQuest("sq_cave_diver"); }
-        if (campaign.getObjective("hostile_kills") >= 8) { campaign.completeSideQuest("sq_hunter"); story.completeSideQuest("sq_hunter"); }
-        if (campaign.getObjective("distance_traveled") >= 600) { campaign.completeSideQuest("sq_long_march"); story.completeSideQuest("sq_long_march"); }
-        if (account.getTotalCrEarned() >= 2000L || campaign.getObjective("ore_mined") >= 16) { campaign.completeSideQuest("sq_iron_baron"); story.completeSideQuest("sq_iron_baron"); }
-        if (account.getTotalDiamondsSpent() >= 4) { campaign.completeSideQuest("sq_heavy_investor"); story.completeSideQuest("sq_heavy_investor"); }
-        if (account.getHistory().size() >= 3 && account.getTotalCrEarned() >= 1200L) { campaign.completeSideQuest("sq_resilience"); story.completeSideQuest("sq_resilience"); }
-        if (countClaimedContracts(account) >= 2) { campaign.completeSideQuest("sq_trader"); story.completeSideQuest("sq_trader"); }
-        if (campaign.getObjective("gold_ore_mined") >= 4) { campaign.completeSideQuest("sq_gold_rush"); story.completeSideQuest("sq_gold_rush"); }
-        if (campaign.getObjective("nether_ore_mined") >= 1) { campaign.completeSideQuest("sq_nether_recon"); story.completeSideQuest("sq_nether_recon"); }
-        if (campaign.getObjective("skeleton_kills") >= 2) { campaign.completeSideQuest("sq_sniper"); story.completeSideQuest("sq_sniper"); }
-        if (campaign.getObjective("apex_kills") >= 1) { campaign.completeSideQuest("sq_apex"); story.completeSideQuest("sq_apex"); }
+    private static boolean checkSideQuests(ServerPlayer player, PlayerMarketAccount account, SharedCampaignData campaign, int diamondsInInventory) {
+        if (!MarketConfig.get().enableSideQuests) return false;
+        StoryProgress story = account.getStoryProgress();
+        boolean anyDone = false;
+
+        if (diamondsInInventory >= 4) anyDone |= completeSide(player, campaign, story, "sq_alterra_debt");
+        if (campaign.getObjective("named_food_eaten") >= 1 || campaign.getObjective("poison_snack_eaten") >= 1) anyDone |= completeSide(player, campaign, story, "sq_phishing_meal");
+        if (campaign.getObjective("max_survived_fall") >= 15) anyDone |= completeSide(player, campaign, story, "sq_trampoline");
+        if (campaign.getObjective("creeper_close_sec") >= 3 || campaign.getObjective("creeper_survived") >= 1) anyDone |= completeSide(player, campaign, story, "sq_creeper_stare");
+        if (campaign.getObjective("sky_deal") >= 1) anyDone |= completeSide(player, campaign, story, "sq_rooftop_dealer");
+        if (campaign.getObjective("bare_hand_hits") >= 6) anyDone |= completeSide(player, campaign, story, "sq_bare_knuckle");
+        if (campaign.getObjective("deepslate_work") >= 3) anyDone |= completeSide(player, campaign, story, "sq_deepslate_work");
+        if (campaign.getObjective("elemental_survival") >= 1) anyDone |= completeSide(player, campaign, story, "sq_lightning_rod");
+        if (campaign.getObjective("villager_trade") >= 1 || campaign.getObjective("catalog_buys") >= 2) anyDone |= completeSide(player, campaign, story, "sq_merchant_shady");
+        if (account.getSoldAssetCount() >= 3 || computeTotalMutilationFraction(account) >= 0.30) anyDone |= completeSide(player, campaign, story, "sq_broken_asset");
+        if (campaign.getObjective("nether_visited") >= 1 || campaign.getObjective("lava_tanning_sec") >= 10) anyDone |= completeSide(player, campaign, story, "sq_nether_spa");
+        if (countClaimedContracts(account, campaign) >= 2 && (hasAnyBuyback(account) || !account.getActiveLeases().isEmpty() || campaign.getObjective("buybacks_or_leases") >= 1)) {
+            anyDone |= completeSide(player, campaign, story, "sq_red_tape");
+        }
+        return anyDone;
+    }
+
+    private static boolean completeSide(ServerPlayer player, SharedCampaignData campaign, StoryProgress story, String sqId) {
+        boolean newlyDone = campaign.completeSideQuest(sqId);
+        story.completeSideQuest(sqId);
+        if (newlyDone) {
+            String title = sqId;
+            for (StoryQuests.SideQuest sq : StoryQuests.SIDE_QUESTS) {
+                if (sq.id().equals(sqId)) {
+                    title = sq.title();
+                    break;
+                }
+            }
+            player.sendSystemMessage(Component.literal("§8[§bПОРУЧЕНИЕ§8] §b✦ Выполнено: §f«" + title + "»§7. Заберите награду в [M] -> ПРОГРАММА."));
+        }
+        return newlyDone;
     }
 
     private static void checkUnexpectedSituations(ServerPlayer player, PlayerMarketAccount account, long gameTick) {
@@ -534,8 +573,8 @@ public class StoryManager {
         long gameTick = player.level().getServer() != null ? player.level().getServer().overworld().getGameTime() : 0L;
 
         story.completeTask("s1_first_sale");
-        if (isLease && story.getCurrentStage() >= 3) {
-            story.completeTask("s3_lease_contract");
+        if (isLease && player.level().getServer() != null) {
+            MarketSavedData.get(player.level().getServer()).getCampaignData().addContribution("buybacks_or_leases", 1);
         }
 
         // Contextual Speech from Mr. Ledger
@@ -557,8 +596,9 @@ public class StoryManager {
         long buybacks = story.getTaskProgress().getOrDefault("buyback_count", 0L) + 1;
         story.getTaskProgress().put("buyback_count", buybacks);
 
-        if (story.getCurrentStage() >= 3) story.completeTask("s3_asset_recovery");
-        if (story.getCurrentStage() >= 5 && buybacks >= 2) story.completeTask("s5_recovery_plan");
+        if (player.level().getServer() != null) {
+            MarketSavedData.get(player.level().getServer()).getCampaignData().addContribution("buybacks_or_leases", 1);
+        }
 
         player.sendSystemMessage(Component.literal("§8[§6Mr. Ledger§8] §7«Ваши активы возвращаются домой. К сожалению, сервисная комиссия остаётся у нас.»"));
 
@@ -566,9 +606,9 @@ public class StoryManager {
     }
 
     public static void onDiamondsSpent(ServerPlayer player, PlayerMarketAccount account, int count) {
-        StoryProgress story = account.getStoryProgress();
-        if (story.getCurrentStage() >= 2) story.completeTask("s2_first_invest");
-        if (story.getCurrentStage() >= 4 && account.getTotalDiamondsSpent() >= 8) story.completeTask("s4_investor");
+        if (player.level().getServer() != null && count > 0) {
+            MarketSavedData.get(player.level().getServer()).getCampaignData().addContribution("diamonds_spent", count);
+        }
 
         player.sendSystemMessage(Component.literal("§8[§6Mr. Ledger§8] §7«Рады видеть, что вы реинвестируете чистый углерод в биологическую инфраструктуру.»"));
 
@@ -580,9 +620,6 @@ public class StoryManager {
         long resEarned = story.getTaskProgress().getOrDefault("resource_cr_earned", 0L) + payoutCr;
         story.getTaskProgress().put("resource_cr_earned", resEarned);
 
-        if (story.getCurrentStage() >= 2) story.completeTask("s2_resource_ex");
-        if (resEarned >= 5000L) story.completeSideQuest("sq_resource_tycoon");
-
         checkAllQuests(player, account);
     }
 
@@ -591,17 +628,27 @@ public class StoryManager {
         long contractsClaimed = story.getTaskProgress().getOrDefault("contracts_claimed_count", 0L) + 1;
         story.getTaskProgress().put("contracts_claimed_count", contractsClaimed);
 
-        if (story.getCurrentStage() >= 4 && contractsClaimed >= 3) story.completeTask("s4_contract_completion");
-        if (story.getCurrentStage() >= 5 && duringCrisis) story.completeTask("s5_market_crisis");
-        if (contractsClaimed >= 10) story.completeSideQuest("sq_corporate_slave");
+        if (player.level().getServer() != null) {
+            MarketSavedData.get(player.level().getServer()).getCampaignData().addContribution("contracts_claimed", 1);
+        }
 
         checkAllQuests(player, account);
     }
 
     public static void onDealMade(ServerPlayer player, PlayerMarketAccount account, MarketEvent event) {
-        StoryProgress story = account.getStoryProgress();
-        if (story.getCurrentStage() >= 5 && event != null && event != MarketEvent.STABLE_MARKET) {
-            story.completeTask("s5_undervalued");
+        if (player.level().getServer() != null) {
+            var campaign = MarketSavedData.get(player.level().getServer()).getCampaignData();
+            if (event != null && event != MarketEvent.STABLE_MARKET) {
+                campaign.addContribution("event_deals", 1);
+            }
+            if (player.blockPosition().getY() >= 150) {
+                campaign.setObjective("sky_deal", 1);
+            }
+            long dayTime = player.level().getOverworldClockTime() % 24000L;
+            boolean isNight = dayTime >= 13000L && dayTime <= 23000L;
+            if (player.blockPosition().getY() < 20 || player.level().isRaining() || isNight || !player.level().canSeeSky(player.blockPosition())) {
+                campaign.setObjective("deep_audit_check", 1);
+            }
         }
         checkAllQuests(player, account);
     }
@@ -850,12 +897,14 @@ public class StoryManager {
         return count;
     }
 
-    private static int countClaimedContracts(PlayerMarketAccount account) {
-        int count = 0;
+    private static int countClaimedContracts(PlayerMarketAccount account, SharedCampaignData campaign) {
+        int boardCount = 0;
         for (ContractEntry c : account.getContracts()) {
-            if (c.claimed()) count++;
+            if (c.claimed()) boardCount++;
         }
-        return count;
+        int personalCount = account.getStoryProgress().getTaskProgress().getOrDefault("contracts_claimed_count", 0L).intValue();
+        int sharedCount = campaign != null ? campaign.getObjective("contracts_claimed") : 0;
+        return Math.max(boardCount, Math.max(personalCount, sharedCount));
     }
 
     private static boolean isFullyRecovered(PlayerMarketAccount account) {

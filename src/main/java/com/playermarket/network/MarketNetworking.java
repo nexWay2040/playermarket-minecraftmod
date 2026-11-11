@@ -142,6 +142,7 @@ public class MarketNetworking {
         ResourceValuationEngine.ensureInitialized(server);
         MarketSavedData savedData = MarketSavedData.get(server);
         PlayerMarketAccount account = savedData.getOrCreateAccount(player.getUUID());
+        account.ensureDefaultContracts();
         savedData.ensureAccountRegistered(player.getUUID(), account);
         long gameTick = server.overworld().getGameTime();
 
@@ -243,7 +244,7 @@ public class MarketNetworking {
 
                 account.addCr(payout);
                 recordCompletedDeal(player, account, event);
-                account.progressContracts("MARKET_TRADES", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
 
                 String divId = account.getSelectedDividends().get(asset.getId());
                 account.addTransaction(gameTick, "ПРОДАЖА АКТИВА",
@@ -304,8 +305,10 @@ public class MarketNetworking {
                 }
 
                 account.addCr(payout);
+                savedData.getCampaignData().addContribution("buybacks_or_leases", 1);
                 recordCompletedDeal(player, account, event);
-                account.progressContracts("MARKET_TRADES", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "BUYBACK_OR_LEASE", 1);
                 account.addTransaction(gameTick, "ЛИЗИНГ АКТИВА",
                         asset.getDisplayName() + " (" + Math.round(requestedFraction * 100) + "% / " + days + " дн.)",
                         "Временный контракт лизинга", payout, 0);
@@ -342,8 +345,9 @@ public class MarketNetworking {
                 }
 
                 recordCompletedDeal(player, account, event);
-                account.progressContracts("MARKET_TRADES", 1);
-                account.progressContracts("BUYBACK_ASSET", 1);
+                savedData.getCampaignData().addContribution("buybacks_or_leases", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "BUYBACK_ASSET", 1);
                 account.addTransaction(gameTick, "ОБРАТНЫЙ ВЫКУП",
                         asset.getDisplayName() + " (" + Math.round(permSold * 100) + "%)",
                         "Характеристика полностью восстановлена", -cost, 0);
@@ -412,9 +416,10 @@ public class MarketNetworking {
                 inv.setChanged();
 
                 account.addCr(totalPayout);
+                savedData.getCampaignData().addContribution("resources_sold_count", countToSell);
                 recordCompletedDeal(player, account, event);
-                account.progressContracts("SELL_RESOURCES", countToSell);
-                account.progressContracts("MARKET_TRADES", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "SELL_RESOURCES", countToSell);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
                 account.addTransaction(gameTick, "ПРОДАЖА РЕСУРСА",
                         countToSell + "x " + itemName,
                         "Цена: " + unitPrice + " CR/шт", totalPayout, 0);
@@ -479,9 +484,10 @@ public class MarketNetworking {
                 }
 
                 account.addCr(totalPayout);
+                savedData.getCampaignData().addContribution("resources_sold_count", totalCount);
                 recordCompletedDeal(player, account, event);
-                account.progressContracts("SELL_RESOURCES", totalCount);
-                account.progressContracts("MARKET_TRADES", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "SELL_RESOURCES", totalCount);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
                 account.addTransaction(gameTick, "ОПТОВАЯ ПРОДАЖА",
                         totalCount + "x " + itemName,
                         "Партия ресурсов", totalPayout, 0);
@@ -535,8 +541,9 @@ public class MarketNetworking {
                 }
                 player.getInventory().setChanged();
 
+                savedData.getCampaignData().addContribution("catalog_buys", 1);
                 recordCompletedDeal(player, account, event);
-                account.progressContracts("MARKET_TRADES", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
                 account.addTransaction(gameTick, "ПОКУПКА РЕСУРСА",
                         match.bundleSize() + "x " + itemName,
                         "Каталог сырья", -match.buyCostCr(), 0);
@@ -588,7 +595,7 @@ public class MarketNetworking {
                 account.setUpgradeLevel(upgrade, targetLvl);
                 account.recordDiamondsSpent(requiredDiamonds);
                 recordCompletedDeal(player, account, event);
-                account.progressContracts("MARKET_TRADES", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
 
                 int cashbackLvl = account.getUpgradeLevel(UpgradeType.DIAMOND_CASHBACK);
                 int refundedDiamonds = 0;
@@ -674,6 +681,7 @@ public class MarketNetworking {
                     account.getBlackMarketCooldownUntil().put(bm.getId(), gameTick + bm.getCooldownTicks());
                 }
 
+                savedData.getCampaignData().addContribution("black_market_used", 1);
                 account.addTransaction(gameTick, "ЧЁРНЫЙ РЫНОК",
                         bm.getTitle(),
                         bm.getSummary(), -crCost, -diaCost);
@@ -705,6 +713,7 @@ public class MarketNetworking {
                         }
 
                         account.getContracts().set(i, c.markClaimed());
+                        ContractBoardCatalog.ensurePopulated(account.getContracts());
                         account.addCr(payout);
                         int diaReward = c.rewardDiamonds();
                         if (diaReward > 0) {
@@ -728,15 +737,15 @@ public class MarketNetworking {
             }
 
             case REFRESH_CONTRACTS -> {
-                long refreshCost = 150L;
+                long refreshCost = 100L;
                 if (!account.spendCr(refreshCost)) {
                     sendSyncToPlayer(player, "§cТребуется " + refreshCost + " CR для обновления доски контрактов.");
                     playErrorSound(player);
                     return;
                 }
                 account.refreshContracts(gameTick);
-                account.addTransaction(gameTick, "ДОСКА КОНТРАКТОВ", "Обновление списка", "Комиссия за запрос", -refreshCost, 0);
-                status = "§aДоска контрактов обновлена (-" + refreshCost + " CR)";
+                account.addTransaction(gameTick, "ДОСКА КОНТРАКТОВ", "Обновление свободных слотов", "Комиссия за запрос", -refreshCost, 0);
+                status = "§aСвободные контракты обновлены (-" + refreshCost + " CR)";
                 playSuccessSound(player);
             }
 

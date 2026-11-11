@@ -180,68 +180,15 @@ public class PlayerMarketAccount {
     }
 
     public void ensureDefaultContracts() {
-        // Migrate legacy English contracts or contracts without diamond rewards
-        if (!contracts.isEmpty()) {
-            if (contracts.getFirst().title().startsWith("INDUSTRIAL")
-                    || contracts.stream().anyMatch(c -> c.rewardDiamonds() <= 0)
-                    || contracts.stream().anyMatch(c -> c.id().equals("survival_shift") && c.targetProgress() == 24000 && c.currentProgress() == 0)) {
-                contracts.clear();
-            }
-        }
-        if (!contracts.isEmpty()) return;
-
-        contracts.add(new ContractEntry(
-                "mining_iron", "MINE_ORE",
-                "Горная квота: 5 руд",
-                "Добудьте 5 любых руд (железо, золото, медь, уголь, алмазы).",
-                5, 0, 500L, 10, false, false, 2, 0L, 200L
-        ));
-        contracts.add(new ContractEntry(
-                "resource_delivery", "SELL_RESOURCES",
-                "Поставка сырья: 16 предм.",
-                "Продайте 16 предметов на Рынке Ресурсов.",
-                16, 0, 450L, 10, false, false, 1, 0L, 180L
-        ));
-        contracts.add(new ContractEntry(
-                "experience_yield", "GAIN_XP",
-                "Сбор данных: 25 опыта",
-                "Получите 25 единиц опыта (XP) из любого источника.",
-                25, 0, 450L, 10, false, false, 2, 0L, 180L
-        ));
-        contracts.add(new ContractEntry(
-                "survival_shift", "SURVIVE_TICKS",
-                "Био-вахта: Выжить 1 мин",
-                "Продержитесь 1 минуту активной смены без гибели.",
-                1200, 0, 600L, 15, false, false, 3, 0L, 240L
-        ));
-        contracts.add(new ContractEntry(
-                "combat_security", "KILL_MOBS",
-                "Зачистка сектора: 4 врага",
-                "Ликвидируйте 4 враждебных монстров.",
-                4, 0, 600L, 15, false, false, 3, 0L, 240L
-        ));
-        contracts.add(new ContractEntry(
-                "market_volume", "MARKET_TRADES",
-                "Активный трейдинг: 2 сделки",
-                "Совершите 2 любые рыночные операции в терминале.",
-                2, 0, 500L, 12, false, false, 4, 0L, 200L
-        ));
-        contracts.add(new ContractEntry(
-                "asset_repayment", "BUYBACK_ASSET",
-                "Возврат капитала: Выкуп стата",
-                "Выкупите обратно любую проданную характеристику.",
-                1, 0, 800L, 20, false, false, 5, 0L, 320L
-        ));
+        ContractBoardCatalog.ensurePopulated(contracts);
     }
 
     public void refreshContracts() {
-        contracts.clear();
-        ensureDefaultContracts();
+        ContractBoardCatalog.refreshBoard(contracts);
     }
 
     public void refreshContracts(long currentGameTick) {
-        contracts.clear();
-        ensureDefaultContracts();
+        ContractBoardCatalog.refreshBoard(contracts);
     }
 
     public long getCrBalance() {
@@ -517,14 +464,28 @@ public class PlayerMarketAccount {
         }
     }
 
-    public void progressContracts(String typeId, int amount) {
-        if (amount <= 0) return;
+    public List<String> progressContracts(String typeId, int amount) {
+        if (amount <= 0) return List.of();
+        List<String> newlyCompleted = new ArrayList<>();
         for (int i = 0; i < contracts.size(); i++) {
             ContractEntry entry = contracts.get(i);
-            if (entry.typeId().equals(typeId) && !entry.completed()) {
-                contracts.set(i, entry.withProgress(amount));
+            boolean matches = entry.typeId().equals(typeId);
+            int delta = amount;
+            if (!matches && "SURVIVE_SEC".equals(typeId) && "SURVIVE_TICKS".equals(entry.typeId())) {
+                matches = true;
+                delta = amount * 20;
+            } else if (!matches && "BUYBACK_ASSET".equals(typeId) && "BUYBACK_OR_LEASE".equals(entry.typeId())) {
+                matches = true;
+            }
+            if (matches && entry.active() && !entry.completed()) {
+                ContractEntry updated = entry.withProgress(delta);
+                contracts.set(i, updated);
+                if (updated.completed()) {
+                    newlyCompleted.add(updated.title());
+                }
             }
         }
+        return newlyCompleted;
     }
 
     public long getTotalSoldAssetsValuation() {

@@ -756,7 +756,7 @@ public class MarketMainScreen extends Screen {
                 drawSprite(graphics, "hud_bg", left, cy, width, 70, 0xFF200A0E);
                 drawClampedText(graphics, "§4§lФИНАНСОВЫЙ РАСЧЁТ ЗАВЕРШЁН // СТАТЬЯ 17.4 ВСТУПИЛА В СИЛУ", left + 8, cy + 6, width - 16, 0xFFEF4444, false);
                 drawClampedText(graphics, "§cПрава на биологические активы переданы корпорации. Доступ к бирже аннулирован.", left + 8, cy + 20, width - 16, 0xFFEF4444, false);
-                drawClampedText(graphics, "§7Ортопедический фиксатор активен на правой ноге. Мобильность снижена.", left + 8, cy + 34, width - 16, 0xFFCBD5E1, false);
+                drawClampedText(graphics, "§7Ортопедический фиксатор активен на правой ноге. Скорость снижена, добыча блоков: 0.5x.", left + 8, cy + 34, width - 16, 0xFFCBD5E1, false);
                 drawClampedText(graphics, "§8«Вы больше не клиент. Вы — корпоративный актив.»", left + 8, cy + 48, width - 16, 0xFF64748B, false);
                 cy += 76;
             } else {
@@ -1491,23 +1491,23 @@ public class MarketMainScreen extends Screen {
 
         int ctrlH = 22;
         drawSprite(graphics, "hud_bg", left, top, width, ctrlH, 0xFF141926);
-        drawClampedText(graphics, "§e§lКОРПОРАТИВНЫЕ КОНТРАКТЫ §8(Срок: 1-5 игровых дней)", left + 8, top + 6, width - 155, 0xFFFBBF24, false);
+        drawClampedText(graphics, "§e§lКОРПОРАТИВНЫЕ КОНТРАКТЫ", left + 8, top + 6, width - 130, 0xFFFBBF24, false);
 
-        int refW = 145;
+        int refW = 115;
         int refH = 16;
         int refX = left + width - refW - 4;
         int refY = top + 3;
-        boolean canRefresh = account.getCrBalance() >= 150L;
-        drawSmallButton(graphics, canRefresh ? "btn_amber" : "btn_gray", refX, refY, refW, refH, "Обновить доску (150 CR)", mouseX, mouseY, () -> {
+        boolean canRefresh = account.getCrBalance() >= 100L;
+        drawSmallButton(graphics, canRefresh ? "btn_amber" : "btn_gray", refX, refY, refW, refH, "Обновить (100 CR)", mouseX, mouseY, () -> {
             if (canRefresh) sendMarketAction("REFRESH_CONTRACTS", "", "", 0, 0.0);
-        });
+        }, "Обновить свободные слоты (активные и готовые контракты сохранятся)");
 
         int listY = top + ctrlH + 6;
         int listH = height - (listY - top);
 
         List<ContractEntry> contracts = account.getContracts();
-        int itemH = 50;
-        int spacing = 54;
+        int itemH = 62;
+        int spacing = 66;
         maxScroll = Math.max(0, contracts.size() * spacing - listH);
 
         setScissor(graphics, left, listY, left + width, listY + listH);
@@ -1523,49 +1523,66 @@ public class MarketMainScreen extends Screen {
                     ? Math.max(0.0, (c.deadlineTick() - gameTick) / 24000.0)
                     : (double) c.durationDays();
 
-            String timeStatus;
-            if (c.claimed()) {
-                timeStatus = "§8ВЫПОЛНЕНО И ЗАКРЫТО";
-            } else if (c.completed()) {
-                timeStatus = "§aВЫПОЛНЕН! ЗАБЕРИТЕ НАГРАДУ";
-            } else if (c.active()) {
-                timeStatus = String.format(Locale.ROOT, "§eВ РАБОТЕ §8| §cОсталось: %.1f дн. §8| §a+%d CR §8| §b+%d ♦ §8| §cШтраф: -%d CR",
-                        daysLeft, c.rewardCr(), c.rewardDiamonds(), c.penaltyCr());
-            } else {
-                timeStatus = String.format(Locale.ROOT, "§7Срок: %d дн. §8| §a+%d CR §8| §b+%d ♦ §8| §cШтраф: -%d CR",
-                        c.durationDays(), c.rewardCr(), c.rewardDiamonds(), c.penaltyCr());
-            }
-
-            drawClampedText(graphics, "§e§l" + c.title() + "  " + timeStatus, left + 8, cy + 6, width - 125, 0xFFFBBF24, false);
-            drawClampedText(graphics, "§7" + c.description(), left + 8, cy + 20, width - 125, 0xFF94A3B8, false);
-
-            int barW = 160;
-            int barH = 5;
-            int barX = left + 8;
-            int barY = cy + 36;
-            double prog = (double) c.currentProgress() / (double) c.targetProgress();
-            drawProgressBar(graphics, barX, barY, barW, barH, prog, c.completed() ? "bar_green" : (c.active() ? "bar_blue" : "bar_blue"));
-            drawClampedText(graphics, String.format(Locale.ROOT, "§f%d / %d", c.currentProgress(), c.targetProgress()), barX + barW + 8, cy + 34, 75, 0xFFCBD5E1, false);
-
-            int btnW = 105;
+            int btnW = 96;
             int btnH = 22;
             int btnX = left + width - btnW - 8;
-            int btnY = cy + 14;
+            int btnY = cy + 20;
+            int textMaxW = width - btnW - 22;
+
+            String badge;
+            if (c.claimed()) {
+                badge = "§8[ЗАКРЫТ]";
+            } else if (c.completed()) {
+                badge = "§a[ГОТОВО]";
+            } else if (c.active()) {
+                badge = String.format(Locale.ROOT, "§e[Ост: %.1f дн.]", daysLeft);
+            } else {
+                badge = String.format(Locale.ROOT, "§7[Срок: %d дн.]", c.durationDays());
+            }
+            int badgeW = font.width(badge);
+            drawClampedText(graphics, "§e§l" + c.title(), left + 8, cy + 5, Math.max(60, textMaxW - badgeW - 8), 0xFFFBBF24, false);
+            graphics.text(font, badge, left + 8 + textMaxW - badgeW, cy + 5, 0xFFFFFFFF, false);
+
+            List<net.minecraft.util.FormattedCharSequence> descLines = font.split(Component.literal("§7" + c.description()), textMaxW);
+            int dY = cy + 16;
+            for (int d = 0; d < Math.min(2, descLines.size()); d++) {
+                graphics.text(font, descLines.get(d), left + 8, dY, 0xFF94A3B8, false);
+                dY += 9;
+            }
+
+            long eventPayout = Math.round(c.rewardCr() * event.getContractRewardMultiplier());
+            String payoutLine = String.format(Locale.ROOT,
+                    "§a+%d CR  §b+%d ♦  §8|  §cШтраф: -%d CR",
+                    eventPayout, c.rewardDiamonds(), c.penaltyCr());
+            drawClampedText(graphics, payoutLine, left + 8, cy + 36, textMaxW, 0xFFCBD5E1, false);
+
+            int barW = Math.min(155, Math.max(70, textMaxW - 88));
+            int barH = 5;
+            int barX = left + 8;
+            int barY = cy + 49;
+            double prog = c.targetProgress() > 0 ? ((double) c.currentProgress() / (double) c.targetProgress()) : 1.0;
+            drawProgressBar(graphics, barX, barY, barW, barH, prog, c.completed() ? "bar_green" : "bar_blue");
+            drawClampedText(graphics, "§f" + ContractBoardCatalog.formatProgress(c), barX + barW + 8, cy + 47, textMaxW - barW - 8, 0xFFCBD5E1, false);
 
             if (c.claimed()) {
                 drawButton(graphics, "btn_gray", btnX, btnY, btnW, btnH, "ЗАКРЫТ", mouseX, mouseY, () -> {});
             } else if (c.completed()) {
-                long reward = Math.round(c.rewardCr() * event.getContractRewardMultiplier());
-                String btnText = "+" + reward + (c.rewardDiamonds() > 0 ? " §b+" + c.rewardDiamonds() + "♦" : "");
-                drawButton(graphics, "btn_amber", btnX, btnY, btnW, btnH, btnText, mouseX, mouseY, () -> {
+                String claimTip = String.format(Locale.ROOT, "§aЗабрать награду: §f+%d CR §8| §b+%d ♦", eventPayout, c.rewardDiamonds());
+                boolean bHov = !isModalOpen() && (mouseX >= btnX && mouseX <= btnX + btnW && mouseY >= btnY && mouseY <= btnY + btnH);
+                drawSprite(graphics, bHov ? "btn_amber_hover" : "btn_amber", btnX, btnY, btnW, btnH, 0xFF92400E);
+                drawClampedCenteredText(graphics, "§lЗАБРАТЬ", btnX + btnW / 2, btnY + (btnH - 8) / 2, btnW - 8, 0xFFFFFFFF, false);
+                registerClick(btnX, btnY, btnX + btnW, btnY + btnH, () -> {
                     sendMarketAction("CLAIM_CONTRACT", c.id(), "", 0, 0.0);
-                });
+                }, claimTip);
             } else if (c.active()) {
-                drawButton(graphics, "btn_blue", btnX, btnY, btnW, btnH, "В РАБОТЕ", mouseX, mouseY, () -> {});
+                String activeTip = String.format(Locale.ROOT, "§eКонтракт в работе\n§7Осталось: §f%.1f дн.\n§cШтраф за просрочку: -%d CR (+5%% налог)", daysLeft, c.penaltyCr());
+                drawSmallButton(graphics, "btn_blue", btnX, btnY, btnW, btnH, "В РАБОТЕ", mouseX, mouseY, () -> {}, activeTip);
             } else {
-                drawButton(graphics, "btn_green", btnX, btnY, btnW, btnH, "ПРИНЯТЬ", mouseX, mouseY, () -> {
+                String acceptTip = String.format(Locale.ROOT, "§aВзять контракт в работу\n§7Срок: §f%d дн. §8| §a+%d CR §b+%d ♦\n§cШтраф при срыве: -%d CR",
+                        c.durationDays(), eventPayout, c.rewardDiamonds(), c.penaltyCr());
+                drawSmallButton(graphics, "btn_green", btnX, btnY, btnW, btnH, "ПРИНЯТЬ", mouseX, mouseY, () -> {
                     sendMarketAction("ACCEPT_CONTRACT", c.id(), "", 0, 0.0);
-                });
+                }, acceptTip);
             }
         }
 
@@ -2448,7 +2465,7 @@ public class MarketMainScreen extends Screen {
                 "§e1. Финансовый расчёт: §7На ваш счёт начисляется +100 000 CR, после чего лицевой счёт закрывается.",
                 "§c2. Ликвидация активов: §7Все биологические характеристики переходят в исключительную собственность Корпорации.",
                 "§c3. Аннулирование доступа: §7Карта Доступа [M] превращается в заблокированный носитель, а терминал отключается навсегда.",
-                "§64. Механическая фиксация: §7На правую ногу устанавливается постоянный ортопедический фиксатор (виден на скине, навсегда снижает скорость и высоту прыжка).",
+                "§64. Механическая фиксация: §7На правую ногу устанавливается постоянный ортопедический фиксатор (виден на скине, навсегда снижает скорость на 25% и замедляет добычу блоков в 2 раза — 0.5x).",
                 "§45. Разрыв сессии: §7После истечения 10-секундной процедуры происходит принудительное отключение от сервера без возможности отмены."
         };
 
@@ -2680,27 +2697,31 @@ public class MarketMainScreen extends Screen {
         int armsCol = zoneColor(armsSold);
         int legsCol = zoneColor(legsSold);
 
-        // Soft pulsing hazard highlight inside each tight anatomical hitbox (renders cleanly around model)
-        int pulseAlpha = (int) (0x1E + Math.abs(Math.sin(System.currentTimeMillis() / 320.0)) * 0x20);
-        if (headSold > 0.01 || "HEAD".equals(hoveredBioZone)) {
-            int c = "HEAD".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (headCol & 0x00FFFFFF));
-            graphics.fill(headBox[0], headBox[1], headBox[2], headBox[3], c);
-        }
-        if (torsoSold > 0.01 || "TORSO".equals(hoveredBioZone)) {
-            int c = "TORSO".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (torsoCol & 0x00FFFFFF));
-            graphics.fill(torsoBox[0], torsoBox[1], torsoBox[2], torsoBox[3], c);
-        }
-        if (armsSold > 0.01 || "ARMS".equals(hoveredBioZone)) {
-            int c = "ARMS".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (armsCol & 0x00FFFFFF));
-            graphics.fill(armLeftBox[0], armLeftBox[1], armLeftBox[2], armLeftBox[3], c);
-            graphics.fill(armRightBox[0], armRightBox[1], armRightBox[2], armRightBox[3], c);
-        }
-        if (legsSold > 0.01 || "LEGS".equals(hoveredBioZone)) {
-            int c = "LEGS".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (legsCol & 0x00FFFFFF));
-            graphics.fill(legBox[0], legBox[1], legBox[2], legBox[3], c);
+        // Soft pulsing hazard highlight inside each tight anatomical hitbox (renders in 2D mode only;
+        // 3D mode renders glowing overlays directly onto the player's 3D skin via PlayerBraceRenderLayer)
+        boolean render3DModel = bioViewMode3D && minecraft != null && minecraft.player != null;
+        if (!render3DModel) {
+            int pulseAlpha = (int) (0x1E + Math.abs(Math.sin(System.currentTimeMillis() / 320.0)) * 0x20);
+            if (headSold > 0.01 || "HEAD".equals(hoveredBioZone)) {
+                int c = "HEAD".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (headCol & 0x00FFFFFF));
+                graphics.fill(headBox[0], headBox[1], headBox[2], headBox[3], c);
+            }
+            if (torsoSold > 0.01 || "TORSO".equals(hoveredBioZone)) {
+                int c = "TORSO".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (torsoCol & 0x00FFFFFF));
+                graphics.fill(torsoBox[0], torsoBox[1], torsoBox[2], torsoBox[3], c);
+            }
+            if (armsSold > 0.01 || "ARMS".equals(hoveredBioZone)) {
+                int c = "ARMS".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (armsCol & 0x00FFFFFF));
+                graphics.fill(armLeftBox[0], armLeftBox[1], armLeftBox[2], armLeftBox[3], c);
+                graphics.fill(armRightBox[0], armRightBox[1], armRightBox[2], armRightBox[3], c);
+            }
+            if (legsSold > 0.01 || "LEGS".equals(hoveredBioZone)) {
+                int c = "LEGS".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (legsCol & 0x00FFFFFF));
+                graphics.fill(legBox[0], legBox[1], legBox[2], legBox[3], c);
+            }
         }
 
-        if (bioViewMode3D && minecraft != null && minecraft.player != null) {
+        if (render3DModel) {
             // Render real animated 3D player skin following cursor (+ glowing 3D bio-overlay & leg brace via PlayerBraceRenderLayer!)
             int entityScale = Math.max(18, Math.min(40, (int) (bh * 0.42)));
             try {

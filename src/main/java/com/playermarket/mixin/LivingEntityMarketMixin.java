@@ -2,6 +2,8 @@ package com.playermarket.mixin;
 
 import com.playermarket.market.*;
 import com.playermarket.network.MarketNetworking;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -14,7 +16,10 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -149,6 +154,102 @@ public abstract class LivingEntityMarketMixin {
         }
 
         return amount;
+    }
+
+    @Inject(method = "hurtServer", at = @At("RETURN"))
+    private void playermarket$onHurtServerAfter(ServerLevel level, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+        if (!cir.getReturnValue() || amount <= 0.0F) return;
+        LivingEntity target = (LivingEntity) (Object) this;
+        boolean updated = false;
+
+        if (source.getEntity() instanceof ServerPlayer attacker && !attacker.isCreative() && target instanceof Enemy) {
+            MarketSavedData data = MarketSavedData.get(level.getServer());
+            PlayerMarketAccount attackerAcc = data.getOrCreateAccount(attacker.getUUID());
+            if (attacker.getMainHandItem().isEmpty()) {
+                data.getCampaignData().addContribution("bare_hand_hits", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(attacker, attackerAcc, "BARE_HAND_HITS", 1);
+                updated = true;
+            }
+            if (target.isOnFire()) {
+                data.getCampaignData().addContribution("downsizing_stunt", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(attacker, attackerAcc, "DOWNSIZE_ACT", 1);
+                updated = true;
+            }
+            if (updated) {
+                data.setDirty();
+                com.playermarket.story.StoryManager.checkAllQuests(attacker, attackerAcc);
+                MarketNetworking.sendSyncToPlayer(attacker);
+            }
+        }
+
+        if (target instanceof ServerPlayer victim && !victim.isCreative() && victim.isAlive()) {
+            MarketSavedData data = MarketSavedData.get(level.getServer());
+            PlayerMarketAccount victimAcc = data.getOrCreateAccount(victim.getUUID());
+            var campaign = data.getCampaignData();
+
+            com.playermarket.story.CorporateTaskTracker.advanceContract(victim, victimAcc, "SURVIVE_DAMAGE", Math.max(1, Math.round(amount)));
+            if (amount >= 6.0F) {
+                campaign.addContribution("near_death_clutch", 1);
+            }
+            if (source.is(DamageTypeTags.IS_FIRE) || source.is(DamageTypeTags.IS_LIGHTNING) || source.is(DamageTypeTags.IS_EXPLOSION)) {
+                campaign.addContribution("elemental_survival", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(victim, victimAcc, "DOWNSIZE_ACT", 1);
+            }
+            boolean fromCreeper = source.getEntity() != null
+                    && "creeper".equals(BuiltInRegistries.ENTITY_TYPE.getKey(source.getEntity().getType()).getPath());
+            if (fromCreeper || source.is(DamageTypeTags.IS_EXPLOSION)) {
+                campaign.addContribution("creeper_survived", 1);
+            }
+            data.setDirty();
+            com.playermarket.story.StoryManager.checkAllQuests(victim, victimAcc);
+            MarketNetworking.sendSyncToPlayer(victim);
+        }
+    }
+
+    @Inject(method = "completeUsingItem", at = @At("HEAD"))
+    private void playermarket$trackItemConsumption(CallbackInfo ci) {
+        LivingEntity self = (LivingEntity) (Object) this;
+        if (self instanceof ServerPlayer player && player.level().getServer() != null && !player.isCreative()) {
+            ItemStack used = self.getUseItem();
+            if (used.isEmpty()) return;
+
+            MarketSavedData data = MarketSavedData.get(player.level().getServer());
+            PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
+            var campaign = data.getCampaignData();
+            boolean changed = false;
+
+            boolean weirdFood = used.is(Items.ROTTEN_FLESH)
+                    || used.is(Items.SPIDER_EYE)
+                    || used.is(Items.POISONOUS_POTATO)
+                    || used.is(Items.PUFFERFISH)
+                    || used.is(Items.BEEF)
+                    || used.is(Items.PORKCHOP)
+                    || used.is(Items.CHICKEN)
+                    || used.is(Items.MUTTON)
+                    || used.is(Items.RABBIT)
+                    || used.is(Items.COD)
+                    || used.is(Items.SALMON)
+                    || used.is(Items.MILK_BUCKET);
+            if (weirdFood) {
+                campaign.addContribution("poison_snack_eaten", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, acc, "TOXIC_LUNCH", 1);
+                changed = true;
+            }
+            if (used.has(DataComponents.CUSTOM_NAME) && (used.has(DataComponents.FOOD) || used.is(Items.MILK_BUCKET) || used.is(Items.POTION))) {
+                campaign.addContribution("named_food_eaten", 1);
+                changed = true;
+            }
+            if (player.getHealth() <= 6.0F && (used.has(DataComponents.FOOD) || used.is(Items.POTION) || used.is(Items.HONEY_BOTTLE) || used.is(Items.MILK_BUCKET))) {
+                campaign.addContribution("near_death_clutch", 1);
+                changed = true;
+            }
+
+            if (changed) {
+                data.setDirty();
+                com.playermarket.story.StoryManager.checkAllQuests(player, acc);
+                MarketNetworking.sendSyncToPlayer(player);
+            }
+        }
     }
 
     @Inject(method = "dealDefaultKnockback", at = @At("TAIL"))

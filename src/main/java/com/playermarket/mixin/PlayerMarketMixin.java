@@ -37,7 +37,7 @@ public abstract class PlayerMarketMixin {
             }
 
             int modified = Math.max(1, (int) Math.round(experience * Math.max(0.15, mult)));
-            acc.progressContracts("GAIN_XP", modified);
+            com.playermarket.story.CorporateTaskTracker.advanceContract(sp, acc, "GAIN_XP", modified);
             savedData.setDirty();
             return modified;
         }

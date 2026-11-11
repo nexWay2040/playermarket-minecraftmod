@@ -79,11 +79,18 @@ public class MarketHudOverlay {
         // Active Story Quest tracker (compact single line)
         if (campaign.isCampaignAccepted() && campaign.getCurrentStage() <= 5) {
             List<StoryQuests.StageTask> tasks = StoryQuests.getTasksForStage(campaign.getCurrentStage());
+            int doneInStage = 0;
+            StoryQuests.StageTask nextTask = null;
             for (StoryQuests.StageTask t : tasks) {
-                if (!campaign.isTaskCompleted(t.id())) {
-                    lines.add(String.format(Locale.ROOT, "§6Миссия %d: §f%s", campaign.getCurrentStage(), cleanShortTitle(t.title())));
-                    break;
+                if (campaign.isTaskCompleted(t.id())) {
+                    doneInStage++;
+                } else if (nextTask == null) {
+                    nextTask = t;
                 }
+            }
+            if (nextTask != null) {
+                lines.add(String.format(Locale.ROOT, "§6Миссия %d (%d/%d): §f%s",
+                        campaign.getCurrentStage(), doneInStage, tasks.size(), cleanShortTitle(nextTask.title())));
             }
         }
 
@@ -137,7 +144,7 @@ public class MarketHudOverlay {
                     double daysLeft = (c.deadlineTick() > gameTick)
                             ? Math.max(0.0, (c.deadlineTick() - gameTick) / 24000.0)
                             : (double) c.durationDays();
-                    lines.add(String.format(Locale.ROOT, " §f• %s: §e%d/%d", shortTitle, c.currentProgress(), c.targetProgress()));
+                    lines.add(String.format(Locale.ROOT, " §f• %s: §e%s", shortTitle, ContractBoardCatalog.formatProgress(c)));
                     lines.add(String.format(Locale.ROOT, "   §eОсталось: %.1f дн. §8| §cШтраф: -%d CR", daysLeft, c.penaltyCr()));
                 }
                 activeContractCount++;

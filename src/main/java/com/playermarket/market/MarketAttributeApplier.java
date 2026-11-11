@@ -171,10 +171,11 @@ public class MarketAttributeApplier {
             addModifier(player, Attributes.BLOCK_BREAK_SPEED, "bm_overclock_mining", 0.25, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
         }
 
-        // 6. Apply Permanent Mobility Debuff if player accepted Final Settlement (Account Revoked / Impaired)
+        // 6. Apply Permanent Debuff if player accepted Final Settlement (Account Revoked / Impaired):
+        // Preserve full 1-block jump clearance, but halve block mining speed (0.5x) and reduce movement speed
         if (account.isPermanentImpaired()) {
             addModifier(player, Attributes.MOVEMENT_SPEED, "permanent_impaired_speed", -0.25, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
-            addModifier(player, Attributes.JUMP_STRENGTH, "permanent_impaired_jump", -0.20, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
+            addModifier(player, Attributes.BLOCK_BREAK_SPEED, "permanent_impaired_mining", -0.50, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
         }
 
         // Clamp current health if Max Health decreased
@@ -493,6 +494,17 @@ public class MarketAttributeApplier {
             }
         }
 
+        // Fast stunt tracking (every 2 ticks = 10 Hz)
+        if (gameTime % 2L == 0L) {
+            var campaign = data.getCampaignData();
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                PlayerMarketAccount account = data.getOrCreateAccount(player.getUUID());
+                if (com.playermarket.story.CorporateTaskTracker.tickFast(player, account, campaign, data, gameTime)) {
+                    com.playermarket.story.StoryManager.checkAllQuests(player, account);
+                }
+            }
+        }
+
         // Tick each online player once per second (20 ticks)
         if (gameTime % 20L == 0L) {
             boolean isMinuteTick = (gameTime % 1200L == 0L);
@@ -501,9 +513,11 @@ public class MarketAttributeApplier {
                 PlayerMarketAccount account = data.getOrCreateAccount(player.getUUID());
                 boolean needsSync = false;
 
-                // 1. Progress survival contract & Active Campaign Objectives
-                account.progressContracts("SURVIVE_TICKS", 20);
+                // 1. Progress survival/environment contracts & Active Campaign Objectives
                 com.playermarket.story.SharedCampaignData campaign = data.getCampaignData();
+                if (com.playermarket.story.CorporateTaskTracker.tickOneSecond(player, account, campaign, data)) {
+                    needsSync = true;
+                }
                 if (campaign.isCampaignAccepted()) {
                     player.level().getBiome(player.blockPosition()).unwrapKey().ifPresent(k -> {
                         campaign.recordBiome(k.identifier().getPath());
