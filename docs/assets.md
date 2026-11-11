@@ -16,6 +16,7 @@ In addition to custom pixel-art UI frames and shaders, the terminal textures inc
    - Hard-pixel 9-slice GUI components (`textures/gui/sprites/*.png` + `.mcmeta`): crisp bordered `panel.png`, `header.png`, `sidebar.png`, `footer.png`, `hud_bg.png`, `card*.png`, recessed `18x18` item frames `slot_dark.png` & `slot_dark_hover.png`, unified `32x16` button set (`btn_*[_hover].png`), `pill*.png`, and segmented progress bars (`bar_*.png`).
 6. **Layered Anatomical Bio-Scanner Sprites (`textures/gui/body/*.png`, CC0)**:
    - 64x96 shaded anatomical paperdoll masks (`body_head.png`, `body_torso.png`, `body_heart.png`, `body_arms.png`, `body_legs.png`, `body_brace.png`) dynamically tinted per body zone integrity alongside the live 3D player model.
+   - `textures/entity/bio_highlight.png` (64x64) and `textures/entity/leg_brace.png` (64x64): 3D live limb-zone highlight scanlines and Section 17.4 titanium right-leg exoskeleton brace rendered via `PlayerBraceRenderLayer`.
 
 ## Palette Standards
 - **Obsidian Black**: `#0A0D14` (Window canvases, backdrop fill)

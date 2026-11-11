@@ -75,6 +75,7 @@ public class MarketMainScreen extends Screen {
     private UpgradeType.Category upgradeFilter = UpgradeType.Category.BODY;
     private boolean resourceCatalogMode = false; // false = sell inventory, true = buy catalog
     private boolean bioViewMode3D = true; // true = 3D live player model + zone reticles, false = 2D detailed anatomy
+    private static volatile String hoveredBioZone = null;
     private String selectedMailId = null;
 
     private int scrollOffset = 0;
@@ -248,11 +249,28 @@ public class MarketMainScreen extends Screen {
     );
 
     private NewsArticle selectedNewsArticle = null;
+    private boolean section17ModalOpen = false;
     private String selectedNewsCategory = "ALL";
     private boolean finalEndingRevokeMode = false;
     private final List<ClickAction> modalClickActions = new ArrayList<>();
     private int currentClipTop = -1;
     private int currentClipBottom = -1;
+
+    private boolean isModalOpen() {
+        return selectedNewsArticle != null || section17ModalOpen;
+    }
+
+    public static String getHoveredBioZone() {
+        return hoveredBioZone;
+    }
+
+    public static double getZoneLoss(PlayerMarketAccount account, AssetType... types) {
+        return avgSoldFraction(account, types);
+    }
+
+    public static int getZoneRgb(double soldFrac) {
+        return zoneColor(soldFrac);
+    }
 
     private record ClickAction(int minX, int minY, int maxX, int maxY, Runnable action, String tooltip) {}
     private final List<ClickAction> clickActions = new CopyOnWriteArrayList<>();
@@ -267,6 +285,8 @@ public class MarketMainScreen extends Screen {
         super.init();
         scrollOffset = 0;
         selectedNewsArticle = null;
+        section17ModalOpen = false;
+        hoveredBioZone = null;
         selectedNewsCategory = "ALL";
         finalEndingRevokeMode = false;
     }
@@ -278,7 +298,7 @@ public class MarketMainScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (selectedNewsArticle != null) return true;
+        if (isModalOpen()) return true;
         if (maxScroll > 0) {
             scrollOffset = Math.clamp(scrollOffset - (int) (verticalAmount * 28), 0, maxScroll);
             return true;
@@ -298,7 +318,7 @@ public class MarketMainScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (selectedNewsArticle != null) {
+        if (isModalOpen()) {
             int mx = (int) event.x();
             int my = (int) event.y();
             for (ClickAction ca : modalClickActions) {
@@ -309,6 +329,7 @@ public class MarketMainScreen extends Screen {
                 }
             }
             selectedNewsArticle = null;
+            section17ModalOpen = false;
             return true;
         }
 
@@ -340,9 +361,10 @@ public class MarketMainScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        if (selectedNewsArticle != null) {
+        if (isModalOpen()) {
             if (event.key() == InputConstants.KEY_M || event.key() == InputConstants.KEY_ESCAPE) {
                 selectedNewsArticle = null;
+                section17ModalOpen = false;
                 return true;
             }
         }
@@ -356,6 +378,7 @@ public class MarketMainScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         frameClickBuffer.clear();
+        hoveredBioZone = null;
 
         // 1. Transparent background blur
         this.extractTransparentBackground(graphics);
@@ -429,8 +452,8 @@ public class MarketMainScreen extends Screen {
             graphics.text(font, cycleBadge, cycleX + 6, top + 9, 0xFFE2E8F0, false);
         }
 
-        int bgMouseX = (selectedNewsArticle != null) ? -9999 : mouseX;
-        int bgMouseY = (selectedNewsArticle != null) ? -9999 : mouseY;
+        int bgMouseX = isModalOpen() ? -9999 : mouseX;
+        int bgMouseY = isModalOpen() ? -9999 : mouseY;
 
         // 5. Sidebar Navigation
         Tab[] tabs = Tab.values();
@@ -491,8 +514,10 @@ public class MarketMainScreen extends Screen {
         graphics.text(font, "§8PM // v2.0", left + 8, footerTop + 6, 0xFF475569, false);
 
         // Footer main status starts to the right of the sidebar (left + sidebarWidth + 8)
+        String eventBadge = "§6[ " + event.getHeadline() + " ]";
+        int ebWidth = font.width(eventBadge);
         int footerLeft = left + sidebarWidth + 8;
-        int footerMaxWidth = guiWidth - sidebarWidth - 190;
+        int footerMaxWidth = Math.max(60, guiWidth - sidebarWidth - ebWidth - 26);
         String activeMsg = ClientMarketState.getActiveStatusMessage();
         if (!activeMsg.isEmpty()) {
             drawClampedText(graphics, "§e✦ " + activeMsg, footerLeft, footerTop + 6, footerMaxWidth, 0xFFFFFFFF, false);
@@ -504,8 +529,6 @@ public class MarketMainScreen extends Screen {
             drawClampedText(graphics, footerText, footerLeft, footerTop + 6, footerMaxWidth, 0xFF94A3B8, false);
         }
 
-        String eventBadge = "§6[ " + event.getHeadline() + " ]";
-        int ebWidth = font.width(eventBadge);
         graphics.text(font, eventBadge, left + guiWidth - ebWidth - 10, footerTop + 6, 0xFFFBBF24, false);
 
         // 7. Render Active Tab Content
@@ -524,8 +547,11 @@ public class MarketMainScreen extends Screen {
             case NEWS -> renderNews(graphics, event, contentLeft, contentTop, contentWidth, contentHeight, bgMouseX, bgMouseY);
         }
 
-        // 8. News Article Interactive Modal Reader Popup
-        if (selectedNewsArticle != null) {
+        // 8. Active Modal Popups (News Article or Hidden Section 17.4 Disclosure)
+        if (section17ModalOpen) {
+            modalClickActions.clear();
+            renderSection17Modal(graphics, width, height, mouseX, mouseY);
+        } else if (selectedNewsArticle != null) {
             modalClickActions.clear();
             renderNewsModal(graphics, selectedNewsArticle, width, height, mouseX, mouseY);
         }
@@ -535,7 +561,7 @@ public class MarketMainScreen extends Screen {
         clickActions.addAll(frameClickBuffer);
 
         // Tooltips (clean multiline wrapped, only when modal is not open)
-        if (selectedNewsArticle == null) {
+        if (!isModalOpen()) {
             for (ClickAction ca : clickActions) {
                 if (ca.tooltip != null && mouseX >= ca.minX && mouseX <= ca.maxX && mouseY >= ca.minY && mouseY <= ca.maxY) {
                     renderCustomMultilineTooltip(graphics, ca.tooltip, mouseX, mouseY);
@@ -576,7 +602,7 @@ public class MarketMainScreen extends Screen {
         drawClampedText(graphics, "§b§l" + diamonds + " ♦ §7(инв.)", c3Left + 8, top + 16, cardWidth - 16, 0xFF38BDF8, false);
         long dayIdx = (minecraft != null && minecraft.level != null) ? (minecraft.level.getOverworldClockTime() / 24000L) : 0L;
         int remExch = account.getRemainingDailyDiamondExchange(dayIdx);
-        drawClampedText(graphics, "§8Обмен: §b" + remExch + "/10§8/дн. | Влож: §b" + account.getTotalDiamondsSpent(), c3Left + 8, top + 28, cardWidth - 16, 0xFF64748B, false);
+        drawClampedText(graphics, "§8Обм: §b" + remExch + "/10 §8| Вл: §b" + account.getTotalDiamondsSpent() + " ♦", c3Left + 8, top + 28, cardWidth - 16, 0xFF64748B, false);
         int vipLvl = account.getUpgradeLevel(UpgradeType.VIP_CLIENT);
         drawClampedText(graphics, "§8VIP: §e" + (vipLvl > 0 ? "Ур. " + vipLvl : "Базовый"), c3Left + 8, top + 38, cardWidth - 16, 0xFF64748B, false);
 
@@ -644,7 +670,7 @@ public class MarketMainScreen extends Screen {
         // Calculate total content height for scrolling
         int headerBannerH = 68;
         int tasksSectionH = 22 + (tasks.size() * 54);
-        int finalSectionH = (currentStage == 6) ? 140 : 0;
+        int finalSectionH = (currentStage == 6) ? 162 : 0;
         int sideQuestsH = 26 + (com.playermarket.story.StoryQuests.SIDE_QUESTS.size() * 52);
         int totalStoryH = headerBannerH + tasksSectionH + finalSectionH + sideQuestsH + 20;
 
@@ -734,7 +760,7 @@ public class MarketMainScreen extends Screen {
                 drawClampedText(graphics, "§8«Вы больше не клиент. Вы — корпоративный актив.»", left + 8, cy + 48, width - 16, 0xFF64748B, false);
                 cy += 76;
             } else {
-                int cardH = 110;
+                int cardH = 136;
                 drawSprite(graphics, "card_amber", left, cy, width, cardH, 0xFF241A0A);
                 drawClampedText(graphics, "§6§lФИНАНСОВЫЙ ДОГОВОР // ACCOUNT SETTLEMENT", left + 10, cy + 8, width - 20, 0xFFFBBF24, false);
                 drawClampedText(graphics, "§fВсе этапы Программы Активов завершены. Корпорация производит окончательный расчёт.", left + 10, cy + 22, width - 20, 0xFFE2E8F0, false);
@@ -743,14 +769,80 @@ public class MarketMainScreen extends Screen {
                 int bigBtnW = 280;
                 int bigBtnH = 24;
                 int bigBtnX = left + (width - bigBtnW) / 2;
-                int bigBtnY = cy + 50;
+                int bigBtnY = cy + 49;
                 drawButton(graphics, "btn_green", bigBtnX, bigBtnY, bigBtnW, bigBtnH, "ACCEPT FINAL SETTLEMENT (+100 000 CR)", mouseX, mouseY, () -> {
                     sendMarketAction("CHOOSE_FINAL_TRANSACTION", "FINAL_SETTLEMENT", "", 0, 0.0);
                     this.onClose();
                 });
 
-                String finePrint = "SECTION 17.4: RECOVERY PROTOCOL & BIOLOGICAL SURRENDER. Irrevocable assignment of biological assets.";
-                drawClampedText(graphics, "§8" + finePrint, left + 10, cy + 82, width - 20, 0xFF475569, false);
+                // Dense ultra-small muted legal filler text burying clickable Clause 17.4 inside
+                float fpScale = 0.62f;
+                int fpX = left + 10;
+                int fpY = cy + 79;
+                int fpMaxUnscaledW = Math.max(120, Math.round((width - 20) / fpScale));
+                String boiler1 = "Настоящий акт урегулирования составлен в соответствии с Регламентом Корпоративного Реестра (ред. IV), политикой конфиденциальности,";
+                String boiler2 = "учётом курсовой волатильности CR/♦, стандартным согласием на телеметрический аудит транзакций, архивирование логов и ";
+                String p3Pre = "процедурное сопровождение закрытия портфеля, в том числе с применением положений ";
+                String clause17Link = "п. 17.4 (протокол отчуждения и фиксации)";
+                String p3Post = ", действующих с момента подписания без дополнительных уведомлений оператора.";
+
+                List<net.minecraft.util.FormattedCharSequence> l1 = font.split(Component.literal(boiler1), fpMaxUnscaledW);
+                List<net.minecraft.util.FormattedCharSequence> l2 = font.split(Component.literal(boiler2), fpMaxUnscaledW);
+
+                int l3Y = fpY + Math.round((l1.size() + l2.size()) * 10 * fpScale);
+                int cPreW = Math.round(font.width(p3Pre) * fpScale);
+                int cLinkW = Math.round(font.width(clause17Link) * fpScale);
+                boolean inlineFits = (font.width(p3Pre + clause17Link) <= fpMaxUnscaledW);
+                int linkHitX = inlineFits ? (fpX + cPreW) : fpX;
+                int linkHitY = inlineFits ? l3Y : (l3Y + Math.round(10 * fpScale));
+                int linkHitW = cLinkW;
+                int linkHitH = 8;
+
+                boolean clauseHovered = !isModalOpen() && (mouseX >= linkHitX && mouseX <= linkHitX + linkHitW && mouseY >= linkHitY && mouseY <= linkHitY + linkHitH);
+                int baseMutedColor = 0xFF333D4D;
+                int linkColor = clauseHovered ? 0xFF94A3B8 : 0xFF354052;
+
+                graphics.pose().pushMatrix();
+                graphics.pose().translate((float) fpX, (float) fpY);
+                graphics.pose().scale(fpScale, fpScale);
+                int uy = 0;
+                for (var s : l1) {
+                    graphics.text(font, s, 0, uy, baseMutedColor, false);
+                    uy += 10;
+                }
+                for (var s : l2) {
+                    graphics.text(font, s, 0, uy, baseMutedColor, false);
+                    uy += 10;
+                }
+                if (inlineFits) {
+                    graphics.text(font, p3Pre, 0, uy, baseMutedColor, false);
+                    int preW = font.width(p3Pre);
+                    int lnW = font.width(clause17Link);
+                    graphics.text(font, clause17Link, preW, uy, linkColor, false);
+                    if (clauseHovered) {
+                        graphics.fill(preW, uy + 9, preW + lnW, uy + 10, linkColor);
+                    }
+                    uy += 10;
+                    for (var s : font.split(Component.literal(p3Post.substring(2)), fpMaxUnscaledW)) {
+                        if (fpY + uy * fpScale + 6 <= cy + cardH - 3) {
+                            graphics.text(font, s, 0, uy, baseMutedColor, false);
+                            uy += 10;
+                        }
+                    }
+                } else {
+                    graphics.text(font, p3Pre, 0, uy, baseMutedColor, false);
+                    uy += 10;
+                    int lnW = font.width(clause17Link);
+                    graphics.text(font, clause17Link, 0, uy, linkColor, false);
+                    if (clauseHovered) {
+                        graphics.fill(0, uy + 9, lnW, uy + 10, linkColor);
+                    }
+                }
+                graphics.pose().popMatrix();
+
+                registerClick(linkHitX, linkHitY, linkHitX + linkHitW, linkHitY + linkHitH,
+                        () -> section17ModalOpen = true,
+                        "Открыть полный текст п. 17.4");
 
                 cy += cardH + 10;
             }
@@ -824,7 +916,7 @@ public class MarketMainScreen extends Screen {
                             int left, int top, int width, int height, int mouseX, int mouseY) {
         List<com.playermarket.story.MailMessage> mailbox = account.getStoryProgress().getMailbox();
 
-        int listWidth = 190;
+        int listWidth = Math.min(176, Math.max(145, (int) (width * 0.37)));
         int readerLeft = left + listWidth + 6;
         int readerWidth = width - listWidth - 6;
 
@@ -911,13 +1003,13 @@ public class MarketMainScreen extends Screen {
         drawClampedText(graphics, "§8Тема: §e§l" + currentMsg.subject(), readerLeft + 8, top + 18, readerWidth - 16, 0xFFFBBF24, false);
 
         // Letter Body (Split paragraphs and wrap)
-        int bodyY = top + 46;
-        int bodyMaxY = top + height - (currentMsg.rewardType().equals("NONE") ? 10 : 40);
+        int bodyY = top + 44;
+        int bodyMaxY = top + height - (currentMsg.rewardType().equals("NONE") ? 10 : 44);
         int textMaxW = readerWidth - 20;
 
         for (String paragraph : currentMsg.body().split("\n")) {
             if (paragraph.trim().isEmpty()) {
-                bodyY += 6;
+                bodyY += 5;
                 continue;
             }
             List<net.minecraft.network.chat.FormattedText> lines =
@@ -928,31 +1020,39 @@ public class MarketMainScreen extends Screen {
                     bodyY += 10;
                 }
             }
-            bodyY += 4;
+            bodyY += 3;
         }
 
-        // Attachment / Reward Box at the bottom of the letter
+        // Attachment / Reward Box at the bottom of the letter (multiline, never truncated to "ВЛОЖ...")
         if (!currentMsg.rewardType().equals("NONE")) {
-            int attachY = top + height - 34;
-            drawSprite(graphics, "hud_bg", readerLeft + 8, attachY, readerWidth - 16, 28, 0xFF172030);
+            int attachH = 32;
+            int attachY = top + height - 38;
+            drawSprite(graphics, "hud_bg", readerLeft + 8, attachY, readerWidth - 16, attachH, 0xFF172030);
 
             if ("CONTRACT_OFFER".equalsIgnoreCase(currentMsg.rewardType())) {
-                drawClampedText(graphics, "§e[!] Подпишите официальный договор на бумаге (Мятое письмо в инвентаре)",
-                        readerLeft + 16, attachY + 9, readerWidth - 32, 0xFFFBBF24, false);
+                List<net.minecraft.util.FormattedCharSequence> offerLines = font.split(
+                        Component.literal("§e[!] Подпишите договор на бумаге (Мятое письмо в инвентаре)"),
+                        readerWidth - 28
+                );
+                int oy = attachY + (offerLines.size() <= 1 ? 11 : 6);
+                for (int oi = 0; oi < Math.min(2, offerLines.size()); oi++) {
+                    graphics.text(font, offerLines.get(oi), readerLeft + 14, oy + oi * 10, 0xFFFBBF24, false);
+                }
             } else if (currentMsg.rewardClaimed()) {
-                drawClampedText(graphics, "§8✔ Корпоративное вложение получено (" + currentMsg.rewardAmount() + " " + currentMsg.rewardType() + ")",
-                        readerLeft + 16, attachY + 9, readerWidth - 32, 0xFF64748B, false);
+                drawClampedText(graphics, "§8✔ Вложение получено: +" + currentMsg.rewardAmount() + " " + currentMsg.rewardType(),
+                        readerLeft + 14, attachY + 11, readerWidth - 28, 0xFF64748B, false);
             } else {
-                String attachTitle = "§eВЛОЖЕНИЕ: §a+" + currentMsg.rewardAmount() + " " + currentMsg.rewardType();
-                drawClampedText(graphics, attachTitle, readerLeft + 16, attachY + 9, readerWidth - 150, 0xFFFBBF24, false);
-
-                int claimW = 120;
+                int claimW = Math.min(96, Math.max(76, readerWidth / 2 - 10));
                 int claimH = 20;
                 int claimX = readerLeft + readerWidth - claimW - 14;
-                int claimY = attachY + 4;
+                int claimY = attachY + 6;
+                int infoMaxW = Math.max(40, claimX - (readerLeft + 14) - 6);
+
+                drawClampedText(graphics, "§eВЛОЖЕНИЕ:", readerLeft + 14, attachY + 5, infoMaxW, 0xFFFBBF24, false);
+                drawClampedText(graphics, "§a+" + currentMsg.rewardAmount() + " " + currentMsg.rewardType(), readerLeft + 14, attachY + 16, infoMaxW, 0xFF10B981, false);
 
                 final String cId = currentMsg.id();
-                drawSmallButton(graphics, "btn_green", claimX, claimY, claimW, claimH, "📎 ЗАБРАТЬ", mouseX, mouseY, () -> {
+                drawSmallButton(graphics, "btn_green", claimX, claimY, claimW, claimH, "ЗАБРАТЬ", mouseX, mouseY, () -> {
                     sendMarketAction("CLAIM_MAIL_REWARD", cId, "", 0, 0.0);
                 });
             }
@@ -2049,33 +2149,35 @@ public class MarketMainScreen extends Screen {
         );
         drawClampedText(graphics, multSummary, left + 8, top + 32, width - 16, 0xFF94A3B8, false);
 
-        // 2. Category Filter Pills Row
+        // 2. Category Filter Pills Row (flush within [left .. left + width])
         int pillY = top + heroH + 4;
         int pillH = 16;
-        int pillW = 76;
+        int pillGap = 4;
+        int pillW = (width - pillGap * 4) / 5;
+        int lastPillW = width - (pillW + pillGap) * 4;
         int px = left;
 
         drawPill(graphics, px, pillY, pillW, pillH, "ВСЕ", selectedNewsCategory.equals("ALL"), mouseX, mouseY, () -> {
             selectedNewsCategory = "ALL";
             scrollOffset = 0;
         });
-        px += pillW + 4;
+        px += pillW + pillGap;
         drawPill(graphics, px, pillY, pillW, pillH, "СРОЧНО", selectedNewsCategory.equalsIgnoreCase("BREAKING"), mouseX, mouseY, () -> {
             selectedNewsCategory = "BREAKING";
             scrollOffset = 0;
         });
-        px += pillW + 4;
+        px += pillW + pillGap;
         drawPill(graphics, px, pillY, pillW, pillH, "КОРП", selectedNewsCategory.equalsIgnoreCase("CORP"), mouseX, mouseY, () -> {
             selectedNewsCategory = "CORP";
             scrollOffset = 0;
         });
-        px += pillW + 4;
+        px += pillW + pillGap;
         drawPill(graphics, px, pillY, pillW, pillH, "ЧЁРНЫЙ", selectedNewsCategory.equalsIgnoreCase("DARK"), mouseX, mouseY, () -> {
             selectedNewsCategory = "DARK";
             scrollOffset = 0;
         });
-        px += pillW + 4;
-        drawPill(graphics, px, pillY, pillW, pillH, "ГАЙДЫ", selectedNewsCategory.equalsIgnoreCase("GUIDE"), mouseX, mouseY, () -> {
+        px += pillW + pillGap;
+        drawPill(graphics, px, pillY, lastPillW, pillH, "ГАЙДЫ", selectedNewsCategory.equalsIgnoreCase("GUIDE"), mouseX, mouseY, () -> {
             selectedNewsCategory = "GUIDE";
             scrollOffset = 0;
         });
@@ -2144,13 +2246,13 @@ public class MarketMainScreen extends Screen {
     }
 
     private void drawCard(GuiGraphicsExtractor graphics, int x, int y, int w, int h, int mouseX, int mouseY) {
-        boolean hovered = (selectedNewsArticle == null) && (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h);
+        boolean hovered = !isModalOpen() && (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h);
         drawSprite(graphics, hovered ? "card_hover" : "card", x, y, w, h, hovered ? 0xFF1E2838 : 0xFF121622);
     }
 
     private void drawButton(GuiGraphicsExtractor graphics, String baseSprite, int x, int y, int w, int h, String text,
                             int mouseX, int mouseY, Runnable onClick) {
-        boolean hovered = (selectedNewsArticle == null) && (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h);
+        boolean hovered = !isModalOpen() && (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h);
         String sprite = hovered ? (baseSprite + "_hover") : baseSprite;
         drawSprite(graphics, sprite, x, y, w, h, hovered ? 0xFF2A4365 : 0xFF1A2B42);
         drawClampedCenteredText(graphics, text, x + (w / 2), y + (h - 8) / 2, w - 8, hovered ? 0xFFFFFFFF : 0xFFE2E8F0, false);
@@ -2159,7 +2261,7 @@ public class MarketMainScreen extends Screen {
 
     private void drawSmallButton(GuiGraphicsExtractor graphics, String baseSprite, int x, int y, int w, int h, String text,
                                  int mouseX, int mouseY, Runnable onClick, String tooltip) {
-        boolean hovered = (selectedNewsArticle == null) && (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h);
+        boolean hovered = !isModalOpen() && (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h);
         String sprite = hovered ? (baseSprite + "_hover") : baseSprite;
         drawSprite(graphics, sprite, x, y, w, h, hovered ? 0xFF2A4365 : 0xFF1A2B42);
         drawClampedCenteredText(graphics, text, x + (w / 2), y + (h - 7) / 2, w - 4, hovered ? 0xFFFFFFFF : 0xFFE2E8F0, false);
@@ -2173,7 +2275,7 @@ public class MarketMainScreen extends Screen {
 
     private void drawPill(GuiGraphicsExtractor graphics, int x, int y, int w, int h, String text, boolean active,
                           int mouseX, int mouseY, Runnable onClick) {
-        boolean hovered = (selectedNewsArticle == null) && (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h);
+        boolean hovered = !isModalOpen() && (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h);
         String sprite = active ? "pill_active" : (hovered ? "pill_hover" : "pill");
         drawSprite(graphics, sprite, x, y, w, h, active ? 0xFF10B981 : 0xFF1A2232);
         drawClampedCenteredText(graphics, text, x + (w / 2), y + (h - 8) / 2, w - 6, active ? 0xFF052E16 : (hovered ? 0xFFFFFFFF : 0xFF94A3B8), false);
@@ -2237,7 +2339,7 @@ public class MarketMainScreen extends Screen {
     }
 
     private void registerClick(int minX, int minY, int maxX, int maxY, Runnable action, String tooltip) {
-        if (selectedNewsArticle != null) {
+        if (isModalOpen()) {
             // When modal popup is open, suppress all background clickable registrations
             return;
         }
@@ -2326,6 +2428,53 @@ public class MarketMainScreen extends Screen {
         }, null));
     }
 
+    private void renderSection17Modal(GuiGraphicsExtractor graphics, int screenW, int screenH, int mouseX, int mouseY) {
+        int modalW = Math.min(440, screenW - 24);
+        int modalH = Math.min(242, screenH - 24);
+        int mx = (screenW - modalW) / 2;
+        int my = (screenH - modalH) / 2;
+
+        graphics.fill(0, 0, screenW, screenH, 0xCC020408);
+        drawSprite(graphics, "panel", mx, my, modalW, modalH, 0xFF0B0F19);
+        drawSprite(graphics, "header", mx, my, modalW, 30, 0xFF200C12);
+        drawSprite(graphics, "footer", mx, my + modalH - 32, modalW, 32, 0xFF10141E);
+
+        drawClampedText(graphics, "§c§lПРИЛОЖЕНИЕ №17.4 // ПРОТОКОЛ ПОЛНОГО ОТЧУЖДЕНИЯ", mx + 12, my + 10, modalW - 24, 0xFFEF4444, true);
+
+        int bodyY = my + 38;
+        int contentW = modalW - 24;
+        String[] clauses = {
+                "§fПодписывая Финальный Расчёт (ACCEPT FINAL SETTLEMENT), оператор безоговорочно соглашается со следующими последствиями:",
+                "§e1. Финансовый расчёт: §7На ваш счёт начисляется +100 000 CR, после чего лицевой счёт закрывается.",
+                "§c2. Ликвидация активов: §7Все биологические характеристики переходят в исключительную собственность Корпорации.",
+                "§c3. Аннулирование доступа: §7Карта Доступа [M] превращается в заблокированный носитель, а терминал отключается навсегда.",
+                "§64. Механическая фиксация: §7На правую ногу устанавливается постоянный ортопедический фиксатор (виден на скине, навсегда снижает скорость и высоту прыжка).",
+                "§45. Разрыв сессии: §7После истечения 10-секундной процедуры происходит принудительное отключение от сервера без возможности отмены."
+        };
+
+        for (String p : clauses) {
+            for (var line : font.split(Component.literal(p), contentW)) {
+                if (bodyY + 10 <= my + modalH - 38) {
+                    graphics.text(font, line, mx + 12, bodyY, 0xFFE2E8F0, false);
+                    bodyY += 10;
+                }
+            }
+            bodyY += 4;
+        }
+
+        int closeW = 140;
+        int closeH = 18;
+        int closeX = mx + (modalW - closeW) / 2;
+        int closeY = my + modalH - 25;
+        boolean closeHovered = mouseX >= closeX && mouseX <= closeX + closeW && mouseY >= closeY && mouseY <= closeY + closeH;
+        drawSprite(graphics, closeHovered ? "btn_red_hover" : "btn_red", closeX, closeY, closeW, closeH, closeHovered ? 0xFF7F1D1D : 0xFF450A0A);
+        drawClampedCenteredText(graphics, "Понятно // Закрыть", closeX + closeW / 2, closeY + (closeH - 7) / 2, closeW - 6, 0xFFFFFFFF, false);
+
+        modalClickActions.add(new ClickAction(closeX, closeY, closeX + closeW, closeY + closeH, () -> {
+            section17ModalOpen = false;
+        }, null));
+    }
+
     private void sendMarketAction(String action, String targetId, String secondaryId, int intValue, double doubleValue) {
         ClientPlayNetworking.send(new MarketNetworking.MarketActionPayload(action, targetId, secondaryId, intValue, doubleValue));
     }
@@ -2371,17 +2520,76 @@ public class MarketMainScreen extends Screen {
         int bioIntegrity = (int) Math.max(0, Math.min(100, Math.round((1.0 - (headSold + torsoSold + armsSold + legsSold) / 4.0) * 100.0)));
 
         int bayW = Math.min(68, Math.max(48, (int) (leftW * 0.34)));
-        int bayH = Math.max(52, height - 10);
+        int bayH = Math.max(52, height - 14);
         int bayX = left + 5;
         int bayY = top + (height - bayH) / 2;
         boolean braced = account.isPermanentImpaired() || account.getStoryStage() >= 5 || legsSold >= 0.40;
 
-        drawBioBodyDiagram(graphics, account, bayX, bayY, bayW, bayH,
-                headSold, torsoSold, armsSold, legsSold, braced,
-                headAssets, torsoAssets, armAssets, legAssets, mouseX, mouseY);
-
         int infoX = bayX + bayW + 8;
         int infoW = Math.max(40, left + leftW - infoX - 6);
+        int zoneListTop = top + 36;
+        int rowStep = height >= 96 ? 11 : 9;
+
+        // Precompute hovered zone from BOTH body hitboxes AND zone rows so 3D player highlights on the exact same frame
+        int midX = bayX + bayW / 2;
+        boolean use3D = bioViewMode3D && minecraft != null && minecraft.player != null;
+        int[] headBox;
+        int[] torsoBox;
+        int[] armLeftBox;
+        int[] armRightBox;
+        int[] legBox;
+        if (use3D) {
+            int halfTorso = 7;
+            int zH0 = bayY + Math.round(bayH * 0.08f);
+            int zH1 = bayY + Math.round(bayH * 0.30f);
+            int zT1 = bayY + Math.round(bayH * 0.58f);
+            int zA1 = bayY + Math.round(bayH * 0.62f);
+            int zL1 = bayY + bayH - 3;
+            headBox = new int[]{midX - 10, zH0, midX + 10, zH1};
+            torsoBox = new int[]{midX - halfTorso, zH1 + 1, midX + halfTorso, zT1};
+            armLeftBox = new int[]{bayX + 2, zH1 + 1, midX - halfTorso - 1, zA1};
+            armRightBox = new int[]{midX + halfTorso + 1, zH1 + 1, bayX + bayW - 2, zA1};
+            legBox = new int[]{midX - 11, zT1 + 1, midX + 11, zL1};
+        } else {
+            int drawH = Math.max(48, Math.min(bayH - 4, 96));
+            int drawW = Math.round(drawH * (64.0f / 96.0f));
+            if (drawW > bayW - 4) {
+                drawW = bayW - 4;
+                drawH = Math.round(drawW * (96.0f / 64.0f));
+            }
+            int hx = bayX + (bayW - drawW) / 2;
+            int hy = bayY + (bayH - drawH) / 2;
+            int splitA1 = hx + Math.round(drawW * 0.31f);
+            int splitA2 = hx + Math.round(drawW * 0.69f);
+            int yHeadEnd = hy + Math.round(drawH * 0.25f);
+            int yTorsoEnd = hy + Math.round(drawH * 0.60f);
+            int yArmEnd = hy + Math.round(drawH * 0.63f);
+            headBox = new int[]{hx + Math.round(drawW * 0.26f), hy, hx + Math.round(drawW * 0.74f), yHeadEnd};
+            torsoBox = new int[]{splitA1, yHeadEnd + 1, splitA2, yTorsoEnd};
+            armLeftBox = new int[]{hx, yHeadEnd + 1, splitA1 - 1, yArmEnd};
+            armRightBox = new int[]{splitA2 + 1, yHeadEnd + 1, hx + drawW, yArmEnd};
+            legBox = new int[]{hx + Math.round(drawW * 0.22f), yTorsoEnd + 1, hx + Math.round(drawW * 0.78f), hy + drawH};
+        }
+
+        if (!isModalOpen()) {
+            if (inBox(mouseX, mouseY, headBox) || inRect(mouseX, mouseY, infoX - 2, zoneListTop - 1, infoW + 2, 9)) {
+                hoveredBioZone = "HEAD";
+            } else if (inBox(mouseX, mouseY, torsoBox) || inRect(mouseX, mouseY, infoX - 2, zoneListTop + rowStep - 1, infoW + 2, 9)) {
+                hoveredBioZone = "TORSO";
+            } else if (inBox(mouseX, mouseY, armLeftBox) || inBox(mouseX, mouseY, armRightBox)
+                    || inRect(mouseX, mouseY, infoX - 2, zoneListTop + 2 * rowStep - 1, infoW + 2, 9)) {
+                hoveredBioZone = "ARMS";
+            } else if (inBox(mouseX, mouseY, legBox) || inRect(mouseX, mouseY, infoX - 2, zoneListTop + 3 * rowStep - 1, infoW + 2, 9)) {
+                hoveredBioZone = "LEGS";
+            }
+        }
+
+        drawBioBodyDiagram(graphics, account, bayX, bayY, bayW, bayH,
+                headSold, torsoSold, armsSold, legsSold, braced,
+                headAssets, torsoAssets, armAssets, legAssets,
+                headBox, torsoBox, armLeftBox, armRightBox, legBox,
+                mouseX, mouseY);
+
         int toggleBtnW = 24;
         int toggleBtnH = 12;
         drawSmallButton(graphics, "btn_blue", infoX + infoW - toggleBtnW, top + 4, toggleBtnW, toggleBtnH,
@@ -2397,25 +2605,23 @@ public class MarketMainScreen extends Screen {
         drawProgressBar(graphics, infoX, top + 28, Math.min(infoW, 145), 4, bioIntegrity / 100.0, barSprite);
 
         // 4 Interactive Tarkov-style body zone health rows connected to scanner bay
-        int zoneListTop = top + 36;
-        int rowStep = height >= 94 ? 12 : 10;
-        drawZoneRow(graphics, bayX + bayW - 1, bayY + Math.round(bayH * 0.16f), infoX, zoneListTop + 0 * rowStep, infoW,
-                "ГОЛОВА", headSold, account, AssetType.Category.PROFESSIONAL, headAssets, mouseX, mouseY);
-        drawZoneRow(graphics, bayX + bayW - 1, bayY + Math.round(bayH * 0.36f), infoX, zoneListTop + 1 * rowStep, infoW,
-                "ТОРАКС", torsoSold, account, AssetType.Category.BODY, torsoAssets, mouseX, mouseY);
-        drawZoneRow(graphics, bayX + bayW - 1, bayY + Math.round(bayH * 0.46f), infoX, zoneListTop + 2 * rowStep, infoW,
-                "РУКИ", armsSold, account, AssetType.Category.COMBAT, armAssets, mouseX, mouseY);
-        drawZoneRow(graphics, bayX + bayW - 1, bayY + Math.round(bayH * 0.74f), infoX, zoneListTop + 3 * rowStep, infoW,
-                "НОГИ", legsSold, account, AssetType.Category.MOVEMENT, legAssets, mouseX, mouseY);
+        drawZoneRow(graphics, bayX + bayW - 1, (headBox[1] + headBox[3]) / 2, infoX, zoneListTop + 0 * rowStep, infoW,
+                "ГОЛОВА", "ГОЛОВА // РАЗУМ И ВОСПРИЯТИЕ", headSold, account, AssetType.Category.PROFESSIONAL, headAssets, mouseX, mouseY);
+        drawZoneRow(graphics, bayX + bayW - 1, (torsoBox[1] + torsoBox[3]) / 2, infoX, zoneListTop + 1 * rowStep, infoW,
+                "ГРУДЬ", "ГРУДЬ // СЕРДЦЕ И ОРГАНЫ", torsoSold, account, AssetType.Category.BODY, torsoAssets, mouseX, mouseY);
+        drawZoneRow(graphics, bayX + bayW - 1, (armRightBox[1] + armRightBox[3]) / 2, infoX, zoneListTop + 2 * rowStep, infoW,
+                "РУКИ", "РУКИ // БОЙ И ИНСТРУМЕНТ", armsSold, account, AssetType.Category.COMBAT, armAssets, mouseX, mouseY);
+        drawZoneRow(graphics, bayX + bayW - 1, (legBox[1] + legBox[3]) / 2, infoX, zoneListTop + 3 * rowStep, infoW,
+                "НОГИ", "НОГИ // МОБИЛЬНОСТЬ И ШАГ", legsSold, account, AssetType.Category.MOVEMENT, legAssets, mouseX, mouseY);
 
-        int footerStart = zoneListTop + 4 * rowStep + 2;
-        if (top + height - footerStart >= 11) {
+        int footerStart = zoneListTop + 4 * rowStep;
+        if ((top + height) - footerStart >= 16) {
             int curStage = account.getStoryStage();
             String stageTitle = (curStage >= 1 && curStage <= com.playermarket.story.StoryQuests.STAGES.size())
                     ? com.playermarket.story.StoryQuests.STAGES.get(curStage - 1).name()
                     : ("ЭТАП " + curStage);
-            drawClampedText(graphics, "§eЭт." + curStage + ": §7" + stageTitle + " §8| " + determineArchetype(account),
-                    infoX, top + height - 12, infoW, 0xFF94A3B8, false);
+            drawClampedText(graphics, "§eЭт." + curStage + ": §7" + stageTitle,
+                    infoX, top + height - 13, infoW, 0xFF94A3B8, false);
         }
 
         // === RIGHT MODULE: ANIMATED LIVE MARKET PULSE SPARKLINE ===
@@ -2447,6 +2653,7 @@ public class MarketMainScreen extends Screen {
                                     boolean showLegBrace,
                                     AssetType[] headAssets, AssetType[] torsoAssets,
                                     AssetType[] armAssets, AssetType[] legAssets,
+                                    int[] headBox, int[] torsoBox, int[] armLeftBox, int[] armRightBox, int[] legBox,
                                     int mouseX, int mouseY) {
         graphics.fill(bx, by, bx + bw, by + bh, 0xFF050911);
 
@@ -2473,28 +2680,28 @@ public class MarketMainScreen extends Screen {
         int armsCol = zoneColor(armsSold);
         int legsCol = zoneColor(legsSold);
 
-        // Zone slice Y boundaries inside scanner bay
-        int zHeadEnd = by + Math.round(bh * 0.28f);
-        int zTorsoEnd = by + Math.round(bh * 0.57f);
-
-        // Soft pulsing hazard highlight behind/framing damaged body regions (especially clear around 3D player!)
-        int pulseAlpha = (int) (0x22 + Math.abs(Math.sin(System.currentTimeMillis() / 320.0)) * 0x24);
-        if (headSold > 0.01) {
-            graphics.fill(bx + 3, by + 4, bx + bw - 3, zHeadEnd, (pulseAlpha << 24) | (headCol & 0x00FFFFFF));
+        // Soft pulsing hazard highlight inside each tight anatomical hitbox (renders cleanly around model)
+        int pulseAlpha = (int) (0x1E + Math.abs(Math.sin(System.currentTimeMillis() / 320.0)) * 0x20);
+        if (headSold > 0.01 || "HEAD".equals(hoveredBioZone)) {
+            int c = "HEAD".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (headCol & 0x00FFFFFF));
+            graphics.fill(headBox[0], headBox[1], headBox[2], headBox[3], c);
         }
-        if (torsoSold > 0.01) {
-            graphics.fill(bx + 10, zHeadEnd + 1, bx + bw - 10, zTorsoEnd, (pulseAlpha << 24) | (torsoCol & 0x00FFFFFF));
+        if (torsoSold > 0.01 || "TORSO".equals(hoveredBioZone)) {
+            int c = "TORSO".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (torsoCol & 0x00FFFFFF));
+            graphics.fill(torsoBox[0], torsoBox[1], torsoBox[2], torsoBox[3], c);
         }
-        if (armsSold > 0.01) {
-            graphics.fill(bx + 2, zHeadEnd + 1, bx + 10, zTorsoEnd, (pulseAlpha << 24) | (armsCol & 0x00FFFFFF));
-            graphics.fill(bx + bw - 10, zHeadEnd + 1, bx + bw - 2, zTorsoEnd, (pulseAlpha << 24) | (armsCol & 0x00FFFFFF));
+        if (armsSold > 0.01 || "ARMS".equals(hoveredBioZone)) {
+            int c = "ARMS".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (armsCol & 0x00FFFFFF));
+            graphics.fill(armLeftBox[0], armLeftBox[1], armLeftBox[2], armLeftBox[3], c);
+            graphics.fill(armRightBox[0], armRightBox[1], armRightBox[2], armRightBox[3], c);
         }
-        if (legsSold > 0.01) {
-            graphics.fill(bx + 5, zTorsoEnd + 1, bx + bw - 5, by + bh - 3, (pulseAlpha << 24) | (legsCol & 0x00FFFFFF));
+        if (legsSold > 0.01 || "LEGS".equals(hoveredBioZone)) {
+            int c = "LEGS".equals(hoveredBioZone) ? 0x3838BDF8 : ((pulseAlpha << 24) | (legsCol & 0x00FFFFFF));
+            graphics.fill(legBox[0], legBox[1], legBox[2], legBox[3], c);
         }
 
         if (bioViewMode3D && minecraft != null && minecraft.player != null) {
-            // Render real animated 3D player skin following cursor
+            // Render real animated 3D player skin following cursor (+ glowing 3D bio-overlay & leg brace via PlayerBraceRenderLayer!)
             int entityScale = Math.max(18, Math.min(40, (int) (bh * 0.42)));
             try {
                 InventoryScreen.extractEntityInInventoryFollowsMouse(
@@ -2507,38 +2714,38 @@ public class MarketMainScreen extends Screen {
             render2DHoloBody(graphics, bx, by, bw, bh, headCol, torsoCol, armsCol, legsCol, torsoSold, showLegBrace);
         }
 
-        // Left-side anatomical slice target markers for visual depth
-        graphics.fill(bx + 2, by + 6, bx + 4, by + 8, headCol);
-        graphics.fill(bx + 2, zHeadEnd + 4, bx + 4, zHeadEnd + 6, torsoCol);
-        graphics.fill(bx + 2, zHeadEnd + 14, bx + 4, zHeadEnd + 16, armsCol);
-        graphics.fill(bx + 2, zTorsoEnd + 8, bx + 4, zTorsoEnd + 10, legsCol);
+        // Left-side anatomical slice markers matching exact boxes
+        graphics.fill(bx + 2, (headBox[1] + headBox[3]) / 2, bx + 4, (headBox[1] + headBox[3]) / 2 + 2, headCol);
+        graphics.fill(bx + 2, (torsoBox[1] + torsoBox[3]) / 2, bx + 4, (torsoBox[1] + torsoBox[3]) / 2 + 2, torsoCol);
+        graphics.fill(bx + 2, (armLeftBox[1] + armLeftBox[3]) / 2, bx + 4, (armLeftBox[1] + armLeftBox[3]) / 2 + 2, armsCol);
+        graphics.fill(bx + 2, (legBox[1] + legBox[3]) / 2, bx + 4, (legBox[1] + legBox[3]) / 2 + 2, legsCol);
 
-        // Register clickable/hoverable body zone boxes directly on the model
-        registerClick(bx + 2, by + 2, bx + bw - 2, zHeadEnd, () -> {
+        // Register tight clickable/hoverable hitboxes directly on Head / Chest / Left+Right Arms / Legs
+        registerClick(headBox[0], headBox[1], headBox[2], headBox[3], () -> {
             assetFilter = AssetType.Category.PROFESSIONAL;
             activeTab = Tab.SELL_ASSETS;
             scrollOffset = 0;
         }, buildZoneTooltip("ГОЛОВА // РАЗУМ И ВОСПРИЯТИЕ", headSold, account, headAssets));
 
-        registerClick(bx + 10, zHeadEnd + 1, bx + bw - 10, zTorsoEnd, () -> {
+        registerClick(torsoBox[0], torsoBox[1], torsoBox[2], torsoBox[3], () -> {
             assetFilter = AssetType.Category.BODY;
             activeTab = Tab.SELL_ASSETS;
             scrollOffset = 0;
-        }, buildZoneTooltip("ТОРАКС // СЕРДЦЕ И ОРГАНЫ", torsoSold, account, torsoAssets));
+        }, buildZoneTooltip("ГРУДЬ // СЕРДЦЕ И ОРГАНЫ", torsoSold, account, torsoAssets));
 
-        registerClick(bx + 2, zHeadEnd + 1, bx + 10, zTorsoEnd, () -> {
+        registerClick(armLeftBox[0], armLeftBox[1], armLeftBox[2], armLeftBox[3], () -> {
             assetFilter = AssetType.Category.COMBAT;
             activeTab = Tab.SELL_ASSETS;
             scrollOffset = 0;
         }, buildZoneTooltip("РУКИ // БОЙ И ИНСТРУМЕНТ", armsSold, account, armAssets));
 
-        registerClick(bx + bw - 10, zHeadEnd + 1, bx + bw - 2, zTorsoEnd, () -> {
+        registerClick(armRightBox[0], armRightBox[1], armRightBox[2], armRightBox[3], () -> {
             assetFilter = AssetType.Category.COMBAT;
             activeTab = Tab.SELL_ASSETS;
             scrollOffset = 0;
         }, buildZoneTooltip("РУКИ // БОЙ И ИНСТРУМЕНТ", armsSold, account, armAssets));
 
-        registerClick(bx + 2, zTorsoEnd + 1, bx + bw - 2, by + bh - 2, () -> {
+        registerClick(legBox[0], legBox[1], legBox[2], legBox[3], () -> {
             assetFilter = AssetType.Category.MOVEMENT;
             activeTab = Tab.SELL_ASSETS;
             scrollOffset = 0;
@@ -2547,6 +2754,14 @@ public class MarketMainScreen extends Screen {
         // Sweeping laser scanline
         int scanOffset = (int) ((System.currentTimeMillis() / 55L) % Math.max(1, bh - 4));
         graphics.fill(bx + 2, by + 2 + scanOffset, bx + bw - 2, by + 3 + scanOffset, 0x5522D3EE);
+    }
+
+    private static boolean inBox(int mx, int my, int[] b) {
+        return mx >= b[0] && mx <= b[2] && my >= b[1] && my <= b[3];
+    }
+
+    private static boolean inRect(int mx, int my, int x, int y, int w, int h) {
+        return mx >= x && mx <= x + w && my >= y && my <= y + h;
     }
 
     private void render2DHoloBody(GuiGraphicsExtractor graphics, int bx, int by, int bw, int bh,
@@ -2579,14 +2794,14 @@ public class MarketMainScreen extends Screen {
     }
 
     private void drawZoneRow(GuiGraphicsExtractor graphics, int bayEdgeX, int bayAnchorY,
-                             int rx, int ry, int rw, String label, double soldFrac,
+                             int rx, int ry, int rw, String label, String tooltipTitle, double soldFrac,
                              PlayerMarketAccount account, AssetType.Category jumpCat,
                              AssetType[] zoneAssets, int mouseX, int mouseY) {
         int pct = (int) Math.max(0, Math.min(100, Math.round((1.0 - soldFrac) * 100.0)));
         int col = zoneColor(soldFrac);
-        boolean hovered = mouseX >= rx - 2 && mouseX <= rx + rw && mouseY >= ry - 1 && mouseY <= ry + 9;
+        boolean hovered = !isModalOpen() && (mouseX >= rx - 2 && mouseX <= rx + rw && mouseY >= ry - 1 && mouseY <= ry + 9);
 
-        // Tarkov-style thin connector dot + bridge line from scanner bay into the row
+        // Tactical thin connector dot + bridge line from scanner bay into the row
         graphics.fill(bayEdgeX, bayAnchorY, bayEdgeX + 3, bayAnchorY + 1, col);
         graphics.fill(rx - 4, ry + 4, rx - 1, ry + 5, col);
 
@@ -2609,7 +2824,7 @@ public class MarketMainScreen extends Screen {
             assetFilter = jumpCat;
             activeTab = Tab.SELL_ASSETS;
             scrollOffset = 0;
-        }, buildZoneTooltip(label, soldFrac, account, zoneAssets));
+        }, buildZoneTooltip(tooltipTitle, soldFrac, account, zoneAssets));
     }
 
     private static String buildZoneTooltip(String title, double soldFrac, PlayerMarketAccount account, AssetType... assets) {

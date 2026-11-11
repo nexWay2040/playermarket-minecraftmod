@@ -14,6 +14,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.*;
 import net.minecraft.world.item.crafting.display.RecipeDisplay;
 import net.minecraft.world.item.crafting.display.SlotDisplay;
+import net.minecraft.world.item.crafting.display.SmithingRecipeDisplay;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 
@@ -95,11 +96,87 @@ public class ResourceValuationEngine {
         seedFallback(Items.ENDER_PEARL, 160L);
         seedFallback(Items.BLAZE_ROD, 180L);
         seedFallback(Items.GHAST_TEAR, 260L);
-        seedFallback(Items.SHULKER_SHELL, 350L);
-        seedFallback(Items.EMERALD, 380L);
-        seedFallback(Items.DIAMOND, cfg.diamondSellPriceCr);
-        seedFallback(Items.NETHERITE_SCRAP, 950L);
-        seedFallback(Items.NETHER_STAR, 5000L);
+        // Core crafting intermediates so all tool/armor recipes resolve accurately
+        seedFallback(Items.OAK_PLANKS, 2L);
+        seedFallback(Items.SPRUCE_PLANKS, 2L);
+        seedFallback(Items.BIRCH_PLANKS, 2L);
+        seedFallback(Items.JUNGLE_PLANKS, 2L);
+        seedFallback(Items.ACACIA_PLANKS, 2L);
+        seedFallback(Items.DARK_OAK_PLANKS, 2L);
+        seedFallback(Items.MANGROVE_PLANKS, 2L);
+        seedFallback(Items.CHERRY_PLANKS, 2L);
+        seedFallback(Items.PALE_OAK_PLANKS, 2L);
+        seedFallback(Items.BAMBOO_PLANKS, 2L);
+        seedFallback(Items.CRIMSON_PLANKS, 4L);
+        seedFallback(Items.WARPED_PLANKS, 4L);
+        seedFallback(Items.STICK, 2L);
+        seedFallback(Items.LEATHER, 18L);
+        seedFallback(Items.PAPER, 5L);
+        seedFallback(Items.BOOK, 33L);
+        seedFallback(Items.BRICK, 8L);
+        seedFallback(Items.NETHER_BRICK, 10L);
+        seedFallback(Items.BLAZE_POWDER, 95L);
+        seedFallback(Items.ENDER_EYE, 260L);
+
+        seedFallback(Items.ANCIENT_DEBRIS, 950L);
+        seedFallback(Items.NETHERITE_SCRAP, 980L);
+        seedFallback(Items.NETHERITE_INGOT, 4400L);
+        seedFallback(Items.NETHERITE_BLOCK, 39600L);
+        seedFallback(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE, 3600L);
+        seedFallback(Items.DIAMOND_BLOCK, cfg.diamondSellPriceCr * 9L);
+        seedFallback(Items.EMERALD_BLOCK, 3420L);
+        seedFallback(Items.GOLD_BLOCK, 990L);
+        seedFallback(Items.IRON_BLOCK, 540L);
+        Items.COPPER_BLOCK.forEach(cb -> seedFallback(cb, 216L));
+        seedFallback(Items.LAPIS_BLOCK, 288L);
+        seedFallback(Items.REDSTONE_BLOCK, 252L);
+        seedFallback(Items.COAL_BLOCK, 162L);
+
+        seedFallback(Items.NETHER_STAR, 5500L);
+        seedFallback(Items.BEACON, 6200L);
+        seedFallback(Items.ELYTRA, 12000L);
+        seedFallback(Items.TOTEM_OF_UNDYING, 3200L);
+        seedFallback(Items.ENCHANTED_GOLDEN_APPLE, 4800L);
+        seedFallback(Items.GOLDEN_APPLE, 920L);
+        seedFallback(Items.TRIDENT, 4200L);
+        seedFallback(Items.HEAVY_CORE, 6500L);
+        seedFallback(Items.BREEZE_ROD, 240L);
+        seedFallback(Items.MACE, 7200L);
+        seedFallback(Items.HEART_OF_THE_SEA, 2600L);
+        seedFallback(Items.CONDUIT, 3400L);
+        seedFallback(Items.END_CRYSTAL, 1100L);
+        seedFallback(Items.ECHO_SHARD, 650L);
+        seedFallback(Items.DRAGON_HEAD, 3800L);
+        seedFallback(Items.DRAGON_EGG, 15000L);
+        seedFallback(Items.WITHER_SKELETON_SKULL, 1800L);
+        seedFallback(Items.SHULKER_BOX, 950L);
+        seedFallback(Items.EXPERIENCE_BOTTLE, 85L);
+
+        // Explicitly seed Diamond & Netherite tier gear so smithing/upgrades never under-price
+        seedFallback(Items.DIAMOND_SWORD, cfg.diamondSellPriceCr * 2L + 4L);
+        seedFallback(Items.DIAMOND_SHOVEL, cfg.diamondSellPriceCr + 6L);
+        seedFallback(Items.DIAMOND_PICKAXE, cfg.diamondSellPriceCr * 3L + 6L);
+        seedFallback(Items.DIAMOND_AXE, cfg.diamondSellPriceCr * 3L + 6L);
+        seedFallback(Items.DIAMOND_HOE, cfg.diamondSellPriceCr * 2L + 6L);
+        seedFallback(Items.DIAMOND_HELMET, cfg.diamondSellPriceCr * 5L);
+        seedFallback(Items.DIAMOND_CHESTPLATE, cfg.diamondSellPriceCr * 8L);
+        seedFallback(Items.DIAMOND_LEGGINGS, cfg.diamondSellPriceCr * 7L);
+        seedFallback(Items.DIAMOND_BOOTS, cfg.diamondSellPriceCr * 4L);
+        seedFallback(Items.DIAMOND_HORSE_ARMOR, 2400L);
+
+        seedFallback(Items.NETHERITE_SWORD, 7800L);
+        seedFallback(Items.NETHERITE_SHOVEL, 6900L);
+        seedFallback(Items.NETHERITE_PICKAXE, 8500L);
+        seedFallback(Items.NETHERITE_AXE, 8500L);
+        seedFallback(Items.NETHERITE_HOE, 7600L);
+        seedFallback(Items.NETHERITE_SPEAR, 8200L);
+        seedFallback(Items.NETHERITE_HELMET, 9800L);
+        seedFallback(Items.NETHERITE_CHESTPLATE, 12200L);
+        seedFallback(Items.NETHERITE_LEGGINGS, 11400L);
+        seedFallback(Items.NETHERITE_BOOTS, 9100L);
+        seedFallback(Items.NETHERITE_HORSE_ARMOR, 8800L);
+        seedFallback(Items.NETHERITE_NAUTILUS_ARMOR, 9000L);
+
         seedFallback(Items.FEATHER, 8L);
         seedFallback(Items.STRING, 10L);
         seedFallback(Items.GUNPOWDER, 24L);
@@ -114,10 +191,10 @@ public class ResourceValuationEngine {
         seedFallback(Items.MAGMA_CREAM, 45L);
         seedFallback(Items.PHANTOM_MEMBRANE, 55L);
 
-        // 2. Iterative relaxation over all RecipeManager recipes (Crafting, Smelting, Blasting, Smoking, Campfire, Stonecutting, Smithing)
+        // 2. Iterative relaxation over all RecipeManager recipes (Crafting, Smelting, Blasting, Smoking, Stonecutting, Smithing)
         if (recipeManager != null) {
             Collection<RecipeHolder<?>> allRecipes = recipeManager.getRecipes();
-            for (int pass = 0; pass < 6; pass++) {
+            for (int pass = 0; pass < 8; pass++) {
                 boolean changed = false;
                 for (RecipeHolder<?> holder : allRecipes) {
                     Recipe<?> recipe = holder.value();
@@ -126,7 +203,6 @@ public class ResourceValuationEngine {
                     ItemCountResult output = extractResult(recipe);
                     if (output == null || output.item == Items.AIR || output.count <= 0) continue;
 
-                    // Do not override fixed base commodities like Diamond or Iron Ingot from block-uncrafting loops unless cheaper
                     List<Ingredient> ingredients = extractIngredients(recipe);
                     if (ingredients.isEmpty()) continue;
 
@@ -145,9 +221,9 @@ public class ResourceValuationEngine {
 
                     // Processing bonus for cooking/smithing
                     if (recipe instanceof AbstractCookingRecipe) {
-                        totalIngredientsCost += 4L;
+                        totalIngredientsCost += 6L;
                     } else if (recipe instanceof SmithingTransformRecipe) {
-                        totalIngredientsCost += 25L;
+                        totalIngredientsCost += 150L;
                     }
 
                     long unitDerivedCost = Math.max(1L, totalIngredientsCost / output.count);
@@ -168,7 +244,13 @@ public class ResourceValuationEngine {
     private static boolean isProtectedBaseItem(Item item) {
         return item == Items.DIAMOND || item == Items.EMERALD || item == Items.IRON_INGOT
                 || item == Items.GOLD_INGOT || item == Items.COPPER_INGOT || item == Items.COAL
-                || item == Items.REDSTONE || item == Items.LAPIS_LAZULI || item == Items.NETHERITE_SCRAP;
+                || item == Items.REDSTONE || item == Items.LAPIS_LAZULI
+                || item == Items.ANCIENT_DEBRIS || item == Items.NETHERITE_SCRAP || item == Items.NETHERITE_INGOT
+                || item == Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE
+                || item == Items.DIAMOND_BLOCK || item == Items.NETHERITE_BLOCK || item == Items.EMERALD_BLOCK
+                || item == Items.GOLD_BLOCK || item == Items.IRON_BLOCK || Items.COPPER_BLOCK.asList().contains(item)
+                || item == Items.LAPIS_BLOCK || item == Items.REDSTONE_BLOCK || item == Items.COAL_BLOCK
+                || item == Items.STICK;
     }
 
     private static void seedFallback(Item item, long price) {
@@ -180,20 +262,43 @@ public class ResourceValuationEngine {
     private static ItemCountResult extractResult(Recipe<?> recipe) {
         try {
             for (RecipeDisplay display : recipe.display()) {
-                SlotDisplay resultSlot = display.result();
-                if (resultSlot instanceof SlotDisplay.ItemStackSlotDisplay stackSlot) {
-                    return new ItemCountResult(stackSlot.stack().item().value(), Math.max(1, stackSlot.stack().count()));
-                } else if (resultSlot instanceof SlotDisplay.ItemSlotDisplay itemSlot) {
-                    return new ItemCountResult(itemSlot.item().value(), 1);
+                SlotDisplay resultSlot = null;
+                if (display instanceof SmithingRecipeDisplay sd) {
+                    resultSlot = sd.result();
+                } else {
+                    resultSlot = display.result();
                 }
+                ItemCountResult resolved = resolveSlotDisplay(resultSlot);
+                if (resolved != null) return resolved;
             }
         } catch (Exception ignored) {
         }
         return null;
     }
 
+    private static ItemCountResult resolveSlotDisplay(SlotDisplay slot) {
+        if (slot instanceof SlotDisplay.ItemStackSlotDisplay stackSlot) {
+            return new ItemCountResult(stackSlot.stack().item().value(), Math.max(1, stackSlot.stack().count()));
+        } else if (slot instanceof SlotDisplay.ItemSlotDisplay itemSlot) {
+            return new ItemCountResult(itemSlot.item().value(), 1);
+        } else if (slot instanceof SlotDisplay.Composite comp) {
+            for (SlotDisplay sub : comp.contents()) {
+                ItemCountResult r = resolveSlotDisplay(sub);
+                if (r != null) return r;
+            }
+        }
+        return null;
+    }
+
     private static List<Ingredient> extractIngredients(Recipe<?> recipe) {
         try {
+            if (recipe instanceof SmithingTransformRecipe smith) {
+                List<Ingredient> list = new ArrayList<>();
+                smith.templateIngredient().ifPresent(list::add);
+                list.add(smith.baseIngredient());
+                smith.additionIngredient().ifPresent(list::add);
+                if (!list.isEmpty()) return list;
+            }
             PlacementInfo info = recipe.placementInfo();
             if (info != null && !info.ingredients().isEmpty()) {
                 return info.ingredients();
@@ -274,12 +379,50 @@ public class ResourceValuationEngine {
     }
 
     private static long estimateFallbackByRarity(ItemStack stack) {
-        return switch (stack.getRarity()) {
-            case COMMON -> 4L;
-            case UNCOMMON -> 35L;
-            case RARE -> 120L;
-            case EPIC -> 400L;
+        String path = BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
+        boolean isArmorOrTool = stack.hasNonDefault(DataComponents.EQUIPPABLE)
+                || stack.hasNonDefault(DataComponents.TOOL)
+                || stack.hasNonDefault(DataComponents.WEAPON)
+                || stack.isDamageableItem();
+
+        if (path.contains("netherite")) {
+            return path.contains("block") ? 35000L : (isArmorOrTool ? 8200L : 4400L);
+        }
+        if (path.contains("diamond")) {
+            return path.contains("block") ? 5800L : (isArmorOrTool ? 2200L : 650L);
+        }
+        if (path.contains("emerald")) {
+            return path.contains("block") ? 3400L : 380L;
+        }
+        if (path.contains("heavy_core") || path.contains("mace")) {
+            return 6000L;
+        }
+        if (path.contains("beacon") || path.contains("elytra") || path.contains("nether_star")) {
+            return 6500L;
+        }
+        if (path.contains("shulker")) {
+            return 450L;
+        }
+        if (path.contains("gold") || path.contains("golden")) {
+            return path.contains("block") ? 950L : (isArmorOrTool ? 420L : 110L);
+        }
+        if (path.contains("iron")) {
+            return path.contains("block") ? 520L : (isArmorOrTool ? 220L : 60L);
+        }
+        if (path.contains("copper")) {
+            return path.contains("block") ? 200L : (isArmorOrTool ? 90L : 24L);
+        }
+
+        long rarityFloor = switch (stack.getRarity()) {
+            case COMMON -> isArmorOrTool ? 45L : 8L;
+            case UNCOMMON -> isArmorOrTool ? 160L : 65L;
+            case RARE -> isArmorOrTool ? 650L : 260L;
+            case EPIC -> isArmorOrTool ? 2500L : 1200L;
         };
+        if (stack.hasNonDefault(DataComponents.FOOD)) {
+            rarityFloor = Math.max(rarityFloor, 12L);
+        }
+        return rarityFloor;
     }
 
     public static List<CatalogItem> getCatalogOffers(PlayerMarketAccount account, MarketEvent event) {
