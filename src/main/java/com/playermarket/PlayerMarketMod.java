@@ -25,7 +25,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.sounds.SoundEvent;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,11 +37,13 @@ import java.util.Optional;
 public class PlayerMarketMod implements ModInitializer {
     public static final String MOD_ID = "playermarket";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+    public static final SoundEvent SCREAMER_SOUND = SoundEvent.createVariableRangeEvent(id("screamer"));
 
     @Override
     public void onInitialize() {
         LOGGER.info("Initializing PLAYER MARKET — Everything Has A Price.");
 
+        Registry.register(BuiltInRegistries.SOUND_EVENT, id("screamer"), SCREAMER_SOUND);
         MarketConfig.load();
         MarketAccessCardItem.registerItems();
         com.playermarket.item.CrumpledLetterItem.registerItems();

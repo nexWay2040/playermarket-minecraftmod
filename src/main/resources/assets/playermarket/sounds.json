@@ -1,0 +1,10 @@
+{
+  "screamer": {
+    "sounds": [
+      {
+        "name": "playermarket:screamer",
+        "stream": false
+      }
+    ]
+  }
+}

@@ -60,6 +60,18 @@ public class ClientMarketState {
         return localEndingStartMs > 0L ? Math.max(0L, System.currentTimeMillis() - localEndingStartMs) : 0L;
     }
 
+    public static void reset() {
+        account = new PlayerMarketAccount();
+        sharedCampaign = new SharedCampaignData();
+        activeEvent = MarketEvent.STABLE_MARKET;
+        currentGameTick = 0L;
+        nextEventSwitchTick = 0L;
+        oreScannerReport = "OFFLINE";
+        lastStatusMessage = "";
+        lastStatusTimestampMs = 0L;
+        localEndingStartMs = 0L;
+    }
+
     public static PlayerMarketAccount getAccount() {
         return account;
     }

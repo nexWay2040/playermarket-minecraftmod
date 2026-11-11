@@ -135,32 +135,34 @@ public class EndingSequenceManager {
                 player.setDeltaMovement(0.0, Math.min(0.0, player.getDeltaMovement().y), 0.0);
                 player.needsSync = true;
                 player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 255, false, false, false));
-                player.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 40, 0, false, false, false));
+                if (elapsed < 180) {
+                    player.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 40, 0, false, false, false));
+                }
 
                 if (elapsed == 0) {
                     player.sendSystemMessage(Component.literal("§6§l[FINAL SETTLEMENT] §eСчёт одобрен // +1,000,000 CR начислено."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 0.8f);
-                } else if (elapsed == 40) {
+                } else if (elapsed == 36) {
                     player.sendSystemMessage(Component.literal("§c§l[ЛИКВИДАЦИЯ] §7Сбор биологического залога..."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.BEACON_DEACTIVATE, SoundSource.PLAYERS, 1.0f, 0.6f);
-                } else if (elapsed == 80) {
+                } else if (elapsed == 72) {
                     player.sendSystemMessage(Component.literal("§4§l[САНКЦИИ] §cАннулирование доступа и портфеля..."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.ELDER_GUARDIAN_CURSE, SoundSource.PLAYERS, 0.8f, 0.7f);
-                } else if (elapsed == 120) {
+                } else if (elapsed == 108) {
                     player.sendSystemMessage(Component.literal("§4§l[СТАТЬЯ 17.4] §7Применение постоянных модификаций..."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.ITEM_BREAK, SoundSource.PLAYERS, 1.0f, 0.5f);
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 0.8f, 0.6f);
-                } else if (elapsed == 160) {
+                } else if (elapsed == 144) {
                     player.sendSystemMessage(Component.literal("§c§l[ДОСТУП АННУЛИРОВАН] §4Права собственности переданы корпорации."));
                     player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                             SoundEvents.WITHER_SPAWN, SoundSource.PLAYERS, 0.7f, 0.5f);
-                } else if (elapsed >= 200) {
-                    // Finalize sequence: mark completed, save, and disconnect
+                } else if (elapsed >= 268) {
+                    // Finalize sequence after blackout (9.0-10.7s) + full jumpscare screamer (10.7-13.2s)
                     campaignData.setEndingState("SETTLED");
                     campaignData.setCinematicCompleted(true);
                     campaignData.setDisconnectSent(true);
@@ -169,6 +171,7 @@ public class EndingSequenceManager {
                     for (ServerPlayer target : server.getPlayerList().getPlayers()) {
                         campaignData.getDisconnectedPlayers().add(target.getUUID());
                         MarketAttributeApplier.syncPlayerModifiers(target);
+                        com.playermarket.network.MarketNetworking.sendSyncToPlayer(target, "");
                         target.connection.disconnect(Component.literal("§c§lДОСТУП ЗАБЛОКИРОВАН // СТАТЬЯ 17.4\n§7Права на активы переданы корпорации.\n§8Вы больше не клиент."));
                     }
                     return;

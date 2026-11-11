@@ -13,6 +13,7 @@ import com.playermarket.network.MarketNetworking;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback;
@@ -26,6 +27,18 @@ import net.minecraft.world.item.ItemStack;
 
 public class PlayerMarketClient implements ClientModInitializer {
     public static KeyMapping openMarketKey;
+    private static boolean screamerPlayedThisEnding = false;
+
+    public static void triggerEndingScreamerOnce() {
+        if (screamerPlayedThisEnding) return;
+        screamerPlayedThisEnding = true;
+        Minecraft client = Minecraft.getInstance();
+        client.getSoundManager().play(SimpleSoundInstance.forUI(PlayerMarketMod.SCREAMER_SOUND, 1.0f, 1.0f));
+    }
+
+    public static void resetEndingScreamer() {
+        screamerPlayedThisEnding = false;
+    }
 
     @Override
     public void onInitializeClient() {
@@ -65,9 +78,13 @@ public class PlayerMarketClient implements ClientModInitializer {
             }
         });
 
-        // Network receiver for real-time market and shared campaign data
+        // Network receiver & clean state reset on disconnect (never lock controls outside world)
         ClientPlayNetworking.registerGlobalReceiver(MarketNetworking.MarketSyncPayload.TYPE, (payload, context) -> {
             context.client().execute(() -> ClientMarketState.applySync(payload));
+        });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            resetEndingScreamer();
+            ClientMarketState.reset();
         });
 
         // Register In-Game HUD overlay & Ore Scanner sonar pulse renderer

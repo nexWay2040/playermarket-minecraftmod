@@ -25,9 +25,24 @@ public class MarketHudOverlay {
     private static final Identifier ICON_DIAMOND = PlayerMarketMod.id("textures/gui/icons/currency_diamond.png");
 
     public static boolean isEndingCinematicPlaying() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.level == null || mc.player == null || mc.getConnection() == null) {
+            return false;
+        }
+        if (mc.gui != null) {
+            var screen = mc.gui.screen();
+            if (screen instanceof net.minecraft.client.gui.screens.DisconnectedScreen
+                    || screen instanceof net.minecraft.client.gui.screens.GenericWaitingScreen
+                    || screen instanceof net.minecraft.client.gui.screens.TitleScreen) {
+                return false;
+            }
+        }
         SharedCampaignData campaign = ClientMarketState.getSharedCampaign();
-        return "FINAL_SETTLEMENT_ACTIVE".equals(campaign.getEndingState())
+        boolean active = "FINAL_SETTLEMENT_ACTIVE".equals(campaign.getEndingState())
                 || (campaign.isEndingStarted() && !campaign.isDisconnectSent() && !"SETTLED".equals(campaign.getEndingState()));
+        if (!active) return false;
+        long elapsed = ClientMarketState.getLocalEndingElapsedMs();
+        return elapsed < 20000L;
     }
 
     public static void render(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
@@ -222,31 +237,95 @@ public class MarketHudOverlay {
         // Determine current cinematic phase matching EndingSequenceManager ticks (0..200)
         String tag;
         String title;
+        if (elapsedMs >= 9000L) {
+            // Pure pitch-black blackout before sudden analog-horror screamer
+            graphics.fill(0, 0, sw, sh, 0xFF000000);
+
+            if (elapsedMs < 10700L) {
+                com.playermarket.client.PlayerMarketClient.resetEndingScreamer();
+                if (elapsedMs < 9360L && ((elapsedMs / 60L) % 2L) == 0L) {
+                    String msg = "SIGNAL TERMINATED // DISCONNECTING...";
+                    graphics.text(font, msg, (sw - font.width(msg)) / 2, sh / 2 - 4, 0xFF7F1D1D, false);
+                }
+                return;
+            }
+
+            // SUDDEN FULLSCREEN SCREAMER WITH SOUND BEFORE KICK
+            com.playermarket.client.PlayerMarketClient.triggerEndingScreamerOnce();
+            long scareMs = elapsedMs - 10700L;
+            boolean whiteStrobe = scareMs < 85L || (scareMs > 760L && scareMs < 820L);
+            boolean redStrobe = (scareMs >= 85L && scareMs < 170L) || ((scareMs / 55L) % 8L == 0L);
+
+            if (redStrobe) {
+                graphics.fill(0, 0, sw, sh, 0x3AD00000);
+            }
+
+            boolean useAlt = ((scareMs / 60L) % 7L == 0L) || (scareMs > 880L && scareMs < 1060L);
+            net.minecraft.resources.Identifier scareTex = PlayerMarketMod.id(
+                    useAlt ? "textures/gui/screamer_alt.png" : "textures/gui/screamer.png");
+
+            float lunge = Math.min(1.0f, scareMs / 145.0f);
+            int size = Math.round(Math.max(sw * 0.68f, sh * 1.12f) * (0.74f + 0.34f * lunge));
+            long rng = (System.nanoTime() >>> 14) ^ (scareMs * 2654435761L);
+            int maxJ = scareMs < 550L ? 15 : 8;
+            int jx = (int) (Math.floorMod(rng, maxJ * 2L + 1L) - maxJ);
+            int jy = (int) (Math.floorMod(rng >> 8, maxJ * 2L + 1L) - maxJ);
+            int drawX = (sw - size) / 2 + jx;
+            int drawY = (sh - size) / 2 + jy;
+            int tint = whiteStrobe ? 0xFFFFFFFF : (redStrobe ? 0xFFFF7A7A : 0xFFECECEC);
+
+            graphics.blit(RenderPipelines.GUI_TEXTURED, scareTex, drawX, drawY,
+                    0.0f, 0.0f, size, size, 512, 512, 512, 512, tint);
+
+            // CRT scanline flicker & torn red horror bands
+            int lineStart = (int) ((scareMs / 24L) % 4L);
+            for (int sy = lineStart; sy < sh; sy += 4) {
+                graphics.fill(0, sy, sw, sy + 1, 0x3E000000);
+            }
+            if (((scareMs / 48L) % 3L) == 0L) {
+                int tearY = (int) Math.floorMod(rng >> 16, Math.max(1, sh - 12));
+                graphics.fill(0, tearY, sw, tearY + 3, 0x66DC2626);
+            }
+
+            if (whiteStrobe) {
+                graphics.fill(0, 0, sw, sh, 0x45FFFFFF);
+            }
+
+            if (((scareMs / 75L) % 4L) != 1L) {
+                String scareCaption = "ВЫ БОЛЬШЕ НЕ КЛИЕНТ.";
+                int capCol = ((scareMs / 50L) % 2L) == 0L ? 0xFFDC2626 : 0xFFFCA5A5;
+                graphics.text(font, scareCaption, (sw - font.width(scareCaption)) / 2 + (jx / 2), sh - 24 + (jy / 3), capCol, true);
+            }
+            return;
+        }
+
+        com.playermarket.client.PlayerMarketClient.resetEndingScreamer();
+
         String subtitle;
         int titleColor;
         int step;
-        if (elapsedMs < 2000L) {
+        if (elapsedMs < 1800L) {
             step = 1;
             tag = "[ CONTRACT EXECUTED // +1,000,000 CR ]";
             title = Component.translatableWithFallback("ending.playermarket.phase1.title", "FINAL SETTLEMENT").getString();
             subtitle = Component.translatableWithFallback("ending.playermarket.phase1.sub",
                     "Расчёт одобрен. Средства зачислены на корпоративный счёт.").getString();
             titleColor = 0xFFFBBF24;
-        } else if (elapsedMs < 4000L) {
+        } else if (elapsedMs < 3600L) {
             step = 2;
             tag = "[ BIOMETRIC COLLATERAL RECOVERY ]";
             title = Component.translatableWithFallback("ending.playermarket.phase2.title", "ЛИКВИДАЦИЯ АКТИВОВ").getString();
             subtitle = Component.translatableWithFallback("ending.playermarket.phase2.sub",
                     "Сбор биологического залога согласно условиям сделки...").getString();
             titleColor = 0xFFF59E0B;
-        } else if (elapsedMs < 6000L) {
+        } else if (elapsedMs < 5400L) {
             step = 3;
             tag = "[ CORPORATE REGISTRY OVERRIDE ]";
             title = Component.translatableWithFallback("ending.playermarket.phase3.title", "САНКЦИИ АКТИВИРОВАНЫ").getString();
             subtitle = Component.translatableWithFallback("ending.playermarket.phase3.sub",
                     "Аннулирование доступа к терминалу и конфискация портфеля...").getString();
             titleColor = 0xFFEF4444;
-        } else if (elapsedMs < 8000L) {
+        } else if (elapsedMs < 7200L) {
             step = 4;
             tag = "[ SECTION 17.4 ENFORCEMENT ]";
             title = Component.translatableWithFallback("ending.playermarket.phase4.title", "СТАТЬЯ 17.4").getString();
@@ -299,17 +378,18 @@ public class MarketHudOverlay {
         }
 
         // Animated transfer progress bar
+        float phaseProgress = Math.min(1.0f, Math.max(0.0f, elapsedMs / 9000.0f));
         int barW = Math.min(240, cardW - 32);
         int barX = (sw - barW) / 2;
         int progY = cardY + cardH - 18;
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED, PlayerMarketMod.id("bar_bg"), barX, progY, barW, 6);
-        int fillW = Math.max(4, Math.round(barW * progress));
-        String fillSprite = elapsedMs < 4000L ? "bar_green" : "bar_red";
+        int fillW = Math.max(4, Math.round(barW * phaseProgress));
+        String fillSprite = elapsedMs < 3600L ? "bar_green" : "bar_red";
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED, PlayerMarketMod.id(fillSprite), barX, progY, fillW, 6);
 
         // Telemetry counter inside bottom letterbox bar
         String footerLeft = String.format(Locale.ROOT, "PROTOCOL // STEP %d/5", step);
-        String footerRight = Math.min(100, Math.round(progress * 100)) + "%";
+        String footerRight = Math.min(100, Math.round(phaseProgress * 100)) + "%";
         int footerY = sh - (barH / 2) - 4;
         graphics.text(font, footerLeft, 12, footerY, 0xFF94A3B8, false);
         graphics.text(font, footerRight, sw - font.width(footerRight) - 12, footerY, accent, false);
