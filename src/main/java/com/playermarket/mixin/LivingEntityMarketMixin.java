@@ -156,6 +156,19 @@ public abstract class LivingEntityMarketMixin {
         return amount;
     }
 
+    @Inject(method = "hurtServer", at = @At("HEAD"), cancellable = true)
+    private void playermarket$interceptCompanionMobHit(ServerLevel level, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+        LivingEntity target = (LivingEntity) (Object) this;
+        if (source.getEntity() instanceof ServerPlayer attacker && !attacker.isSpectator() && level.getServer() != null) {
+            MarketSavedData data = MarketSavedData.get(level.getServer());
+            long gameTick = level.getServer().overworld().getGameTime();
+            if (com.playermarket.story.CorporateChaosDirector.handleChaosMobInteraction(attacker, target, ItemStack.EMPTY, data, true, gameTick)) {
+                data.setDirty();
+                cir.setReturnValue(false);
+            }
+        }
+    }
+
     @Inject(method = "hurtServer", at = @At("RETURN"))
     private void playermarket$onHurtServerAfter(ServerLevel level, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         if (!cir.getReturnValue() || amount <= 0.0F) return;
@@ -165,20 +178,22 @@ public abstract class LivingEntityMarketMixin {
         if (source.getEntity() instanceof ServerPlayer attacker && !attacker.isCreative() && target instanceof Enemy) {
             MarketSavedData data = MarketSavedData.get(level.getServer());
             PlayerMarketAccount attackerAcc = data.getOrCreateAccount(attacker.getUUID());
-            if (attacker.getMainHandItem().isEmpty()) {
-                data.getCampaignData().addContribution("bare_hand_hits", 1);
-                com.playermarket.story.CorporateTaskTracker.advanceContract(attacker, attackerAcc, "BARE_HAND_HITS", 1);
-                updated = true;
-            }
-            if (target.isOnFire()) {
-                data.getCampaignData().addContribution("downsizing_stunt", 1);
-                com.playermarket.story.CorporateTaskTracker.advanceContract(attacker, attackerAcc, "DOWNSIZE_ACT", 1);
-                updated = true;
-            }
-            if (updated) {
-                data.setDirty();
-                com.playermarket.story.StoryManager.checkAllQuests(attacker, attackerAcc);
-                MarketNetworking.sendSyncToPlayer(attacker);
+            if (!com.playermarket.story.StoryManager.isProgramTerminated(data.getCampaignData(), attackerAcc)) {
+                if (attacker.getMainHandItem().isEmpty()) {
+                    data.getCampaignData().addContribution("bare_hand_hits", 1);
+                    com.playermarket.story.CorporateTaskTracker.advanceContract(attacker, attackerAcc, "BARE_HAND_HITS", 1);
+                    updated = true;
+                }
+                if (target.isOnFire()) {
+                    data.getCampaignData().addContribution("downsizing_stunt", 1);
+                    com.playermarket.story.CorporateTaskTracker.advanceContract(attacker, attackerAcc, "DOWNSIZE_ACT", 1);
+                    updated = true;
+                }
+                if (updated) {
+                    data.setDirty();
+                    com.playermarket.story.StoryManager.checkAllQuests(attacker, attackerAcc);
+                    MarketNetworking.sendSyncToPlayer(attacker);
+                }
             }
         }
 
@@ -186,6 +201,7 @@ public abstract class LivingEntityMarketMixin {
             MarketSavedData data = MarketSavedData.get(level.getServer());
             PlayerMarketAccount victimAcc = data.getOrCreateAccount(victim.getUUID());
             var campaign = data.getCampaignData();
+            if (com.playermarket.story.StoryManager.isProgramTerminated(campaign, victimAcc)) return;
 
             com.playermarket.story.CorporateTaskTracker.advanceContract(victim, victimAcc, "SURVIVE_DAMAGE", Math.max(1, Math.round(amount)));
             if (amount >= 6.0F) {
@@ -216,6 +232,7 @@ public abstract class LivingEntityMarketMixin {
             MarketSavedData data = MarketSavedData.get(player.level().getServer());
             PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
             var campaign = data.getCampaignData();
+            if (com.playermarket.story.StoryManager.isProgramTerminated(campaign, acc)) return;
             boolean changed = false;
 
             boolean weirdFood = used.is(Items.ROTTEN_FLESH)
@@ -229,6 +246,13 @@ public abstract class LivingEntityMarketMixin {
                     || used.is(Items.RABBIT)
                     || used.is(Items.COD)
                     || used.is(Items.SALMON)
+                    || used.is(Items.COOKIE)
+                    || used.is(Items.SWEET_BERRIES)
+                    || used.is(Items.GLOW_BERRIES)
+                    || used.is(Items.DRIED_KELP)
+                    || used.is(Items.MUSHROOM_STEW)
+                    || used.is(Items.SUSPICIOUS_STEW)
+                    || used.is(Items.CHORUS_FRUIT)
                     || used.is(Items.MILK_BUCKET);
             if (weirdFood) {
                 campaign.addContribution("poison_snack_eaten", 1);

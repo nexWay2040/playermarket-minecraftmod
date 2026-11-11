@@ -17,6 +17,7 @@ public class MarketConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static MarketConfig INSTANCE = new MarketConfig();
 
+    public int configVersion = 2;
     public long startingCr = 250L;
     public double assetPriceMultiplier = 1.0;
     public double resourceSellRatio = 0.65;
@@ -28,15 +29,18 @@ public class MarketConfig {
     public double maxAttributeSaleFraction = 0.80; // Max 80% of any attribute can be sold
     public int maxUpgradeLevelCap = 3;
     public int contractRefreshTicks = 24000; // 1 Minecraft day
-    public int marketEventDurationTicks = 12000; // Half Minecraft day
+    public int marketEventDurationTicks = 3000; // 2.5 minutes fast dynamic cycle
     public double premiumAccountBonus = 0.10; // +10% CR payout
     public double brokerLicenseDiscount = 0.15; // -15% buyback commission
     public double diamondCashbackChance = 0.25; // 25% chance to refund 1 diamond on L2/L3 purchases
-    public int blackMarketMinDeals = 5;
-    public long blackMarketMinNetTurnover = 2500L;
+    public int blackMarketMinDeals = 3;
+    public long blackMarketMinNetTurnover = 1000L;
     public boolean enableStoryProgram = true;
     public boolean enableStoryToasts = true;
     public boolean enableSideQuests = true;
+    public boolean enableChaosDirectives = true;
+    public int chaosIntervalMinTicks = 1500; // 75s
+    public int chaosIntervalMaxTicks = 1900; // 95s
 
     public Map<String, Long> customResourceBasePrices = new LinkedHashMap<>();
     public Map<String, Long> customAssetUnitPrices = new LinkedHashMap<>();
@@ -108,6 +112,24 @@ public class MarketConfig {
                     boolean upgraded = false;
                     if (loaded.buybackCommission < 1.0) {
                         loaded.buybackCommission = 1.35;
+                        upgraded = true;
+                    }
+                    if (loaded.configVersion < 2) {
+                        if (loaded.marketEventDurationTicks >= 6000) {
+                            loaded.marketEventDurationTicks = 3000;
+                        }
+                        if (loaded.blackMarketMinDeals > 3) {
+                            loaded.blackMarketMinDeals = 3;
+                        }
+                        if (loaded.blackMarketMinNetTurnover > 1000L) {
+                            loaded.blackMarketMinNetTurnover = 1000L;
+                        }
+                        loaded.enableStoryProgram = true;
+                        loaded.enableSideQuests = true;
+                        loaded.enableChaosDirectives = true;
+                        if (loaded.chaosIntervalMinTicks <= 0) loaded.chaosIntervalMinTicks = 1500;
+                        if (loaded.chaosIntervalMaxTicks <= loaded.chaosIntervalMinTicks) loaded.chaosIntervalMaxTicks = 1900;
+                        loaded.configVersion = 2;
                         upgraded = true;
                     }
                     INSTANCE = loaded;

@@ -17,11 +17,30 @@ import java.util.Map;
 import java.util.UUID;
 
 public class MarketSavedData extends SavedData {
+    public record ChaosData(
+            String activeChaosId,
+            long activeChaosEndsTick,
+            long nextChaosTick,
+            boolean chaosEnabled
+    ) {
+        public static final Codec<ChaosData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.STRING.optionalFieldOf("activeChaosId", "NONE").forGetter(ChaosData::activeChaosId),
+                Codec.LONG.optionalFieldOf("activeChaosEndsTick", 0L).forGetter(ChaosData::activeChaosEndsTick),
+                Codec.LONG.optionalFieldOf("nextChaosTick", 900L).forGetter(ChaosData::nextChaosTick),
+                Codec.BOOL.optionalFieldOf("chaosEnabled", true).forGetter(ChaosData::chaosEnabled)
+        ).apply(instance, ChaosData::new));
+
+        public ChaosData() {
+            this("NONE", 0L, 900L, true);
+        }
+    }
+
     public static final Codec<MarketSavedData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.unboundedMap(Codec.STRING, PlayerMarketAccount.CODEC).fieldOf("accounts").forGetter(MarketSavedData::getSerializedAccounts),
             Codec.STRING.fieldOf("activeEventId").forGetter(d -> d.activeEvent.getId()),
             Codec.LONG.fieldOf("nextEventSwitchTick").forGetter(MarketSavedData::getNextEventSwitchTick),
-            SharedCampaignData.CODEC.optionalFieldOf("campaign", new SharedCampaignData()).forGetter(MarketSavedData::getCampaignData)
+            SharedCampaignData.CODEC.optionalFieldOf("campaign", new SharedCampaignData()).forGetter(MarketSavedData::getCampaignData),
+            ChaosData.CODEC.optionalFieldOf("chaosData", new ChaosData()).forGetter(MarketSavedData::getChaosData)
     ).apply(instance, MarketSavedData::new));
 
     public static final SavedDataType<MarketSavedData> TYPE = new SavedDataType<>(
@@ -33,13 +52,17 @@ public class MarketSavedData extends SavedData {
 
     private final Map<UUID, PlayerMarketAccount> accounts = new HashMap<>();
     private MarketEvent activeEvent = MarketEvent.STABLE_MARKET;
-    private long nextEventSwitchTick = 3600L;
+    private long nextEventSwitchTick = 2400L;
     private SharedCampaignData campaignData = new SharedCampaignData();
+    private String activeChaosId = "NONE";
+    private long activeChaosEndsTick = 0L;
+    private long nextChaosTick = 900L;
+    private boolean chaosEnabled = true;
 
     public MarketSavedData() {
     }
 
-    private MarketSavedData(Map<String, PlayerMarketAccount> rawAccounts, String eventId, long nextEventSwitchTick, SharedCampaignData campaignData) {
+    private MarketSavedData(Map<String, PlayerMarketAccount> rawAccounts, String eventId, long nextEventSwitchTick, SharedCampaignData campaignData, ChaosData chaosData) {
         for (Map.Entry<String, PlayerMarketAccount> entry : rawAccounts.entrySet()) {
             try {
                 accounts.put(UUID.fromString(entry.getKey()), entry.getValue());
@@ -49,6 +72,47 @@ public class MarketSavedData extends SavedData {
         this.activeEvent = MarketEvent.byId(eventId).orElse(MarketEvent.STABLE_MARKET);
         this.nextEventSwitchTick = nextEventSwitchTick;
         this.campaignData = campaignData != null ? campaignData : new SharedCampaignData();
+        ChaosData cd = chaosData != null ? chaosData : new ChaosData();
+        this.activeChaosId = cd.activeChaosId();
+        this.activeChaosEndsTick = cd.activeChaosEndsTick();
+        this.nextChaosTick = cd.nextChaosTick();
+        this.chaosEnabled = cd.chaosEnabled();
+    }
+
+    public ChaosData getChaosData() {
+        return new ChaosData(activeChaosId, activeChaosEndsTick, nextChaosTick, chaosEnabled);
+    }
+
+    public String getActiveChaosId() {
+        return activeChaosId != null ? activeChaosId : "NONE";
+    }
+
+    public void setActiveChaos(String id, long endsTick) {
+        this.activeChaosId = id != null ? id : "NONE";
+        this.activeChaosEndsTick = endsTick;
+        setDirty();
+    }
+
+    public long getActiveChaosEndsTick() {
+        return activeChaosEndsTick;
+    }
+
+    public long getNextChaosTick() {
+        return nextChaosTick;
+    }
+
+    public void setNextChaosTick(long nextChaosTick) {
+        this.nextChaosTick = nextChaosTick;
+        setDirty();
+    }
+
+    public boolean isChaosEnabled() {
+        return chaosEnabled;
+    }
+
+    public void setChaosEnabled(boolean chaosEnabled) {
+        this.chaosEnabled = chaosEnabled;
+        setDirty();
     }
 
     public SharedCampaignData getCampaignData() {
@@ -80,7 +144,7 @@ public class MarketSavedData extends SavedData {
 
     public void setActiveEvent(MarketEvent activeEvent, long currentTick) {
         this.activeEvent = activeEvent;
-        long duration = Math.min(Math.max(3600L, MarketConfig.get().marketEventDurationTicks), 6000L);
+        long duration = Math.clamp(MarketConfig.get().marketEventDurationTicks, 2400L, 3600L);
         this.nextEventSwitchTick = currentTick + duration;
         setDirty();
     }

@@ -87,13 +87,28 @@ public class MarketHudOverlay {
                 || com.mojang.blaze3d.platform.InputConstants.isKeyDown(346);
 
         List<String> lines = new ArrayList<>();
-        lines.add("§a§lPLAYER MARKET §8// §7[M]");
+        lines.add("§a§lPLAYER MARKET §8// §eLX §7[M]");
         String crDisplay = formatNumber(account.getCrBalance());
         String currencyPrefix = "   §f§l" + crDisplay + " §aCR §8| ";
         lines.add(currencyPrefix + "   §b§l" + diamonds);
 
         if (event != MarketEvent.STABLE_MARKET) {
-            lines.add("§6Событие: §e" + event.getHeadline());
+            lines.add("§6Рынок: §e" + event.getHeadline());
+        }
+
+        // Live Synchronized Chaos Directive banner + Workout progress
+        String chaosId = ClientMarketState.getActiveChaosId();
+        long chaosEnds = ClientMarketState.getActiveChaosEndsTick();
+        if (chaosId != null && !"NONE".equals(chaosId) && chaosEnds > gameTick) {
+            var dirOpt = com.playermarket.story.CorporateChaosDirector.ChaosDirective.byId(chaosId);
+            if (dirOpt.isPresent()) {
+                long remSec = Math.max(0L, (chaosEnds - gameTick) / 20L);
+                lines.add("§c§l⚡ " + dirOpt.get().getTitle() + " §e(" + remSec + "с)");
+                if ("hr_workout".equals(chaosId) && client.player != null) {
+                    int sq = campaign.getObjective("chaos_sq_" + client.player.getUUID());
+                    lines.add("   §fПриседания Shift: §a" + sq + " / " + com.playermarket.story.CorporateChaosDirector.WORKOUT_TARGET_SQUATS);
+                }
+            }
         }
 
         String scannerReport = ClientMarketState.getOreScannerReport();

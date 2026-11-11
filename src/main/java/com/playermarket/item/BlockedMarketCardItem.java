@@ -58,10 +58,10 @@ public class BlockedMarketCardItem extends Item {
 
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, TooltipDisplay display, Consumer<Component> tooltip, TooltipFlag flag) {
-        tooltip.accept(Component.literal("§4[TERMINATED BY SECTION 17.4]"));
-        tooltip.accept(Component.literal("§8ID: ASSET-#000"));
-        tooltip.accept(Component.literal("§cSTATUS: ACCESS REVOKED"));
-        tooltip.accept(Component.literal("§7Biomechanical collateral claimed."));
+        tooltip.accept(Component.literal("§4[АННУЛИРОВАНО ПО СТАТЬЕ 17.4]"));
+        tooltip.accept(Component.literal("§8ID: АКТИВ-#000"));
+        tooltip.accept(Component.literal("§cСТАТУС: ДОСТУП ЗАКРЫТ"));
+        tooltip.accept(Component.literal("§7Биомеханический залог изъят."));
     }
 
     public static void registerItems() {

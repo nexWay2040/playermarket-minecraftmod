@@ -2,8 +2,8 @@
 	"schemaVersion": 1,
 	"id": "playermarket",
 	"version": "${version}",
-	"name": "Player Market",
-	"description": "EVERYTHING HAS A PRICE. Your body, your assets, our market. Sell player stats for CR, trade resources, buy diamond augmentations, and build corporate archetypes.",
+	"name": "Player Market: Leafxup Edition",
+	"description": "EVERYTHING HAS A PRICE — Dynamic Co-op Edition! Sell body stats, spin Invest Roulette, survive synchronized Corporate Chaos Directives every ~85s, complete 20 rapid quests, and face Section 17.4.",
 	"authors": [
 		"nexWay2040",
 		"Player Market Corp."

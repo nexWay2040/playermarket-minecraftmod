@@ -41,7 +41,11 @@ jobs:
           if [[ "$TAG_NAME" == *"-pre"* || "$TAG_NAME" == *"-alpha"* || "$TAG_NAME" == *"-beta"* || "$TAG_NAME" == *"-rc"* || "$TAG_NAME" == "v1.0.0" ]]; then
             PRERELEASE_FLAG="--prerelease"
           fi
+          RELEASE_TITLE="PLAYER MARKET $TAG_NAME (Minecraft 26.3 Fabric Pre-Release)"
+          if [[ "$TAG_NAME" == *"leafxup"* ]]; then
+            RELEASE_TITLE="Player Market: Leafxup Edition $TAG_NAME (Minecraft 26.3 · Fabric)"
+          fi
           gh release create "$TAG_NAME" "${JARS[@]}" \
-            --title "PLAYER MARKET $TAG_NAME (Minecraft 26.3 Fabric Pre-Release)" \
+            --title "$RELEASE_TITLE" \
             --notes-file .github/RELEASE_NOTES.md \
             $PRERELEASE_FLAG

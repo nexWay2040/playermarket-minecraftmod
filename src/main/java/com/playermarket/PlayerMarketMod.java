@@ -55,8 +55,11 @@ public class PlayerMarketMod implements ModInitializer {
             MarketCommands.register(dispatcher);
         });
 
-        // Initialize Recipe Valuation Engine on server start
+        // Initialize Recipe Valuation Engine on server start and clean runtime entities on stop
         ServerLifecycleEvents.SERVER_STARTED.register(ResourceValuationEngine::ensureInitialized);
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            com.playermarket.story.CorporateChaosDirector.clearAllWorldEntities(server);
+        });
 
         // Server tick for leases, market events, and custom attribute effects
         ServerTickEvents.END_SERVER_TICK.register(MarketAttributeApplier::tickServer);
@@ -72,12 +75,15 @@ public class PlayerMarketMod implements ModInitializer {
                 long gameTick = server.overworld().getGameTime();
                 com.playermarket.story.StoryManager.initializeAccountStory(account, gameTick);
 
-                // Safe 1-time delivery of crumpled introductory letter
-                grantCrumpledLetterSafely(player, account);
-
-                // Only give card if campaign is active and card is not blocked
-                if (!account.isMarketCardBlocked() && data.getCampaignData().isCampaignAccepted()) {
-                    grantStarterCardSafely(player);
+                // Safe 1-time delivery of crumpled introductory letter (only if campaign not yet accepted)
+                if (!data.getCampaignData().isCampaignAccepted()) {
+                    grantCrumpledLetterSafely(player, account);
+                } else {
+                    // Campaign already started: give card + latecomer welcome credits/mails immediately
+                    if (!account.isMarketCardBlocked() && !account.isPermanentImpaired()) {
+                        grantStarterCardSafely(player);
+                    }
+                    com.playermarket.story.StoryManager.syncLateJoiner(player, account, data.getCampaignData(), gameTick);
                 }
 
                 if (account.getHistory().isEmpty() && data.getCampaignData().isCampaignAccepted()) {
@@ -94,24 +100,29 @@ public class PlayerMarketMod implements ModInitializer {
             });
         });
 
-        // Re-apply modifiers after player respawn, grant card and handle lease death risk
+        // Re-apply modifiers after player respawn, restore card or pre-start letter, handle lease death risk
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
-            // Always guarantee player has their Market Access Card (and Upgrader) on respawn
-            grantStarterCardSafely(newPlayer);
-
-            if (!alive && newPlayer.level().getServer() != null) {
+            if (newPlayer.level().getServer() != null) {
                 MarketSavedData data = MarketSavedData.get(newPlayer.level().getServer());
                 PlayerMarketAccount account = data.getOrCreateAccount(newPlayer.getUUID());
-                int activeLeaseCount = account.getActiveLeases().size();
-                if (activeLeaseCount > 0) {
-                    long penalty = 150L * activeLeaseCount;
-                    long deducted = account.forcePenaltyCr(penalty);
-                    if (deducted > 0) {
-                        account.addTransaction(newPlayer.level().getServer().overworld().getGameTime(),
-                                "РИСК ЛИЗИНГА", "Смерть оператора",
-                                "Неустойка по активным договорам аренды", -deducted, 0);
-                        newPlayer.sendSystemMessage(Component.literal("§8[§cPLAYER MARKET§8] §cСтраховой сбор: Смерть при активном лизинге. Удержано §e-"
-                                + deducted + " CR §cнеустойки."));
+                if (!data.getCampaignData().isCampaignAccepted()) {
+                    account.setReceivedCrumpledLetter(false);
+                    grantCrumpledLetterSafely(newPlayer, account);
+                } else {
+                    grantStarterCardSafely(newPlayer);
+                }
+                if (!alive && !com.playermarket.story.StoryManager.isProgramTerminated(data.getCampaignData(), account)) {
+                    int activeLeaseCount = account.getActiveLeases().size();
+                    if (activeLeaseCount > 0) {
+                        long penalty = 150L * activeLeaseCount;
+                        long deducted = account.forcePenaltyCr(penalty);
+                        if (deducted > 0) {
+                            account.addTransaction(newPlayer.level().getServer().overworld().getGameTime(),
+                                    "РИСК ЛИЗИНГА", "Смерть оператора",
+                                    "Неустойка по активным договорам аренды", -deducted, 0);
+                            newPlayer.sendSystemMessage(Component.literal("§8[§cPLAYER MARKET§8] §cСтраховой сбор: Смерть при активном лизинге. Удержано §e-"
+                                    + deducted + " CR §cнеустойки."));
+                        }
                     }
                 }
             }
@@ -119,7 +130,7 @@ public class PlayerMarketMod implements ModInitializer {
             MarketNetworking.sendSyncToPlayer(newPlayer);
         });
 
-        // Track entity interactions: Creeper ignition (Controlled Downsizing) & Villager / Wandering Trader contacts
+        // Track entity interactions: Courier / Piggy / Pinata / Inspector / Allay + Creeper + Merchant
         UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
             if (!world.isClientSide() && player instanceof ServerPlayer sp && sp.level().getServer() != null && !sp.isSpectator()) {
                 ItemStack held = sp.getItemInHand(hand);
@@ -127,8 +138,17 @@ public class PlayerMarketMod implements ModInitializer {
                 MarketSavedData data = MarketSavedData.get(sp.level().getServer());
                 PlayerMarketAccount acc = data.getOrCreateAccount(sp.getUUID());
                 var campaign = data.getCampaignData();
-                boolean updated = false;
+                if (com.playermarket.story.StoryManager.isProgramTerminated(campaign, acc)) {
+                    return InteractionResult.PASS;
+                }
 
+                long gameTick = sp.level().getServer().overworld().getGameTime();
+                if (com.playermarket.story.CorporateChaosDirector.handleChaosMobInteraction(sp, entity, held, data, false, gameTick)) {
+                    data.setDirty();
+                    return InteractionResult.SUCCESS;
+                }
+
+                boolean updated = false;
                 if (held.is(Items.FLINT_AND_STEEL) && "creeper".equals(entityPath)) {
                     campaign.addContribution("downsizing_stunt", 1);
                     com.playermarket.story.CorporateTaskTracker.advanceContract(sp, acc, "DOWNSIZE_ACT", 1);
@@ -153,6 +173,9 @@ public class PlayerMarketMod implements ModInitializer {
                 MarketSavedData data = MarketSavedData.get(sp.level().getServer());
                 PlayerMarketAccount acc = data.getOrCreateAccount(sp.getUUID());
                 com.playermarket.story.SharedCampaignData campaign = data.getCampaignData();
+                if (com.playermarket.story.StoryManager.isProgramTerminated(campaign, acc)) {
+                    return;
+                }
                 boolean changed = false;
 
                 if (pos.getY() < 0) {
@@ -180,6 +203,11 @@ public class PlayerMarketMod implements ModInitializer {
                     if (b == Blocks.NETHER_QUARTZ_ORE || b == Blocks.ANCIENT_DEBRIS) {
                         campaign.addContribution("nether_ore_mined", 1);
                     }
+                    long curGameTick = sp.level().getServer().overworld().getGameTime();
+                    if ("turbo_shift".equals(data.getActiveChaosId()) && curGameTick < data.getActiveChaosEndsTick()) {
+                        acc.addCr(15L);
+                        sp.sendOverlayMessage(Component.literal("§6⚡ ТУРБО-СМЕНА: §a+15 CR §7за руду!"));
+                    }
                     changed = true;
                 }
                 if (changed) {
@@ -195,7 +223,37 @@ public class PlayerMarketMod implements ModInitializer {
                 MarketSavedData data = MarketSavedData.get(world.getServer());
                 PlayerMarketAccount acc = data.getOrCreateAccount(sp.getUUID());
                 com.playermarket.story.SharedCampaignData campaign = data.getCampaignData();
+                if (com.playermarket.story.StoryManager.isProgramTerminated(campaign, acc)) {
+                    return;
+                }
                 long gameTick = world.getServer().overworld().getGameTime();
+
+                if (killedEntity.entityTags().contains("playermarket_collector")) {
+                    acc.addCr(450L);
+                    int diaBonus = 3 + world.getRandom().nextInt(3);
+                    ItemStack dia = new ItemStack(Items.DIAMOND, diaBonus);
+                    if (!sp.getInventory().add(dia)) {
+                        sp.drop(dia, false, net.minecraft.util.Prediction.SERVER_ONLY);
+                    }
+                    acc.addTransaction(gameTick, "КОЛЛЕКТОР ПОВЕРЖЕН", "Инкассатор Asset Corp",
+                            "Трофей с корпоративного рейда", 450L, diaBonus);
+                    campaign.addContribution("collectors_defeated", 1);
+                    campaign.addContribution("courier_caught", 1);
+                    com.playermarket.story.CorporateTaskTracker.advanceContract(sp, acc, "COURIER_LOOT", 1);
+                    if (world instanceof net.minecraft.server.level.ServerLevel sl) {
+                        sl.sendParticles(net.minecraft.core.particles.ParticleTypes.TOTEM_OF_UNDYING,
+                                killedEntity.getX(), killedEntity.getY() + 1.0, killedEntity.getZ(), 24, 0.4, 0.5, 0.4, 0.2);
+                    }
+                    world.getServer().getPlayerList().broadcastSystemMessage(Component.literal(
+                            "§8[§aКОЛЛЕКТОР ПОВЕРЖЕН§8] §f" + sp.getName().getString() + " §aотбился от коллектора: §e+450 CR §8| §b+" + diaBonus + " ♦!"), false);
+                    data.setDirty();
+                    com.playermarket.story.StoryManager.checkAllQuests(sp, acc);
+                    MarketNetworking.sendSyncToPlayer(sp);
+                }
+
+                if (com.playermarket.story.CorporateChaosDirector.handleCourierKilled(killedEntity, sp, data, gameTick)) {
+                    data.setDirty();
+                }
 
                 if (killedEntity instanceof Enemy && !sp.isCreative()) {
                     com.playermarket.story.CorporateTaskTracker.advanceContract(sp, acc, "KILL_MOBS", 1);
@@ -281,7 +339,8 @@ public class PlayerMarketMod implements ModInitializer {
         if (player.level().getServer() != null) {
             MarketSavedData data = MarketSavedData.get(player.level().getServer());
             PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
-            if (acc.isMarketCardBlocked() || acc.isPermanentImpaired() || !data.getCampaignData().isCampaignAccepted()) {
+            if (com.playermarket.story.StoryManager.isProgramTerminated(data.getCampaignData(), acc)
+                    || !data.getCampaignData().isCampaignAccepted()) {
                 return;
             }
         }

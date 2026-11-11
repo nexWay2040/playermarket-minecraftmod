@@ -16,7 +16,14 @@ public abstract class ProjectileMarketMixin {
     @ModifyVariable(method = "shootFromRotation", at = @At("HEAD"), argsOnly = true, ordinal = 4)
     private float playermarket$modifyInaccuracy(float inaccuracy, Entity shooter) {
         if (shooter instanceof ServerPlayer sp && sp.level().getServer() != null) {
-            PlayerMarketAccount acc = MarketSavedData.get(sp.level().getServer()).getOrCreateAccount(sp.getUUID());
+            MarketSavedData data = MarketSavedData.get(sp.level().getServer());
+            PlayerMarketAccount acc = data.getOrCreateAccount(sp.getUUID());
+            if (!com.playermarket.story.StoryManager.isProgramTerminated(data.getCampaignData(), acc)) {
+                data.getCampaignData().addContribution("ballistics_shots", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(sp, acc, "THROW_BALLISTICS", 1);
+                data.setDirty();
+                com.playermarket.story.StoryManager.checkAllQuests(sp, acc);
+            }
             double soldAccuracy = acc.getTotalSoldFraction(AssetType.PROJECTILE_ACCURACY);
             double extraSpread = soldAccuracy * 14.0;
             if (acc.hasDividend("ballistic_study")) {

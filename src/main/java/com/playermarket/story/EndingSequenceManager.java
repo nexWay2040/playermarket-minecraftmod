@@ -39,15 +39,19 @@ public class EndingSequenceManager {
         endingAccumulatedActiveMs = 0L;
         lastCueStep = 0;
         savedData.setActiveEvent(com.playermarket.market.MarketEvent.STABLE_MARKET, server.overworld().getGameTime());
+        savedData.setActiveChaos("NONE", 0L);
+        CorporateChaosDirector.clearAllWorldEntities(server);
 
         // 2. Process all connected players and registered participants
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             campaignData.getImpairedPlayers().add(player.getUUID());
+            CorporateTaskTracker.clearPlayer(player.getUUID());
             PlayerMarketAccount account = savedData.getOrCreateAccount(player.getUUID());
 
             account.addCr(1_000_000L);
             account.setMarketCardBlocked(true);
             account.setPermanentImpaired(true);
+            account.setAccountClosed(true);
             account.setEndingState("SETTLED");
             account.getActiveLeases().clear();
             account.getContracts().clear();
@@ -73,9 +77,11 @@ public class EndingSequenceManager {
 
         for (UUID uuid : campaignData.getRegisteredParticipants()) {
             campaignData.getImpairedPlayers().add(uuid);
+            CorporateTaskTracker.clearPlayer(uuid);
             PlayerMarketAccount account = savedData.getOrCreateAccount(uuid);
             account.setMarketCardBlocked(true);
             account.setPermanentImpaired(true);
+            account.setAccountClosed(true);
             account.setEndingState("SETTLED");
             account.getActiveLeases().clear();
             account.getContracts().clear();
@@ -229,8 +235,14 @@ public class EndingSequenceManager {
         SharedCampaignData campaignData = savedData.getCampaignData();
 
         if (account.isPermanentImpaired() || "SETTLED".equals(campaignData.getEndingState()) || campaignData.isPlayerImpaired(player.getUUID())) {
-            // Ensure UUID is in impaired set for client-side leg brace rendering
+            // Ensure UUID & termination flags persist cleanly across reconnects (never re-enable contracts/quests)
             campaignData.getImpairedPlayers().add(player.getUUID());
+            account.setMarketCardBlocked(true);
+            account.setPermanentImpaired(true);
+            account.setAccountClosed(true);
+            account.setEndingState("SETTLED");
+            account.getContracts().clear();
+            account.getActiveLeases().clear();
             savedData.setDirty();
 
             // Transform any remaining market access cards in inventory to BLOCKED cards
@@ -245,10 +257,10 @@ public class EndingSequenceManager {
             MarketAttributeApplier.syncPlayerModifiers(player);
 
             player.sendSystemMessage(Component.literal("§8===================================================="));
-            player.sendSystemMessage(Component.literal("§4§lCORPORATE ASSET REGISTRY // STATUS: REVOKED"));
-            player.sendSystemMessage(Component.literal("§7SUBJECT: §c" + player.getName().getString()));
-            player.sendSystemMessage(Component.literal("§cMARKET ACCESS PERMANENTLY REVOKED (SECTION 17.4)"));
-            player.sendSystemMessage(Component.literal("§7Biomechanical support brace active on right leg."));
+            player.sendSystemMessage(Component.literal("§4§lКОРПОРАТИВНЫЙ РЕЕСТР // СТАТУС: ДОСТУП ЗАКРЫТ"));
+            player.sendSystemMessage(Component.literal("§7СУБЪЕКТ: §c" + player.getName().getString()));
+            player.sendSystemMessage(Component.literal("§cДОСТУП К БИРЖЕ АННУЛИРОВАН НАВСЕГДА (СТАТЬЯ 17.4)"));
+            player.sendSystemMessage(Component.literal("§7Ортопедический фиксатор закреплён на правой ноге."));
             player.sendSystemMessage(Component.literal("§8===================================================="));
         }
     }

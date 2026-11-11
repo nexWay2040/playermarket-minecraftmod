@@ -22,92 +22,96 @@ public final class ContractBoardCatalog {
 
     private static final List<Template> TEMPLATES = List.of(
             new Template(
+                    "courier_loot", "COURIER_LOOT",
+                    "Охота на курьеров и пиньяту",
+                    "Поймайте Свинку-Копилку, Курицу-Курьера, Радужную Пиньяту, Аллея или отбейтесь от Коллектора.",
+                    1, 680L, 16, 2, 220L
+            ),
+            new Template(
+                    "roulette_spins", "ROULETTE_SPINS",
+                    "Магия 50/50 (Казино биржи)",
+                    "Сыграйте 2 раунда в «Инвест-Рулетку 50/50» на бирже (любая ставка).",
+                    2, 560L, 14, 2, 180L
+            ),
+            new Template(
+                    "bribe_pet", "BRIBE_PET",
+                    "Подкуп и тимбилдинг",
+                    "Покормите или погладьте едой/изумрудом Жителя, Инспектора или любое животное (ПКМ 2 раза).",
+                    2, 500L, 12, 2, 160L
+            ),
+            new Template(
+                    "throw_ballistics", "THROW_BALLISTICS",
+                    "Артподготовка корпорации",
+                    "Запустите 6 любых снарядов: снежки, яйца, стрелы, жемчуг или фейерверк.",
+                    6, 480L, 11, 2, 150L
+            ),
+            new Template(
                     "parkour_clutch", "PARKOUR_CLUTCH",
                     "Гравитация — актив фирмы",
-                    "Упадите минимум с 10 блоков (в воду, сено, слизь или на ноги) и выживите.",
-                    1, 520L, 12, 2, 200L
+                    "Упадите минимум с 8 блоков высоты (в воду, сено, слизь или на ноги) и выживите.",
+                    1, 520L, 12, 2, 180L
             ),
             new Template(
                     "paranoid_spin", "PARANOID_SPIN",
                     "Датчик паранойи",
-                    "Проверяйте углы как в Lethal Company: накрутите 1800° камерой (5 оборотов).",
-                    1800, 450L, 10, 2, 180L
+                    "Проверяйте углы как в Lethal Company: накрутите 1080° камерой (3 оборота).",
+                    1080, 450L, 10, 2, 160L
             ),
             new Template(
                     "drg_dance", "DANCE_SQUATS",
                     "Перекур по уставу DRG",
-                    "Пока начальство отвернулось, присядьте (Shift) 12 раз подряд.",
-                    12, 420L, 10, 1, 160L
-            ),
-            new Template(
-                    "risk_no_armor", "RISK_SURVIVAL",
-                    "Работа без страховки",
-                    "Продержитесь 15 сек без брони рядом с враждебным мобом (≤8 блоков).",
-                    15, 620L, 15, 2, 240L
-            ),
-            new Template(
-                    "altitude_cloud", "ALTITUDE_CLOUD",
-                    "Миграция в Облако",
-                    "Заберитесь высоко в небо (Y ≥ 160) и проведите там 10 секунд.",
-                    10, 520L, 12, 2, 200L
-            ),
-            new Template(
-                    "hot_spring", "HOT_SPRING",
-                    "Курорт у лавы",
-                    "Проведите 8 секунд рядом с открытой лавой (≤4 бл.), не сгорев заживо.",
-                    8, 560L, 14, 2, 220L
-            ),
-            new Template(
-                    "bare_brawl", "BARE_HAND_HITS",
-                    "Переговоры на кулаках",
-                    "Нанесите 5 ударов враждебным монстрам абсолютно пустыми руками.",
-                    5, 560L, 14, 2, 220L
+                    "Пока начальство отвернулось, присядьте (Shift) 10 раз подряд.",
+                    10, 420L, 10, 1, 150L
             ),
             new Template(
                     "stunt_kills", "STUNT_KILLS",
                     "Эффектная ликвидация",
-                    "Победите 2 врагов критическим ударом в прыжке, в огне или в воде.",
-                    2, 620L, 15, 3, 240L
-            ),
-            new Template(
-                    "pain_threshold", "SURVIVE_DAMAGE",
-                    "Аудит болевого порога",
-                    "Получите и переживите суммарно 12 ед. урона на смене без гибели.",
-                    12, 500L, 12, 2, 200L
+                    "Победите 2 врагов критическим ударом в прыжке, в огне или во время события.",
+                    2, 620L, 15, 3, 220L
             ),
             new Template(
                     "ficsit_sink", "SELL_RESOURCES",
                     "Утилизатор FICSIT",
                     "Сдайте на «Рынке Ресурсов» любые 12 ненужных или добытых предметов.",
-                    12, 480L, 10, 2, 180L
+                    12, 480L, 10, 2, 160L
             ),
             new Template(
                     "sprint_courier", "SPRINT_COURIER",
                     "Сверхсрочный курьер",
-                    "Пробегите спринтом 120 блоков по делам логистики корпорации.",
-                    120, 480L, 11, 2, 180L
+                    "Пробегите спринтом 80 блоков по делам логистики корпорации.",
+                    80, 480L, 11, 2, 160L
             ),
             new Template(
                     "creep_downsize", "DOWNSIZE_ACT",
                     "Управляемый даунсайзинг",
                     "Подожгите Крипера огнивом, переживите взрыв или победите горящего моба.",
-                    1, 660L, 16, 3, 260L
+                    1, 640L, 15, 3, 220L
             ),
             new Template(
                     "weird_lunch", "TOXIC_LUNCH",
                     "Сомнительный бизнес-ланч",
-                    "Съешьте гнилую плоть, паучий глаз, ядовитый картофель или сырое мясо.",
-                    1, 480L, 12, 2, 180L
+                    "Съешьте гнилую плоть, сырое мясо, печенье, ягоды или выпейте молоко.",
+                    1, 480L, 12, 2, 160L
             ),
             new Template(
                     "debt_restructure", "BUYBACK_OR_LEASE",
                     "Реструктуризация долга",
                     "Оформите 1 лизинг стата или выкупите обратно проданную характеристику.",
-                    1, 780L, 20, 4, 300L
+                    1, 780L, 20, 4, 280L
+            ),
+            new Template(
+                    "market_trades", "MARKET_TRADES",
+                    "Биржевая активность",
+                    "Закройте 2 любые сделки на бирже (продажа стата, сырьё или рулетка).",
+                    2, 520L, 13, 2, 180L
             )
     );
 
     public static final int BOARD_SIZE = 6;
+
+    private static final Set<String> DEPRECATED_TEDIOUS_TYPES = Set.of(
+            "RISK_SURVIVAL", "HOT_SPRING", "ALTITUDE_CLOUD", "SURVIVE_DAMAGE"
+    );
 
     private ContractBoardCatalog() {
     }
@@ -116,6 +120,7 @@ public final class ContractBoardCatalog {
         if (existing == null || existing.isEmpty()) return true;
         if (existing.getFirst().title().startsWith("INDUSTRIAL")) return true;
         if (existing.stream().anyMatch(c -> c.rewardDiamonds() <= 0)) return true;
+        if (existing.stream().anyMatch(c -> !c.active() && !c.completed() && DEPRECATED_TEDIOUS_TYPES.contains(c.typeId()))) return true;
         // Legacy unaccepted default 7-item static list without creative types -> upgrade unaccepted slots smoothly
         boolean allLegacyIds = existing.stream().allMatch(c ->
                 c.id().equals("mining_iron")
@@ -132,8 +137,8 @@ public final class ContractBoardCatalog {
 
     public static void ensurePopulated(List<ContractEntry> board) {
         if (needsMigration(board)) {
-            board.clear();
-            fillBoard(board, true);
+            board.removeIf(c -> !c.active() && !c.completed() && (DEPRECATED_TEDIOUS_TYPES.contains(c.typeId()) || c.rewardDiamonds() <= 0));
+            fillBoard(board, false);
             return;
         }
         // Keep active & unclaimed completed contracts, ensure enough non-claimed offers exist

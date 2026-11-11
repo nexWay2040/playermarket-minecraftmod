@@ -18,6 +18,9 @@ public class ClientMarketState {
     private static long currentGameTick = 0L;
     private static long nextEventSwitchTick = 0L;
     private static String oreScannerReport = "OFFLINE";
+    private static String activeChaosId = "NONE";
+    private static long activeChaosEndsTick = 0L;
+    private static String coopSummary = "";
     private static String lastStatusMessage = "";
     private static long lastStatusTimestampMs = 0L;
     private static long localEndingStartMs = 0L;
@@ -36,6 +39,9 @@ public class ClientMarketState {
         currentGameTick = payload.currentGameTick();
         nextEventSwitchTick = payload.nextEventSwitchTick();
         oreScannerReport = payload.oreScannerReport() != null ? payload.oreScannerReport() : "OFFLINE";
+        activeChaosId = payload.activeChaosId() != null ? payload.activeChaosId() : "NONE";
+        activeChaosEndsTick = payload.activeChaosEndsTick();
+        coopSummary = payload.coopSummary() != null ? payload.coopSummary() : "";
         if (payload.statusMessage() != null && !payload.statusMessage().isEmpty()) {
             lastStatusMessage = payload.statusMessage();
             lastStatusTimestampMs = System.currentTimeMillis();
@@ -72,6 +78,9 @@ public class ClientMarketState {
         currentGameTick = 0L;
         nextEventSwitchTick = 0L;
         oreScannerReport = "OFFLINE";
+        activeChaosId = "NONE";
+        activeChaosEndsTick = 0L;
+        coopSummary = "";
         lastStatusMessage = "";
         lastStatusTimestampMs = 0L;
         localEndingStartMs = 0L;
@@ -109,6 +118,18 @@ public class ClientMarketState {
 
     public static String getOreScannerReport() {
         return oreScannerReport;
+    }
+
+    public static String getActiveChaosId() {
+        return activeChaosId;
+    }
+
+    public static long getActiveChaosEndsTick() {
+        return activeChaosEndsTick;
+    }
+
+    public static String getCoopSummary() {
+        return coopSummary;
     }
 
     public static String getActiveStatusMessage() {

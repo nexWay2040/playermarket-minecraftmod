@@ -25,6 +25,17 @@ public class MarketCommands {
                 .then(Commands.literal("card")
                         .executes(ctx -> {
                             ServerPlayer player = ctx.getSource().getPlayerOrException();
+                            MarketSavedData data = MarketSavedData.get(player.level().getServer());
+                            PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
+                            if (com.playermarket.story.StoryManager.isProgramTerminated(data.getCampaignData(), acc)) {
+                                ctx.getSource().sendFailure(Component.literal("§c[PLAYER MARKET] Доступ к бирже аннулирован навсегда (Статья 17.4)."));
+                                return 0;
+                            }
+                            if (!data.getCampaignData().isCampaignAccepted()) {
+                                com.playermarket.PlayerMarketMod.grantCrumpledLetterSafely(player, acc);
+                                ctx.getSource().sendFailure(Component.literal("§8[§6PLAYER MARKET§8] §eСначала прочитайте и подпишите Мятое письмо в инвентаре!"));
+                                return 0;
+                            }
                             boolean hasCard = false;
                             for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                                 net.minecraft.world.item.ItemStack s = player.getInventory().getItem(i);
@@ -73,6 +84,58 @@ public class MarketCommands {
                                             + " §7Black Market Access: " + (acc.isBlackMarketUnlocked() ? "§dUNLOCKED" : "§8LOCKED") + "\n"
                                             + " §7Active Archetypes: §6" + buildNames
                             ), false);
+                            return 1;
+                        }))
+                .then(Commands.literal("pay")
+                        .then(Commands.argument("target", net.minecraft.commands.arguments.EntityArgument.player())
+                                .then(Commands.argument("amount", LongArgumentType.longArg(1L))
+                                        .executes(ctx -> {
+                                            ServerPlayer sender = ctx.getSource().getPlayerOrException();
+                                            ServerPlayer target = net.minecraft.commands.arguments.EntityArgument.getPlayer(ctx, "target");
+                                            if (sender.getUUID().equals(target.getUUID())) {
+                                                ctx.getSource().sendFailure(Component.literal("§cНельзя перевести CR самому себе!"));
+                                                return 0;
+                                            }
+                                            long amount = LongArgumentType.getLong(ctx, "amount");
+                                            var server = sender.level().getServer();
+                                            MarketSavedData data = MarketSavedData.get(server);
+                                            PlayerMarketAccount sAcc = data.getOrCreateAccount(sender.getUUID());
+                                            PlayerMarketAccount tAcc = data.getOrCreateAccount(target.getUUID());
+                                            if (sAcc.isMarketCardBlocked() || tAcc.isMarketCardBlocked()) {
+                                                ctx.getSource().sendFailure(Component.literal("§cСчёт заблокирован по Статье 17.4!"));
+                                                return 0;
+                                            }
+                                            if (!sAcc.spendCr(amount)) {
+                                                ctx.getSource().sendFailure(Component.literal("§cНедостаточно CR для перевода!"));
+                                                return 0;
+                                            }
+                                            long tick = server.overworld().getGameTime();
+                                            tAcc.addCr(amount);
+                                            sAcc.addTransaction(tick, "ПЕРЕВОД ДРУГУ", target.getName().getString(), "P2P перевод CR", -amount, 0);
+                                            tAcc.addTransaction(tick, "ПЕРЕВОД ОТ ДРУГА", sender.getName().getString(), "P2P перевод CR", amount, 0);
+                                            data.setDirty();
+                                            MarketNetworking.sendSyncToPlayer(sender, "§eПереведено -" + amount + " CR -> " + target.getName().getString());
+                                            MarketNetworking.sendSyncToPlayer(target, "§aПолучено +" + amount + " CR от " + sender.getName().getString());
+                                            sender.sendSystemMessage(Component.literal("§8[§aПЕРЕВОД§8] §fВы отправили §e" + amount + " CR §fигроку §b" + target.getName().getString()));
+                                            target.sendSystemMessage(Component.literal("§8[§aПЕРЕВОД§8] §fИгрок §b" + sender.getName().getString() + " §fперевёл вам §a+" + amount + " CR§f!"));
+                                            return 1;
+                                        }))))
+                .then(Commands.literal("top")
+                        .executes(ctx -> {
+                            var server = ctx.getSource().getServer();
+                            MarketSavedData data = MarketSavedData.get(server);
+                            StringBuilder sb = new StringBuilder("§8[§6РЕЙТИНГ СЕКТОРА // КООП§8]");
+                            for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
+                                PlayerMarketAccount pAcc = data.getOrCreateAccount(sp.getUUID());
+                                double soldSum = 0.0;
+                                for (AssetType a : AssetType.values()) soldSum += pAcc.getTotalSoldFraction(a);
+                                int bioNorm = (int) Math.max(5.0, Math.round((1.0 - Math.min(0.95, soldSum / AssetType.values().length)) * 100.0));
+                                sb.append("\n §f").append(sp.getName().getString())
+                                        .append(" §8| §aНорма: ").append(bioNorm).append("%")
+                                        .append(" §8| §e").append(pAcc.getCrBalance()).append(" CR")
+                                        .append(" §8| §7Сделок: ").append(pAcc.getTotalDealsCount());
+                            }
+                            ctx.getSource().sendSuccess(() -> Component.literal(sb.toString()), false);
                             return 1;
                         }))
 
@@ -172,10 +235,16 @@ public class MarketCommands {
                                     campaign.setCurrentStage(1);
                                     campaign.getCompletedTasks().clear();
                                     campaign.getCompletedSideQuests().clear();
+                                    campaign.getObjectiveProgress().clear();
+                                    campaign.getTriggeredStoryEvents().clear();
+                                    campaign.setLastStoryEventTick(0L);
                                     PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
                                     acc.getStoryProgress().setCurrentStage(1);
                                     acc.getStoryProgress().getCompletedTasks().clear();
                                     acc.getStoryProgress().getClaimedTaskRewards().clear();
+                                    acc.getStoryProgress().getCompletedSideQuests().clear();
+                                    acc.getStoryProgress().getClaimedSideQuestRewards().clear();
+                                    acc.getStoryProgress().getTaskProgress().clear();
                                     acc.getStoryProgress().setFinalChoice("NONE");
                                     data.setDirty();
                                     MarketNetworking.broadcastSync(server, "§aПрогресс сюжета сброшен на Этап 1");
@@ -239,6 +308,45 @@ public class MarketCommands {
                             )), false);
                             return 1;
                         }))
+                .then(Commands.literal("chaos")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("list")
+                                .executes(ctx -> {
+                                    StringBuilder sb = new StringBuilder("§8[§6CHAOS DIRECTIVES§8]");
+                                    for (var d : com.playermarket.story.CorporateChaosDirector.ChaosDirective.values()) {
+                                        sb.append("\n §e").append(d.getId()).append(" §7- ").append(d.getTitle());
+                                    }
+                                    ctx.getSource().sendSuccess(() -> Component.literal(sb.toString()), false);
+                                    return 1;
+                                }))
+                        .then(Commands.literal("toggle")
+                                .executes(ctx -> {
+                                    var server = ctx.getSource().getServer();
+                                    MarketSavedData data = MarketSavedData.get(server);
+                                    boolean next = !data.isChaosEnabled();
+                                    data.setChaosEnabled(next);
+                                    ctx.getSource().sendSuccess(() -> Component.literal("§8[§6CHAOS§8] §fДирективы хаоса: " + (next ? "§aВКЛ" : "§cВЫКЛ")), true);
+                                    return 1;
+                                }))
+                        .then(Commands.literal("trigger")
+                                .executes(ctx -> {
+                                    var server = ctx.getSource().getServer();
+                                    var vals = com.playermarket.story.CorporateChaosDirector.ChaosDirective.values();
+                                    var picked = vals[server.overworld().getRandom().nextInt(vals.length)];
+                                    com.playermarket.story.CorporateChaosDirector.triggerDirective(server, picked);
+                                    return 1;
+                                })
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .executes(ctx -> {
+                                            String id = StringArgumentType.getString(ctx, "id");
+                                            var dirOpt = com.playermarket.story.CorporateChaosDirector.ChaosDirective.byId(id);
+                                            if (dirOpt.isEmpty()) {
+                                                ctx.getSource().sendFailure(Component.literal("§cUnknown chaos directive ID: " + id));
+                                                return 0;
+                                            }
+                                            com.playermarket.story.CorporateChaosDirector.triggerDirective(ctx.getSource().getServer(), dirOpt.get());
+                                            return 1;
+                                        }))))
                 .then(Commands.literal("ending")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .then(Commands.literal("main")

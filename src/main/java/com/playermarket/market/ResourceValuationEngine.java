@@ -467,8 +467,8 @@ public class ResourceValuationEngine {
 
         if (account != null) {
             int vipLvl = account.getUpgradeLevel(UpgradeType.VIP_CLIENT);
-            if (vipLvl == 2) unitBuy = Math.round(unitBuy * 0.92);
-            else if (vipLvl >= 3) unitBuy = Math.round(unitBuy * 0.85);
+            if (vipLvl == 2) unitBuy = Math.round(unitBuy * 0.90);
+            else if (vipLvl >= 3) unitBuy = Math.round(unitBuy * 0.80);
         }
 
         long totalCost = Math.max(1L, unitBuy * bundleSize);

@@ -247,9 +247,10 @@ public class PlayerMarketAccount {
     }
 
     public void checkBlackMarketUnlock() {
-        if (storyProgress.getCurrentStage() >= 4
-                || getUpgradeLevel(UpgradeType.VIP_CLIENT) >= 3
-                || storyProgress.getTotalCompletedProgramTasks() >= 12) {
+        if (storyProgress.getCurrentStage() >= 2
+                || getUpgradeLevel(UpgradeType.VIP_CLIENT) >= 1
+                || totalDealsCount >= MarketConfig.get().blackMarketMinDeals
+                || storyProgress.getTotalCompletedProgramTasks() >= 6) {
             this.blackMarketUnlocked = true;
         }
     }
@@ -272,9 +273,10 @@ public class PlayerMarketAccount {
 
     public boolean isBlackMarketUnlocked() {
         checkBlackMarketUnlock();
-        return (storyProgress.getCurrentStage() >= 4)
-                || (getUpgradeLevel(UpgradeType.VIP_CLIENT) >= 3)
-                || (storyProgress.getTotalCompletedProgramTasks() >= 12)
+        return (storyProgress.getCurrentStage() >= 2)
+                || (getUpgradeLevel(UpgradeType.VIP_CLIENT) >= 1)
+                || (totalDealsCount >= MarketConfig.get().blackMarketMinDeals)
+                || (storyProgress.getTotalCompletedProgramTasks() >= 6)
                 || blackMarketUnlocked;
     }
 
@@ -308,7 +310,7 @@ public class PlayerMarketAccount {
 
     public void setStoryStage(int stage) {
         storyProgress.setCurrentStage(stage);
-        if (stage >= 4) {
+        if (stage >= 2) {
             this.blackMarketUnlocked = true;
         }
     }
@@ -541,8 +543,11 @@ public class PlayerMarketAccount {
         this.readCrumpledLetter = false;
         this.marketCardBlocked = false;
         this.permanentImpaired = false;
+        this.endingState = "NONE";
+        this.accountClosed = false;
         this.lastDiamondExchangeDay = -1L;
         this.diamondsExchangedToday = 0;
+        this.storyProgress = new com.playermarket.story.StoryProgress();
         ensureDefaultContracts();
     }
 

@@ -21,6 +21,26 @@ public class StoryManager {
     private static final String SENDER_LEGAL = "Департамент Юстиции // Asset Program";
     private static final String SENDER_MEDICAL = "Медицинская Служба // BioMech";
 
+    /**
+     * Authoritative guard: returns true once Section 17.4 / Final Settlement has terminated
+     * market access, contracts, side quests, and story progression.
+     */
+    public static boolean isProgramTerminated(SharedCampaignData campaign, PlayerMarketAccount account) {
+        if (campaign != null) {
+            String es = campaign.getEndingState();
+            if (campaign.isEndingStarted() || campaign.isEndingApplied()
+                    || "FINAL_SETTLEMENT_ACTIVE".equals(es) || "SETTLED".equals(es)) {
+                return true;
+            }
+        }
+        if (account != null) {
+            if (account.isPermanentImpaired() || account.isMarketCardBlocked() || account.isAccountClosed()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void onPlayerReadLetter(ServerPlayer player) {
         if (player.level().getServer() == null) return;
         MarketSavedData data = MarketSavedData.get(player.level().getServer());
@@ -42,8 +62,8 @@ public class StoryManager {
             account.getStoryProgress().addMail(new MailMessage(
                     "contract_offer_mail",
                     gameTick,
-                    "ASSET PROGRAM // CONTRACTING DIVISION",
-                    "ASSET PROGRAM — OFFER OF PARTICIPATION",
+                    "ASSET PROGRAM // ОТДЕЛ КОНТРАКТОВ",
+                    "ПРЕДЛОЖЕНИЕ О КОНТРАКТЕ // ПРОГРАММА АКТИВОВ",
                     "Уважаемый кандидат!\n\n"
                             + "Настоящим уведомляем, что вы выбраны для участия в Программе Активов (The Asset Program).\n\n"
                             + "Условия программы:\n"
@@ -57,48 +77,81 @@ public class StoryManager {
                     100L,
                     false
             ));
-            notifyNewMail(player, "ASSET PROGRAM — OFFER OF PARTICIPATION");
+            notifyNewMail(player, "Предложение о контракте // Программа Активов");
         }
     }
 
     public static void acceptSharedContract(ServerPlayer player, PlayerMarketAccount account, net.minecraft.server.MinecraftServer server) {
         MarketSavedData savedData = MarketSavedData.get(server);
         SharedCampaignData campaign = savedData.getCampaignData();
+        boolean firstActivation = !campaign.isCampaignAccepted();
         campaign.setCampaignAccepted(true);
         if (campaign.getCurrentStage() < 1) {
             campaign.setCurrentStage(1);
         }
-        campaign.getRegisteredParticipants().add(player.getUUID());
-        for (ServerPlayer online : server.getPlayerList().getPlayers()) {
-            campaign.getRegisteredParticipants().add(online.getUUID());
-        }
-
-        account.getStoryProgress().claimMailReward("contract_offer_mail");
-        account.addCr(100L);
-
-        // Remove crumpled letter upon signing
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            net.minecraft.world.item.ItemStack s = player.getInventory().getItem(i);
-            if (!s.isEmpty() && s.is(com.playermarket.item.CrumpledLetterItem.CRUMPLED_LETTER)) {
-                s.shrink(1);
-                break;
-            }
-        }
-
-        com.playermarket.PlayerMarketMod.grantStarterCardSafely(player);
 
         long gameTick = server.overworld().getGameTime();
-        account.addTransaction(gameTick, "СОГЛАШЕНИЕ ОБ УЧАСТИИ", "The Asset Program",
-                "Подписание корпоративного контракта", 100L, 0);
+        if (firstActivation) {
+            // Fire first hilarious Corporate Chaos Directive ~40s after signing
+            savedData.setNextChaosTick(gameTick + 800L);
+            savedData.setNextEventSwitchTick(gameTick + 2400L);
+        }
+
+        for (ServerPlayer online : server.getPlayerList().getPlayers()) {
+            campaign.getRegisteredParticipants().add(online.getUUID());
+            PlayerMarketAccount onlineAcc = savedData.getOrCreateAccount(online.getUUID());
+            onlineAcc.getStoryProgress().claimMailReward("contract_offer_mail");
+
+            boolean alreadySigned = onlineAcc.getHistory().stream()
+                    .anyMatch(h -> "СОГЛАШЕНИЕ ОБ УЧАСТИИ".equals(h.category()));
+            if (!alreadySigned) {
+                onlineAcc.addCr(100L);
+                onlineAcc.addTransaction(gameTick, "СОГЛАШЕНИЕ ОБ УЧАСТИИ", "Программа Активов",
+                        "Синхронный старт кооператива", 100L, 0);
+            }
+            removeCrumpledLetter(online);
+            com.playermarket.PlayerMarketMod.grantStarterCardSafely(online);
+        }
 
         server.getPlayerList().broadcastSystemMessage(
-                Component.literal("§8[§6ASSET PROGRAM§8] §aУчастник §f" + player.getName().getString()
-                        + " §aподписал Соглашение об Участии. Программа Активов запущена в совместном режиме!"),
+                Component.literal("§8[§6ПРОГРАММА АКТИВОВ§8] §aУчастник §f" + player.getName().getString()
+                        + " §aподписал договор! Все игроки получили Карту Доступа [M] и +100 CR!"),
                 false
         );
 
         savedData.setDirty();
-        MarketNetworking.broadcastSync(server, "§aПрограмма Активов запущена!");
+        MarketNetworking.broadcastSync(server, "§aПрограмма Активов запущена для всех!");
+    }
+
+    public static void syncLateJoiner(ServerPlayer player, PlayerMarketAccount account, SharedCampaignData campaign, long gameTick) {
+        if (!campaign.isCampaignAccepted()) return;
+        campaign.getRegisteredParticipants().add(player.getUUID());
+        removeCrumpledLetter(player);
+        account.getStoryProgress().claimMailReward("contract_offer_mail");
+
+        boolean alreadySigned = account.getHistory().stream()
+                .anyMatch(h -> "СОГЛАШЕНИЕ ОБ УЧАСТИИ".equals(h.category()) || "ОТКРЫТИЕ СЧЁТА".equals(h.category()));
+        if (!alreadySigned) {
+            account.addCr(100L);
+            account.addTransaction(gameTick, "СОГЛАШЕНИЕ ОБ УЧАСТИИ", "Программа Активов",
+                    "Подключение к активному сектору", 100L, 0);
+        }
+
+        int prevStage = account.getStoryProgress().getCurrentStage();
+        int curStage = campaign.getCurrentStage();
+        for (int s = Math.max(2, prevStage + 1); s <= curStage; s++) {
+            advanceStage(player, account, s, gameTick);
+        }
+        account.getStoryProgress().setCurrentStage(curStage);
+    }
+
+    private static void removeCrumpledLetter(ServerPlayer player) {
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack s = player.getInventory().getItem(i);
+            if (!s.isEmpty() && s.is(com.playermarket.item.CrumpledLetterItem.CRUMPLED_LETTER)) {
+                s.setCount(0);
+            }
+        }
     }
 
     public static void declineSharedContract(ServerPlayer player, PlayerMarketAccount account) {
@@ -153,6 +206,7 @@ public class StoryManager {
         if (server == null) return;
         MarketSavedData data = MarketSavedData.get(server);
         SharedCampaignData campaign = data.getCampaignData();
+        if (isProgramTerminated(campaign, account)) return;
         StoryProgress story = account.getStoryProgress();
         long gameTick = server.overworld().getGameTime();
         int diamondsInInventory = MarketAttributeApplier.countVanillaDiamonds(player.getInventory());
@@ -169,8 +223,8 @@ public class StoryManager {
                 if (hasAnySoldStats(account)) {
                     if (completeStageTask(player, campaign, story, "s1_first_sale")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("icebreaker_seconds") >= 5) {
-                    if (completeStageTask(player, campaign, story, "s1_icebreaker")) anyTaskCompleted = true;
+                if (campaign.getObjective("piggy_caught") >= 1 || campaign.getObjective("courier_caught") >= 1) {
+                    if (completeStageTask(player, campaign, story, "s1_piggy_catch")) anyTaskCompleted = true;
                 }
                 if (campaign.getObjective("resources_sold_count") >= 8) {
                     if (completeStageTask(player, campaign, story, "s1_ficsit_sink")) anyTaskCompleted = true;
@@ -180,11 +234,11 @@ public class StoryManager {
                 }
             }
             case 2 -> {
-                if (campaign.getObjective("max_survived_fall") >= 10) {
+                if (campaign.getObjective("max_survived_fall") >= 8) {
                     if (completeStageTask(player, campaign, story, "s2_gravity_test")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("no_armor_hazard_sec") >= 5) {
-                    if (completeStageTask(player, campaign, story, "s2_no_armor_dare")) anyTaskCompleted = true;
+                if (campaign.getObjective("pinata_done") >= 1 || campaign.getObjective("courier_caught") >= 2) {
+                    if (completeStageTask(player, campaign, story, "s2_pinata_audit")) anyTaskCompleted = true;
                 }
                 if (account.getTotalDiamondsSpent() >= 1 || campaign.getObjective("diamonds_spent") >= 1) {
                     if (completeStageTask(player, campaign, story, "s2_diamond_procure")) anyTaskCompleted = true;
@@ -194,11 +248,11 @@ public class StoryManager {
                 }
             }
             case 3 -> {
-                if (campaign.getObjective("paranoid_degrees") >= 1800) {
+                if (campaign.getObjective("paranoid_degrees") >= 1080) {
                     if (completeStageTask(player, campaign, story, "s3_paranoid_audit")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("near_death_clutch") >= 1) {
-                    if (completeStageTask(player, campaign, story, "s3_miracle_clutch")) anyTaskCompleted = true;
+                if (campaign.getObjective("inspector_bribed") >= 1) {
+                    if (completeStageTask(player, campaign, story, "s3_inspector_bribe")) anyTaskCompleted = true;
                 }
                 if (campaign.getObjective("poison_snack_eaten") >= 1) {
                     if (completeStageTask(player, campaign, story, "s3_dark_kitchen")) anyTaskCompleted = true;
@@ -210,8 +264,11 @@ public class StoryManager {
                 }
             }
             case 4 -> {
-                if (campaign.getObjective("downsizing_stunt") >= 1) {
-                    if (completeStageTask(player, campaign, story, "s4_downsizing")) anyTaskCompleted = true;
+                if (campaign.getObjective("sky_parcel_caught") >= 1 || campaign.getObjective("courier_caught") >= 3) {
+                    if (completeStageTask(player, campaign, story, "s4_sky_courier")) anyTaskCompleted = true;
+                }
+                if (campaign.getObjective("roulette_spins") >= 2) {
+                    if (completeStageTask(player, campaign, story, "s4_casino_rush")) anyTaskCompleted = true;
                 }
                 boolean hasBlackMarketDeal = !account.getBlackMarketActiveUntil().isEmpty()
                         || campaign.getObjective("black_market_used") >= 1
@@ -219,28 +276,26 @@ public class StoryManager {
                 if (hasBlackMarketDeal || campaign.getObjective("event_combat_kills") >= 1 || countClaimedContracts(account, campaign) >= 2) {
                     if (completeStageTask(player, campaign, story, "s4_high_risk_contract")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("cloud_reached") >= 1) {
-                    if (completeStageTask(player, campaign, story, "s4_cloud_migration")) anyTaskCompleted = true;
-                }
                 if (campaign.getObjective("handicapped_combat") >= 1
-                        || (account.getSoldAssetCount() >= 3 && account.getTotalDealsCount() >= 5)) {
+                        || (account.getSoldAssetCount() >= 2 && account.getTotalDealsCount() >= 5)) {
                     if (completeStageTask(player, campaign, story, "s4_handicapped_dare")) anyTaskCompleted = true;
                 }
             }
             case 5 -> {
-                if (campaign.getObjective("cryo_sauna") >= 1) {
-                    if (completeStageTask(player, campaign, story, "s5_fire_and_water")) anyTaskCompleted = true;
+                if (campaign.getObjective("collectors_defeated") >= 1
+                        || campaign.getObjective("hostile_kills") >= 3
+                        || campaign.getObjective("allay_caught") >= 1) {
+                    if (completeStageTask(player, campaign, story, "s5_collector_clash")) anyTaskCompleted = true;
                 }
-                if (campaign.getObjective("bare_hand_hits") >= 4) {
-                    if (completeStageTask(player, campaign, story, "s5_no_hands_brawl")) anyTaskCompleted = true;
+                if (campaign.getObjective("allay_caught") >= 1 || campaign.getObjective("ballistics_shots") >= 5) {
+                    if (completeStageTask(player, campaign, story, "s5_ballistics_check")) anyTaskCompleted = true;
                 }
-                if (account.getTotalCrEarned() >= 3500L
-                        || account.getTotalDiamondsSpent() >= 3
-                        || campaign.getObjective("event_deals") >= 3) {
+                if (account.getTotalCrEarned() >= 2500L
+                        || account.getTotalDiamondsSpent() >= 2
+                        || campaign.getObjective("event_deals") >= 2) {
                     if (completeStageTask(player, campaign, story, "s5_resource_recovery")) anyTaskCompleted = true;
                 }
-                if ((campaign.getObjective("deep_audit_check") >= 1 && (diamondsInInventory >= 2 || account.getTotalDiamondsSpent() >= 2))
-                        || (diamondsInInventory >= 2 && account.getSoldAssetCount() >= 2 && countClaimedContracts(account, campaign) >= 2)) {
+                if (account.getTotalDealsCount() >= 6 || countClaimedContracts(account, campaign) >= 3) {
                     if (completeStageTask(player, campaign, story, "s5_final_field_eval")) anyTaskCompleted = true;
                 }
             }
@@ -304,22 +359,28 @@ public class StoryManager {
     }
 
     private static boolean checkSideQuests(ServerPlayer player, PlayerMarketAccount account, SharedCampaignData campaign, int diamondsInInventory) {
-        if (!MarketConfig.get().enableSideQuests) return false;
+        if (!MarketConfig.get().enableSideQuests || isProgramTerminated(campaign, account)) return false;
         StoryProgress story = account.getStoryProgress();
         boolean anyDone = false;
 
         if (diamondsInInventory >= 4) anyDone |= completeSide(player, campaign, story, "sq_alterra_debt");
         if (campaign.getObjective("named_food_eaten") >= 1 || campaign.getObjective("poison_snack_eaten") >= 1) anyDone |= completeSide(player, campaign, story, "sq_phishing_meal");
-        if (campaign.getObjective("max_survived_fall") >= 15) anyDone |= completeSide(player, campaign, story, "sq_trampoline");
-        if (campaign.getObjective("creeper_close_sec") >= 3 || campaign.getObjective("creeper_survived") >= 1) anyDone |= completeSide(player, campaign, story, "sq_creeper_stare");
-        if (campaign.getObjective("sky_deal") >= 1) anyDone |= completeSide(player, campaign, story, "sq_rooftop_dealer");
-        if (campaign.getObjective("bare_hand_hits") >= 6) anyDone |= completeSide(player, campaign, story, "sq_bare_knuckle");
-        if (campaign.getObjective("deepslate_work") >= 3) anyDone |= completeSide(player, campaign, story, "sq_deepslate_work");
-        if (campaign.getObjective("elemental_survival") >= 1) anyDone |= completeSide(player, campaign, story, "sq_lightning_rod");
+        if (campaign.getObjective("max_survived_fall") >= 10) anyDone |= completeSide(player, campaign, story, "sq_trampoline");
+        if (campaign.getObjective("courier_caught") >= 1 || campaign.getObjective("sky_parcel_caught") >= 1
+                || campaign.getObjective("piggy_caught") >= 1 || campaign.getObjective("pinata_done") >= 1
+                || campaign.getObjective("allay_caught") >= 1) {
+            anyDone |= completeSide(player, campaign, story, "sq_sky_parcel_catch");
+        }
+        if (campaign.getObjective("roulette_spins") >= 1) anyDone |= completeSide(player, campaign, story, "sq_roulette_player");
+        if (campaign.getObjective("inspector_bribed") >= 1) anyDone |= completeSide(player, campaign, story, "sq_bribe_bread");
+        if (account.getTotalDiamondsSpent() >= 1 || campaign.getObjective("diamonds_spent") >= 1) anyDone |= completeSide(player, campaign, story, "sq_first_chip");
+        if (campaign.getObjective("ballistics_shots") >= 5) anyDone |= completeSide(player, campaign, story, "sq_ballistics_fun");
         if (campaign.getObjective("villager_trade") >= 1 || campaign.getObjective("catalog_buys") >= 2) anyDone |= completeSide(player, campaign, story, "sq_merchant_shady");
         if (account.getSoldAssetCount() >= 3 || computeTotalMutilationFraction(account) >= 0.30) anyDone |= completeSide(player, campaign, story, "sq_broken_asset");
-        if (campaign.getObjective("nether_visited") >= 1 || campaign.getObjective("lava_tanning_sec") >= 10) anyDone |= completeSide(player, campaign, story, "sq_nether_spa");
-        if (countClaimedContracts(account, campaign) >= 2 && (hasAnyBuyback(account) || !account.getActiveLeases().isEmpty() || campaign.getObjective("buybacks_or_leases") >= 1)) {
+        if (campaign.getObjective("collectors_defeated") >= 1 || campaign.getObjective("hostile_kills") >= 3 || campaign.getObjective("allay_caught") >= 1) {
+            anyDone |= completeSide(player, campaign, story, "sq_collector_hunter");
+        }
+        if (countClaimedContracts(account, campaign) >= 2) {
             anyDone |= completeSide(player, campaign, story, "sq_red_tape");
         }
         return anyDone;
@@ -342,6 +403,7 @@ public class StoryManager {
     }
 
     private static void checkUnexpectedSituations(ServerPlayer player, PlayerMarketAccount account, long gameTick) {
+        if (account == null || account.isPermanentImpaired() || account.isMarketCardBlocked() || account.isAccountClosed()) return;
         StoryProgress story = account.getStoryProgress();
         if (gameTick - story.getLastEventTick() < 12000L) return; // Cooldown between dynamic letters
 
@@ -519,13 +581,13 @@ public class StoryManager {
                         "stage6_final_settlement",
                         gameTick,
                         SENDER_LEDGER,
-                        "FINAL SETTLEMENT — LAST PAYMENT OFFER",
+                        "ФИНАЛЬНЫЙ РАСЧЁТ — ПОСЛЕДНЯЯ ВЫПЛАТА",
                         "Уважаемый участник Программы Активов!\n\n"
-                                + "Совет Директоров утвердил резолюцию об окончательном расчёте (FINAL SETTLEMENT).\n"
+                                + "Совет Директоров утвердил резолюцию об окончательном расчёте.\n"
                                 + "Вам предлагается колоссальная финальная выплата в размере +1 000 000 CR на ваш личный счёт.\n\n"
-                                + "Для завершения сотрудничества и получения средств откройте раздел «ПРОГРАММА» и подтвердите соглашение ACCEPT FINAL SETTLEMENT.\n\n"
+                                + "Для завершения сотрудничества и получения средств откройте раздел «ПРОГРАММА» и подтвердите соглашение «ПОДПИСАТЬ ФИНАЛЬНЫЙ РАСЧЁТ».\n\n"
                                 + "Внимание: по Статье 17.4 вступают в силу постоянные ограничения контракта.\n\n"
-                                + "Mr. Ledger // Account Manager.",
+                                + "Mr. Ledger // Отдел счетов.",
                         false,
                         "DIAMOND",
                         5L,
@@ -541,6 +603,10 @@ public class StoryManager {
     }
 
     public static void onTerminalTabOpened(ServerPlayer player, PlayerMarketAccount account, String tabName) {
+        if (player.level().getServer() != null) {
+            var campaign = MarketSavedData.get(player.level().getServer()).getCampaignData();
+            if (isProgramTerminated(campaign, account)) return;
+        }
         StoryProgress story = account.getStoryProgress();
         boolean changed = false;
 
@@ -771,6 +837,9 @@ public class StoryManager {
     }
 
     public static boolean claimTaskReward(ServerPlayer player, PlayerMarketAccount account, int stage, String taskId, long gameTick) {
+        if (player.level().getServer() != null && isProgramTerminated(MarketSavedData.get(player.level().getServer()).getCampaignData(), account)) {
+            return false;
+        }
         StoryProgress story = account.getStoryProgress();
         for (StoryQuests.StageTask task : StoryQuests.getTasksForStage(stage)) {
             if (task.id().equals(taskId)) {
@@ -796,6 +865,9 @@ public class StoryManager {
     }
 
     public static boolean claimSideQuestReward(ServerPlayer player, PlayerMarketAccount account, String questId, long gameTick) {
+        if (player.level().getServer() != null && isProgramTerminated(MarketSavedData.get(player.level().getServer()).getCampaignData(), account)) {
+            return false;
+        }
         StoryProgress story = account.getStoryProgress();
         for (StoryQuests.SideQuest sq : StoryQuests.SIDE_QUESTS) {
             if (sq.id().equals(questId)) {
@@ -821,6 +893,9 @@ public class StoryManager {
     }
 
     public static boolean claimMailReward(ServerPlayer player, PlayerMarketAccount account, String mailId, long gameTick) {
+        if (player.level().getServer() != null && isProgramTerminated(MarketSavedData.get(player.level().getServer()).getCampaignData(), account)) {
+            return false;
+        }
         StoryProgress story = account.getStoryProgress();
         MailMessage claimed = story.claimMailReward(mailId);
         if (claimed != null) {

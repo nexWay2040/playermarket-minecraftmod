@@ -62,7 +62,7 @@ public class PlayerMarketClient implements ClientModInitializer {
             Minecraft client = Minecraft.getInstance();
             if (client.player == player && client.gui != null) {
                 if (ClientMarketState.getAccount().isMarketCardBlocked() || ClientMarketState.getAccount().isAccountClosed()) {
-                    client.player.sendOverlayMessage(Component.literal("§cACCESS REVOKED."));
+                    client.player.sendOverlayMessage(Component.translatable("message.playermarket.access_revoked_overlay"));
                     client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.ITEM_BREAK.value(), 1.0f));
                     return;
                 }
@@ -106,7 +106,7 @@ public class PlayerMarketClient implements ClientModInitializer {
             while (openMarketKey.consumeClick()) {
                 if (client.player != null && client.gui != null && client.gui.screen() == null) {
                     if (ClientMarketState.getAccount().isMarketCardBlocked() || ClientMarketState.getAccount().isAccountClosed()) {
-                        client.player.sendOverlayMessage(Component.literal("§cACCESS REVOKED."));
+                        client.player.sendOverlayMessage(Component.translatable("message.playermarket.access_revoked_overlay"));
                         client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.ITEM_BREAK.value(), 1.0f));
                         continue;
                     }

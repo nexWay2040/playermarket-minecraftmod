@@ -80,6 +80,9 @@ public class MarketMainScreen extends Screen {
 
     private int scrollOffset = 0;
     private int maxScroll = 0;
+    private int mailBodyScroll = 0;
+    private int mailBodyMaxScroll = 0;
+    private int lastReaderLeft = Integer.MAX_VALUE;
 
     public record NewsArticle(
             String id,
@@ -95,6 +98,174 @@ public class MarketMainScreen extends Screen {
 
     private static final List<NewsArticle> NEWS_ARTICLES = List.of(
             new NewsArticle(
+                    "leafxup_upgrader_mandate",
+                    "BREAKING",
+                    "ДИРЕКТИВА 50/50",
+                    "УКАЗ №404: АПГРЕЙДЕР И РУЛЕТКА ОБЯЗАТЕЛЬНЫ",
+                    "Лификсап-вестник #1",
+                    "Попытка выжить без «казика» 50/50 и рулетки признана нарушением корпоративной культуры.",
+                    List.of(
+                            "Объединённый департамент развлечений постановил: без регулярных ставок 50/50 игровой день считается прожитым зря. Разрешено закладывать не только здоровье, но и последний булыжник.",
+                            "Внимание: при сливе баланса в ноль система всё ещё присылает утешительную субсидию от Mr. Ledger (но второй раз на ту же удочку лучше не попадаться)."
+                    ),
+                    "§dСОВЕТ КАЗИНО: §fВкладка «ОБЗОР -> РУЛЕТКА 50/50» открыта всегда — даже до Этапа 2!",
+                    0xFFC084FC
+            ),
+            new NewsArticle(
+                    "leafxup_owl_bear_audit",
+                    "CORP",
+                    "СВОДКА ЛИФИКСАПА",
+                    "СИНДИКАТ СОВЫ И МЕДВЕДЯ ОФОРМИЛ МИКРОЗАЙМ",
+                    "Лификсап-вестник #2",
+                    "Главные испытатели сектора заложили полверстака ради шанса x5. Никто не жалеет.",
+                    List.of(
+                            "Служба микрозаймов подтвердила: теперь алмазный кредит выдаётся под честное слово зелёной Совы и справку о харизме от Медведя.",
+                            "Отдельное достижение дня — правильно прочитать ник «Ли-фикс-ап» с первого раза без споров в чате. Нарушителям грозит принудительная зарядка 8x Shift."
+                    ),
+                    "§eЗАМЕТКА: §fПеревести CR тиммейту, когда он всё проиграл в рулетку, можно командой /market pay <ник> <сумма>!",
+                    0xFFFBBF24
+            ),
+            new NewsArticle(
+                    "leafxup_korol_edict",
+                    "BREAKING",
+                    "УКАЗ /KOROL",
+                    "НОВАЯ ДИРЕКТИВА: СВИНКА-КОПИЛКА И КУРЬЕРЫ",
+                    "Лификсап-вестник #3",
+                    "Надоело стоять 5 сек у мобов? Теперь в мир летят свинки-копилки, радужные пиньяты и посылки!",
+                    List.of(
+                            "Совет Директоров отменил скучные замеры дистанции до криперов и стояние в лаве! Вместо них прямо в мир регулярно десантируются интерактивные курьеры и овцы jeb_.",
+                            "А ещё где-то бродит голодный Инспектор, который закрывает глаза на любую недостачу за один кусочек хлеба или яблочко."
+                    ),
+                    "§aСОВЕТ: §fПоймать Свинку, Курьера или Аллея можно и правым кликом (ПКМ), и лёгким шлепком!",
+                    0xFF10B981
+            ),
+            new NewsArticle(
+                    "leafxup_patch_note",
+                    "DARK",
+                    "ПАТЧНОУТ 1.1",
+                    "РЕЛИЗ LEAFXUP EDITION: МОГУТ БЫТЬ СЮРПРИЗЫ",
+                    "Лификсап-вестник #4",
+                    "«Там могут быть весёлые баги и сбегающий верстак — зато точно реклама нашей общей тупости».",
+                    List.of(
+                            "Техподдержка выпустила экстренное обновление терминала: каждые ~80 секунд на весь сервер включается общая Директива Хаоса (мини-рост, батутный пол, гигантизм или рейд коллектора).",
+                            "Даже если на секунду показалось, что всё под контролем — подождите полторы минуты."
+                    ),
+                    "§bКОМАНДА: §f/market chaos list и /market chaos trigger позволяют устроить корпоративный беспредел вручную.",
+                    0xFF38BDF8
+            ),
+            new NewsArticle(
+                    "humor_creeper_window",
+                    "DARK",
+                    "ЧЁРНЫЙ ЮМОР",
+                    "КРИПЕР У СУНДУКА ПРИЗНАН «ПАНОРАМНЫМ ОСТЕКЛЕНИЕМ»",
+                    "Мир // ЖКХ",
+                    "Неожиданный взрыв на базе оформлен как срочная перепланировка и тимбилдинг.",
+                    List.of(
+                            "Страховая комиссия отказала в компенсации за взорванный склад: согласно договору, визит зелёного специалиста считается бесплатным улучшением вентиляции вашего дома.",
+                            "Выжившая кровать и два блока земли повышены в статусе до «лофт-интерьера»."
+                    ),
+                    "§7ПРИМЕЧАНИЕ: §fКорпорация не страхует сундуки от любви криперов к объятиям.",
+                    0xFFEF4444
+            ),
+            new NewsArticle(
+                    "humor_villager_bread",
+                    "CORP",
+                    "НОВОСТИ ДЕРЕВНИ",
+                    "ЖИТЕЛИ УТВЕРДИЛИ ИПОТЕКУ НА БУХАНКУ ХЛЕБА",
+                    "Мир // Экономика",
+                    "За 14 изумрудов фермер выдаёт один батон и сочувственное «Хмм».",
+                    List.of(
+                            "Местная деревенская биржа ввела антикризисный курс выпечки. Ипотека на грядку пшеницы выдаётся сроком на 300 игровых дней под залог вашей мотыги.",
+                            "Впрочем, корпоративные Инспекторы до сих пор берут взятки обычной булкой с картошкой — пользуйтесь, пока они не узнали курс деревни."
+                    ),
+                    "§aЛАЙФХАК: §fУгостите заезжего Инспектора любой едой через ПКМ — он тут же выдаст 3 алмаза и CR!",
+                    0xFF10B981
+            ),
+            new NewsArticle(
+                    "humor_nether_vacation",
+                    "DARK",
+                    "КОРП. ТУРИЗМ",
+                    "ГОРЯЩАЯ ПУТЁВКА В НЕЗЕР: БИЛЕТ В ОДИН КОНЕЦ",
+                    "Мир // Отдых",
+                    "В тариф «Эконом» включены лавовое джакузи и бодрящий кросс от гастов.",
+                    List.of(
+                            "Отдел заботы о сотрудниках разыгрывает бесплатные туры в Багровый лес. Обещаны незабываемые впечатления, тепло и полное отсутствие назойливых звонков менеджера.",
+                            "Зелье огнестойкости, элитры и обратный портал приобретаются туристом отдельно по коммерческому курсу."
+                    ),
+                    "§eСОВЕТ: §fПеред входом в портал лучше оставить лишние алмазы дома — гасты не принимают возврат.",
+                    0xFFF59E0B
+            ),
+            new NewsArticle(
+                    "humor_golem_hr",
+                    "DARK",
+                    "ОХРАНА ТРУДА",
+                    "ЖЕЛЕЗНЫЙ ГОЛЕМ ПОЛУЧИЛ ПРЕМИЮ ЗА ДЕЭСКАЛАЦИЮ",
+                    "Мир // Кадры",
+                    "После случайного мисклика по библиотекарю сотрудник охраны отправил нарушителя на орбиту.",
+                    List.of(
+                            "Начальник службы безопасности деревни продемонстрировал эталонную скорость урегулирования споров: конфликт с торговцем был исчерпан за 0.4 секунды на высоте 12 метров.",
+                            "Деревенский профсоюз вручил голему красный мак за преданность профессии."
+                    ),
+                    "§7ТБ: §fВыбирайте пустую руку перед диалогом с жителями — железный юрист не принимает извинения.",
+                    0xFF94A3B8
+            ),
+            new NewsArticle(
+                    "humor_mining_safety",
+                    "DARK",
+                    "ТЕХНИКА БЕЗОПАСНОСТИ",
+                    "ИНСТРУКЦИЯ ДЛЯ ШАХТЁРОВ СОКРАЩЕНА ДО 1 СТРОКИ",
+                    "Мир // Шахты",
+                    "«Если копаете строго под себя — снимите казённую алмазную броню».",
+                    List.of(
+                            "Юридический отдел упростил 400-страничный устав горнодобычи, потому что сотрудники всё равно читают только первую строчку.",
+                            "Освещение глубоких пещер факелами также признано избыточной роскошью: звуки в темноте отлично повышают скорость добычи руды."
+                    ),
+                    "§bСОВЕТ: §fУлучшение «Сканер руд» в Магазине подсвечивает алмазы и обломки сквозь камень!",
+                    0xFF38BDF8
+            ),
+            new NewsArticle(
+                    "humor_enderman_wall",
+                    "DARK",
+                    "ПРОИСШЕСТВИЯ",
+                    "ЭНДЕРМЕН УНЁС НЕСУЩУЮ СТЕНУ СТОЛОВОЙ",
+                    "Мир // Логистика",
+                    "Администрация просит не смотреть новому грузчику в глаза во время перерыва.",
+                    List.of(
+                            "Высококвалифицированный грузчик без объяснения причин демонтировал три блока дёрна и исчез с корпоративным ланчем.",
+                            "HR просит уважать личные границы сотрудника и носить тыкву на голове при обсуждении квартальных планов."
+                    ),
+                    "§dПОДСКАЗКА: §fУбейте пару эндерменов и сдайте жемчуг в разделе «РЕСУРСЫ» по выгодному курсу!",
+                    0xFFC084FC
+            ),
+            new NewsArticle(
+                    "humor_phantom_overtime",
+                    "DARK",
+                    "ТАЙМ-МЕНЕДЖМЕНТ",
+                    "ФАНТОМЫ ВЫШЛИ НА НОЧНОЙ КОНТРОЛЬ ВЫГОРАНИЯ",
+                    "Мир // HR",
+                    "Не спали три ночи ради плана? Небесный HR сам прилетит напомнить про кровать.",
+                    List.of(
+                            "Если оператор игнорирует режим отдыха, синие супервайзеры спускаются прямо с ночного неба для мягкой профилактической беседы.",
+                            "Статистика показывает: 9 из 10 трудоголиков ложатся спать сразу после третьего пике сверху."
+                    ),
+                    "§7СОВЕТ: §fВ коопе достаточно поспать всем одновременно — супервайзеры исчезнут на рассвете.",
+                    0xFF60A5FA
+            ),
+            new NewsArticle(
+                    "humor_end_resignation",
+                    "DARK",
+                    "АРХИВ ЭНДА",
+                    "ПАДЕНИЕ В БЕЗДНУ ЗАСЧИТАНО КАК ОТПУСК",
+                    "Мир // Архив",
+                    "Весь инвентарь перенесён в бесконечное облачное хранилище корпорации.",
+                    List.of(
+                            "Руководство поздравляет с переходом в безлимитный отпуск за пределами карты! Ваши алмазы надёжно заархивированы на уровне Y = -65.",
+                            "Застрявший в левой руке тотем бессмертия передал искреннее сочувствие и попрощался."
+                    ),
+                    "§cНАПОМИНАНИЕ: §fПри смерти карты биржи обнуляются — но баланс CR в банке сохраняется!",
+                    0xFFEF4444
+            ),
+            new NewsArticle(
                     "biomech_expansion",
                     "CORP",
                     "БИОИНЖЕНЕРИЯ",
@@ -103,100 +274,51 @@ public class MarketMainScreen extends Screen {
                     "Фармацевтический конгломерат зафиксировал рекордные цены выкупа HP и скорости.",
                     List.of(
                             "Трансконтинентальный холдинг BioMech Corp опубликовал срочный запрос на закупку биоматериалов и нейронных связей для колониальных экспедиций.",
-                            "В связи с критическим дефицитом доноров биржа установила максимальные коэффициенты выплат за продажу базового запаса здоровья (HP) и скорости передвижения.",
-                            "Аналитики рекомендуют обратить внимание на временный лизинг: корпорация гарантирует повышенный процент дивидендов (+35 CR/мин) и 100% возврат всех характеристик по истечении контракта без затрат алмазов."
+                            "Аналитики рекомендуют временный лизинг: корпорация гарантирует повышенный процент дивидендов (+35 CR/мин) и 100% возврат характеристик по истечении контракта без затрат алмазов."
                     ),
-                    "§aСОВЕТ ИНВЕСТОРУ: §fЛизинг здоровья на 1-5 дней даёт быстрый капитал и пассивный доход без риска навсегда лишиться HP.",
+                    "§aСОВЕТ ИНВЕСТОРУ: §fЛизинг здоровья на 1-5 дней даёт быстрый капитал без риска навсегда лишиться HP.",
                     0xFF10B981
             ),
             new NewsArticle(
                     "diamond_syndicate",
                     "CORP",
                     "СИНДИКАТ АЛМАЗОВ",
-                    "АЛМАЗНЫЙ КАРТЕЛЬ УЖЕСТОЧАЕТ ТРЕБОВАНИЯ",
+                    "АЛМАЗНЫЙ КАРТЕЛЬ ОБНОВИЛ ПРИВИЛЕГИИ VIP",
                     "Сводка #105",
-                    "Стоимость VIP-статуса и продвинутых приводов увеличена из-за дефицита углерода.",
+                    "Каждый уровень VIP-клиента повышает дневной лимит обмена алмазов и даёт скидки.",
                     List.of(
-                            "Синдикат добычи алмазов глубокого залегания сообщил об истощении верхних пластов в секторе 7. Все технологические аугментации строго стандартизированы.",
-                            "Для установки постоянных улучшений (VIP-клиент, Усиленный скелет, Кинетический амортизатор) принимаются только натуральные алмазы Minecraft.",
-                            "VIP-статус открывает прямой доступ к 50% скидке на обратный выкуп проданных характеристик и повышает доход от дивидендов на 15-50%."
+                            "Для установки постоянных улучшений (VIP-клиент, Усиленный скелет, Сканер руд) принимаются натуральные алмазы Minecraft (включая полученные из Upgrader).",
+                            "VIP-статус открывает Чёрный Рынок уже с 1-го уровня, снижает цены на чипы на 10-20% и поднимает доход с дивидендов на 15-50%."
                     ),
-                    "§bСОВЕТ ИНВЕСТОРУ: §fНе продавайте природные алмазы за бесценок. Инвестируйте их в VIP-статус и Премиум для максимальной выгоды.",
+                    "§bСОВЕТ ИНВЕСТОРУ: §fЛовите Свинок-Копилок, Пиньят и Курьеров — каждый приносит по 2-3 алмаза!",
                     0xFF38BDF8
-            ),
-            new NewsArticle(
-                    "wealth_tax_enforcement",
-                    "CORP",
-                    "ФИНАНСОВЫЙ НАДЗОР",
-                    "ДЕПАРТАМЕНТ ЮСТИЦИИ: НАЛОГ НА БОГАТСТВО",
-                    "Сводка #106",
-                    "Все просроченные корпоративные контракты облагаются прогрессивным штрафом и налогами.",
-                    List.of(
-                            "Юридический департамент биржи утвердил антикризисный регламент контроля контрактов. Отныне за срыв дедлайна (1-5 дней) взимается не только базовый штраф.",
-                            "Для предотвращения накопления мёртвой ликвидности введен прогрессивный 'Налог на богатство': с нарушителя списывается 5% от текущего баланса CR.",
-                            "Дополнительно на оператора накладываются временные санкции: эффекты Слабости и Замедления на 30 секунд при срыве обязательств."
-                    ),
-                    "§cПРЕДУПРЕЖДЕНИЕ: §fСледите за дедлайнами на доске контрактов! Если на счёте крупная сумма CR, просрочка обойдётся очень дорого.",
-                    0xFFEF4444
-            ),
-            new NewsArticle(
-                    "shadow_protocol",
-                    "DARK",
-                    "ЧЁРНЫЙ РЫНОК",
-                    "ТЁМНЫЙ СЕКТОР: ПРОТОКОЛ «ВТОРОЙ ШАНС»",
-                    "Сводка #107",
-                    "По неподтверждённым данным, брокеры получили доступ к закрытой бирже военных чипов.",
-                    List.of(
-                            "Анонимные источники в подпольной сети даркнета сообщают о продаже военных имплантов экстренной реанимации.",
-                            "Чип «Второй Шанс» активируется при получении смертельного урона, предотвращая гибель оператора, снимая все негативные эффекты и даруя щит поглощения.",
-                            "В отличие от официального магазина, сделки на чёрном рынке осуществляются без лицензий и облагаются рисковыми надбавками."
-                    ),
-                    "§dСОВЕТ ИНВЕСТОРУ: §fИспользуйте «Второй Шанс» перед опасными рейдами в Незер или битвой с боссами.",
-                    0xFFC084FC
             ),
             new NewsArticle(
                     "dark_berserker",
                     "DARK",
                     "ЧЁРНЫЙ РЫНОК",
-                    "ШТУРМОВОЙ ЧИП «БЕРСЕРК»: ВОЕННЫЙ ДОПИНГ",
+                    "ПРОТОКОЛЫ ТЁМНОГО СЕКТОРА: «БЕРСЕРК» И «ВТОРОЙ ШАНС»",
                     "Сводка #108",
-                    "На подпольных аукционах появился военный чип мгновенного усиления атаки и скорости.",
+                    "Подпольные чипы мгновенной реанимации и боевого разгона доступны уже с 2-го этапа!",
                     List.of(
-                            "Протокол «Берсерк» изначально разрабатывался для элитных штурмовых отрядов корпоративной безопасности.",
-                            "При активации на 60 секунд оператор получает +35% к урону и скорости передвижения, жертвуя защитой.",
-                            "Чёрный Рынок открывается автоматически при достижении Этапа 4 Программы, покупке VIP III или совершении 12 любых сделок на бирже."
+                            "Чёрный Рынок автоматически снимает замок при достижении Этапа 2, покупке VIP I, 3 сделках на бирже (даже в Рулетку!) или выполнении 6 заданий Программы.",
+                            "Внутри вы найдёте «Второй Шанс» (спасение от смерти), «Берсерк» (+40% урона) и «Золотой Контракт» (x2 выплата за следующую сделку)."
                     ),
-                    "§dСОВЕТ: §fИспользуйте «Берсерк» для быстрого уничтожения элитных мобов и зачистки опасных подземелий.",
+                    "§dСОВЕТ: §fКрутаните Рулетку 3 раза по 150 CR — и доступ к нелегальным чипам откроется мгновенно!",
                     0xFFC084FC
-            ),
-            new NewsArticle(
-                    "market_investigation",
-                    "CORP",
-                    "РАССЛЕДОВАНИЕ",
-                    "КУДА ИСЧЕЗАЮТ ПРОДАННЫЕ ОРГАНЫ И СТАТЫ?",
-                    "Сводка #109",
-                    "Журналисты выяснили, что купленные у игроков характеристики упаковываются для колониальных батальонов.",
-                    List.of(
-                            "Независимый аудит подтвердил: выкупленные биологические данные упаковываются в нейро-капсулы и отправляются в закрытые военные лаборатории.",
-                            "Корпорация отказывается комментировать слухи, заявляя, что 'любая сделка добровольна, а дивиденды выплачиваются строго в срок'.",
-                            "Аналитики советуют трейдерам не продавать здоровье ниже 25%, чтобы избежать необратимой корпоративной зависимости."
-                    ),
-                    "§6ПРЕДУПРЕЖДЕНИЕ: §fСохраняйте баланс тела! Не продавайте статы ниже критического порога 20-25%.",
-                    0xFFF59E0B
             ),
             new NewsArticle(
                     "resource_boom",
                     "CORP",
                     "ТОВАРНЫЙ РЫНОК",
-                    "ГОРНОРУДНЫЙ БУМ: ВСПЛЕСК СПРОСА НА РУДУ",
+                    "ПЕРЕОЦЕНКА НЕЗЕРИТА И ЭКИПИРОВКИ В РЕСУРСАХ",
                     "Сводка #110",
-                    "Металлургические комбинаты подняли закупочные цены на руду, уголь и редстоун.",
+                    "Незеритовые вещи и редкие артефакты теперь оцениваются в тысячи CR без багов крафта.",
                     List.of(
-                            "Тяжёлая промышленность объявила о масштабной закупке меди, железа, угля и редстоуна для расширения производственных линий.",
-                            "Операторы терминала могут мгновенно конвертировать добытые в шахтах ресурсы в ликвидные CR через раздел «РЕСУРСЫ».",
-                            "Оптом сдавать сырьё выгоднее: специальная кнопка «Оптом всё» позволяет очистить инвентарь в один клик с начислением бонусов."
+                            "Тяжёлая промышленность обновила формулы оценки: мечи, броня, незерит, тотемы и трезубцы больше не оцениваются в копейки.",
+                            "Специальная кнопка «Оптом всё» во вкладке «РЕСУРСЫ» позволяет продать лишний лут в один клик."
                     ),
-                    "§eСОВЕТ ИНВЕСТОРУ: §fПеред продажей биологических характеристик проверьте инвентарь — сырьё приносит нужный объём CR без ослабления тела.",
+                    "§eСОВЕТ ИНВЕСТОРУ: §fНенужную броню мобов или лишнюю руду всегда можно сдать в «РЕСУРСЫ» за CR.",
                     0xFFF59E0B
             ),
             new NewsArticle(
@@ -208,10 +330,9 @@ public class MarketMainScreen extends Screen {
                     "Корпоративные аудиторы разъясняют разницу между продажей навсегда и лизингом.",
                     List.of(
                             "В отличие от безвозвратной продажи, лизинг на 1, 3 или 5 игровых дней является финансовым вкладом (депозитом).",
-                            "При оформлении лизинга вы получаете немедленный аванс CR, а также ежеминутные процентные выплаты на весь срок аренды (+35 CR/мин).",
-                            "Главное преимущество: при истечении срока контракт закрывается АВТОМАТИЧЕСКИ, и 100% характеристики возвращаются вам абсолютно бесплатно!"
+                            "При оформлении лизинга вы получаете немедленный аванс CR и +35 CR/мин процентов. По истечении срока 100% стата возвращается бесплатно!"
                     ),
-                    "§2СОВЕТ ИНВЕСТОРУ: §fЛизинг — идеальный способ получать постоянный пассивный доход без затрат алмазов на выкуп.",
+                    "§2СОВЕТ ИНВЕСТОРУ: §fЛизинг — лучший способ заработать стартовые CR без траты алмазов на выкуп.",
                     0xFF14B8A6
             ),
             new NewsArticle(
@@ -223,27 +344,23 @@ public class MarketMainScreen extends Screen {
                     "Полный разбор действий трейдера при возникновении рыночной паники и краха котировок.",
                     List.of(
                             "Когда наступает «Паника на бирже» или «Крах рынка», котировки продаж падают до -35%, а выкуп дорожает.",
-                            "Главное правило кризиса — НИЧЕГО НЕ ПРОДАВАТЬ и НЕ ВЫКУПАТЬ в этот период!",
-                            "Вместо этого открывайте вкладку «КОНТРАКТЫ»: награды за корпоративные задания в кризис возрастают на 35-60% CR!",
-                            "Выполняйте квоты на руду и мобов, чтобы заработать сверхприбыль, пока рынок лихорадит."
+                            "Главное правило кризиса — НИЧЕГО НЕ ПРОДАВАТЬ в минус! Открывайте вкладку «КОНТРАКТЫ»: награды за задания в кризис взлетают на +35%..+60% CR!"
                     ),
-                    "§aЗОЛОТОЕ ПРАВИЛО: §fВ кризис игнорируйте продажу статов — зарабатывайте на сверхвыплатах по контрактам!",
+                    "§aЗОЛОТОЕ ПРАВИЛО: §fВ кризис зарабатывайте на контрактах, курьерах и Свинках-Копилках!",
                     0xFF34D399
             ),
             new NewsArticle(
                     "diamond_earning_guide",
                     "GUIDES",
                     "РУКОВОДСТВО",
-                    "ДОБЫЧА АЛМАЗОВ БЕЗ ШАХТ: КОНТРАКТНЫЙ БИЗНЕС",
+                    "ГДЕ БРАТЬ АЛМАЗЫ БЕЗ СКУЧНОЙ ШАХТЫ?",
                     "Инструкция #3",
-                    "Где брать алмазы для покупки модификаций в магазине? Подробная сводка для новичков.",
+                    "Контракты, задания Программы, Рулетка, Курьеры и Инспекторы — полный гайд.",
                     List.of(
-                            "Улучшения в Магазине требуют алмазы. Если вам не хочется часами копать недра, используйте доску контрактов.",
-                            "Каждый корпоративный заказ теперь вознаграждает оператора не только крупной суммой CR, но и 10–30 настоящими алмазами!",
-                            "Также от 5 до 30 алмазов выплачивается за завершение сюжетных этапов во вкладке «ПРОГРАММА».",
-                            "Инвестируйте полученные алмазы в VIP-статус и Премиум-аккаунт, чтобы навсегда снизить комиссии биржи."
+                            "1) Выполняйте контракты в [M] -> КОНТРАКТЫ (по 10–20 ♦ каждый). 2) Ловите Свинок-Копилок, Пиньят, Курьеров и кормите Инспекторов (по 2–3 ♦!).",
+                            "3) Выбивайте x5 джекпот в Рулетке 50/50 или перерабатывайте хлам в алмазы через установленный комплекс Upgrader Items!"
                     ),
-                    "§bСОВЕТ: §fБерите по 2-3 контракта одновременно — это приносит до 60 алмазов за один игровой цикл!",
+                    "§bСОВЕТ: §fИдеальное комбо: берите 3 контракта сразу и ловите каждого Курьера с неба!",
                     0xFF38BDF8
             )
     );
@@ -284,6 +401,8 @@ public class MarketMainScreen extends Screen {
     protected void init() {
         super.init();
         scrollOffset = 0;
+        mailBodyScroll = 0;
+        mailBodyMaxScroll = 0;
         selectedNewsArticle = null;
         section17ModalOpen = false;
         hoveredBioZone = null;
@@ -299,6 +418,10 @@ public class MarketMainScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         if (isModalOpen()) return true;
+        if (activeTab == Tab.MAIL && mouseX >= lastReaderLeft && mailBodyMaxScroll > 0) {
+            mailBodyScroll = Math.clamp(mailBodyScroll - (int) (verticalAmount * 20), 0, mailBodyMaxScroll);
+            return true;
+        }
         if (maxScroll > 0) {
             scrollOffset = Math.clamp(scrollOffset - (int) (verticalAmount * 28), 0, maxScroll);
             return true;
@@ -414,12 +537,18 @@ public class MarketMainScreen extends Screen {
         registerClick(left, footerTop, left + guiWidth, footerTop + footerHeight, () -> {}, null);
 
         PlayerMarketAccount account = ClientMarketState.getAccount();
+        var campaign = ClientMarketState.getSharedCampaign();
+        if (account.isMarketCardBlocked() || account.isAccountClosed() || account.isPermanentImpaired()
+                || campaign.isEndingStarted() || "SETTLED".equals(campaign.getEndingState())) {
+            this.onClose();
+            return;
+        }
         MarketEvent event = ClientMarketState.getActiveEvent();
         int diamonds = (minecraft != null && minecraft.player != null)
                 ? MarketAttributeApplier.countVanillaDiamonds(minecraft.player.getInventory()) : 0;
 
         // 4. Header Bar Content
-        String headerTitle = "§a§lPLAYER MARKET §8// §fФИНАНСОВЫЙ ТЕРМИНАЛ §8[§7v2.0§8]";
+        String headerTitle = "§a§lPLAYER MARKET §8// §e§lLEAFXUP EDITION §8[§7v1.1§8]";
         graphics.text(font, headerTitle, left + 10, top + 10, 0xFFE2E8F0, false);
 
         // Right-aligned Currency Badge with crisp 10x10 CR & Diamond icons + live cycle countdown
@@ -491,9 +620,6 @@ public class MarketMainScreen extends Screen {
                 if (unread > 0) {
                     tabText += " §c(" + unread + ")";
                 }
-            } else if (isLockedBlackMarket) {
-                tabText = "§8" + t.getTitle();
-                textColor = 0xFF64748B;
             }
             int textMaxW = isLockedBlackMarket ? (sidebarWidth - 38) : (sidebarWidth - 26);
             drawClampedText(graphics, tabText, left + 22, ty + (tabHeight - 8) / 2, textMaxW, textColor, false);
@@ -505,13 +631,14 @@ public class MarketMainScreen extends Screen {
             registerClick(left + 2, ty, left + sidebarWidth, ty + tabHeight, () -> {
                 activeTab = clickedTab;
                 scrollOffset = 0;
+                mailBodyScroll = 0;
                 sendMarketAction("TAB_OPENED", clickedTab.name(), "", 0, 0.0);
-            }, null);
+            }, isLockedBlackMarket ? "Рулетка уже открыта! Нелегальные чипы откроются с Этапа 2 / 3 сделок" : null);
         }
 
         // 6. Footer Content
         // Sidebar footer column
-        graphics.text(font, "§8PM // v2.0", left + 8, footerTop + 6, 0xFF475569, false);
+        graphics.text(font, "§8PM // LX-1.1", left + 8, footerTop + 6, 0xFF475569, false);
 
         // Footer main status starts to the right of the sidebar (left + sidebarWidth + 8)
         String eventBadge = "§6[ " + event.getHeadline() + " ]";
@@ -607,19 +734,54 @@ public class MarketMainScreen extends Screen {
         int vipLvl = account.getUpgradeLevel(UpgradeType.VIP_CLIENT);
         drawClampedText(graphics, "§8VIP: §e" + (vipLvl > 0 ? "Ур. " + vipLvl : "Базовый"), c3Left + 8, top + 38, cardWidth - 16, 0xFF64748B, false);
 
-        // Market Event Banner
+        // Market Event & Synchronized Co-op / Chaos Banner
         int bannerY = top + cardHeight + 6;
         int bannerH = 42;
         drawSprite(graphics, "hud_bg", left, bannerY, width, bannerH, 0xFF141A26);
-        drawClampedText(graphics, "§6§lСВОДКА РЫНКА: §f" + event.getHeadline(), left + 8, bannerY + 5, width - 16, 0xFFFBBF24, false);
-        drawClampedText(graphics, "§7" + event.getDescription(), left + 8, bannerY + 16, width - 16, 0xFF94A3B8, false);
-        String eventMods = String.format(Locale.ROOT, "§8Множители: Тело x%.2f | Движение x%.2f | Ресурсы x%.2f | Выкуп x%.2f",
-                event.getBodyMultiplier(), event.getMovementMultiplier(), event.getResourceBuyMultiplier(), event.getBuybackCostMultiplier());
-        drawClampedText(graphics, eventMods, left + 8, bannerY + 28, width - 16, 0xFF64748B, false);
 
-        // Quick Navigation Buttons
+        long curTick = ClientMarketState.getCurrentGameTick();
+        String chaosId = ClientMarketState.getActiveChaosId();
+        long chaosEnds = ClientMarketState.getActiveChaosEndsTick();
+        var activeChaosOpt = (chaosId != null && !"NONE".equals(chaosId) && chaosEnds > curTick)
+                ? com.playermarket.story.CorporateChaosDirector.ChaosDirective.byId(chaosId)
+                : java.util.Optional.<com.playermarket.story.CorporateChaosDirector.ChaosDirective>empty();
+
+        if (activeChaosOpt.isPresent()) {
+            var cd = activeChaosOpt.get();
+            long remSec = Math.max(0L, (chaosEnds - curTick) / 20L);
+            drawClampedText(graphics, "§c§l⚡ ДИРЕКТИВА ХАОСА: §e" + cd.getTitle() + " §8(" + remSec + "с)",
+                    left + 8, bannerY + 5, width - 16, 0xFFFBBF24, false);
+            drawClampedText(graphics, "§f" + cd.getDescription(), left + 8, bannerY + 16, width - 16, 0xFFE2E8F0, false);
+        } else {
+            drawClampedText(graphics, "§6§lСВОДКА РЫНКА: §f" + event.getHeadline(), left + 8, bannerY + 5, width - 16, 0xFFFBBF24, false);
+            drawClampedText(graphics, "§7" + event.getDescription(), left + 8, bannerY + 16, width - 16, 0xFF94A3B8, false);
+        }
+
+        String coopRaw = ClientMarketState.getCoopSummary();
+        if (coopRaw != null && !coopRaw.isEmpty()) {
+            StringBuilder coopLine = new StringBuilder("§bКООП: ");
+            String[] parts = coopRaw.split("\\|");
+            for (int pi = 0; pi < parts.length; pi++) {
+                String[] fields = parts[pi].split(":");
+                if (fields.length >= 3) {
+                    if (pi > 0) coopLine.append(" §8| ");
+                    coopLine.append("§f").append(fields[0])
+                            .append(" §a").append(fields[1]).append("%")
+                            .append(" §8(§e").append(fields[2]).append(" CR§8)");
+                }
+            }
+            drawClampedText(graphics, coopLine.toString(), left + 8, bannerY + 28, width - 16, 0xFF94A3B8, false);
+        } else {
+            String eventMods = String.format(Locale.ROOT, "§8Множители: Тело x%.2f | Движение x%.2f | Ресурсы x%.2f | Выкуп x%.2f",
+                    event.getBodyMultiplier(), event.getMovementMultiplier(), event.getResourceBuyMultiplier(), event.getBuybackCostMultiplier());
+            drawClampedText(graphics, eventMods, left + 8, bannerY + 28, width - 16, 0xFF64748B, false);
+        }
+
+        // Quick Navigation Buttons (5 compact buttons incl. Roulette Casino!)
         int navY = bannerY + bannerH + 5;
-        int navW = (width - 18) / 4;
+        int navGap = 5;
+        int navW = (width - navGap * 4) / 5;
+        int navLastW = width - (navW + navGap) * 4;
         int navH = 20;
 
         drawButton(graphics, "btn_amber", left, navY, navW, navH, "ПРОГРАММА", mouseX, mouseY, () -> {
@@ -628,19 +790,25 @@ public class MarketMainScreen extends Screen {
             sendMarketAction("TAB_OPENED", "STORY", "", 0, 0.0);
         });
 
-        drawButton(graphics, "btn_green", left + (navW + 6), navY, navW, navH, "ПРОДАЖА", mouseX, mouseY, () -> {
+        drawButton(graphics, "btn_green", left + (navW + navGap), navY, navW, navH, "ПРОДАЖА", mouseX, mouseY, () -> {
             activeTab = Tab.SELL_ASSETS;
             scrollOffset = 0;
             sendMarketAction("TAB_OPENED", "SELL_ASSETS", "", 0, 0.0);
         });
 
-        drawButton(graphics, "btn_blue", left + (navW + 6) * 2, navY, navW, navH, "МАГАЗИН", mouseX, mouseY, () -> {
+        drawButton(graphics, "btn_blue", left + (navW + navGap) * 2, navY, navW, navH, "МАГАЗИН", mouseX, mouseY, () -> {
             activeTab = Tab.UPGRADE_STORE;
             scrollOffset = 0;
             sendMarketAction("TAB_OPENED", "UPGRADE_STORE", "", 0, 0.0);
         });
 
-        drawButton(graphics, "btn_gray", left + (navW + 6) * 3, navY, navW, navH, "ПОЧТА", mouseX, mouseY, () -> {
+        drawButton(graphics, "btn_purple", left + (navW + navGap) * 3, navY, navW, navH, "РУЛЕТКА 50/50", mouseX, mouseY, () -> {
+            activeTab = Tab.BLACK_MARKET;
+            scrollOffset = 0;
+            sendMarketAction("TAB_OPENED", "BLACK_MARKET", "", 0, 0.0);
+        });
+
+        drawButton(graphics, "btn_gray", left + (navW + navGap) * 4, navY, navLastW, navH, "ПОЧТА", mouseX, mouseY, () -> {
             activeTab = Tab.MAIL;
             scrollOffset = 0;
             sendMarketAction("TAB_OPENED", "MAIL", "", 0, 0.0);
@@ -763,7 +931,7 @@ public class MarketMainScreen extends Screen {
             } else {
                 int cardH = 136;
                 drawSprite(graphics, "card_amber", left, cy, width, cardH, 0xFF241A0A);
-                drawClampedText(graphics, "§6§lФИНАНСОВЫЙ ДОГОВОР // ACCOUNT SETTLEMENT", left + 10, cy + 8, width - 20, 0xFFFBBF24, false);
+                drawClampedText(graphics, "§6§lФИНАНСОВЫЙ ДОГОВОР // ОКОНЧАТЕЛЬНЫЙ РАСЧЁТ", left + 10, cy + 8, width - 20, 0xFFFBBF24, false);
                 drawClampedText(graphics, "§fВсе этапы Программы Активов завершены. Корпорация производит окончательный расчёт.", left + 10, cy + 22, width - 20, 0xFFE2E8F0, false);
                 drawClampedText(graphics, "§7Выплата +1 000 000 CR начисляется на счета всех зарегистрированных участников.", left + 10, cy + 34, width - 20, 0xFFCBD5E1, false);
 
@@ -771,7 +939,7 @@ public class MarketMainScreen extends Screen {
                 int bigBtnH = 24;
                 int bigBtnX = left + (width - bigBtnW) / 2;
                 int bigBtnY = cy + 49;
-                drawButton(graphics, "btn_green", bigBtnX, bigBtnY, bigBtnW, bigBtnH, "ACCEPT FINAL SETTLEMENT (+1 000 000 CR)", mouseX, mouseY, () -> {
+                drawButton(graphics, "btn_green", bigBtnX, bigBtnY, bigBtnW, bigBtnH, "ПОДПИСАТЬ ФИНАЛЬНЫЙ РАСЧЁТ (+1 000 000 CR)", mouseX, mouseY, () -> {
                     sendMarketAction("CHOOSE_FINAL_TRANSACTION", "FINAL_SETTLEMENT", "", 0, 0.0);
                     this.onClose();
                 });
@@ -920,6 +1088,7 @@ public class MarketMainScreen extends Screen {
         int listWidth = Math.min(176, Math.max(145, (int) (width * 0.37)));
         int readerLeft = left + listWidth + 6;
         int readerWidth = width - listWidth - 6;
+        lastReaderLeft = readerLeft;
 
         // Auto-select first email if none selected
         if ((selectedMailId == null || selectedMailId.isEmpty()) && !mailbox.isEmpty()) {
@@ -934,15 +1103,18 @@ public class MarketMainScreen extends Screen {
         int listHeight = height - 18;
 
         if (mailbox.isEmpty()) {
+            maxScroll = 0;
             drawClampedCenteredText(graphics, "§8Почтовый ящик пуст.", left + listWidth / 2, listTop + listHeight / 2, listWidth - 16, 0xFF64748B, false);
         } else {
             int itemH = 36;
             int spacing = 38;
+            maxScroll = Math.max(0, mailbox.size() * spacing - listHeight);
             setScissor(graphics, left, listTop, left + listWidth, listTop + listHeight);
 
             for (int i = 0; i < mailbox.size(); i++) {
                 com.playermarket.story.MailMessage msg = mailbox.get(i);
-                int my = listTop + (i * spacing);
+                int my = listTop + (i * spacing) - scrollOffset;
+                if (my + itemH < listTop || my > listTop + listHeight) continue;
                 boolean isSelected = msg.id().equals(selectedMailId);
                 boolean isHovered = (mouseX >= left + 4 && mouseX <= left + listWidth - 4 && mouseY >= my && mouseY < my + itemH);
 
@@ -968,6 +1140,7 @@ public class MarketMainScreen extends Screen {
                 final com.playermarket.story.MailMessage fMsg = msg;
                 registerClick(left + 4, my, left + listWidth - 4, my + itemH, () -> {
                     selectedMailId = fMsg.id();
+                    mailBodyScroll = 0;
                     if (!fMsg.read()) {
                         sendMarketAction("MARK_MAIL_READ", fMsg.id(), "", 0, 0.0);
                     }
@@ -975,6 +1148,7 @@ public class MarketMainScreen extends Screen {
             }
 
             clearScissor(graphics);
+            renderVerticalScrollbar(graphics, left, listTop, listWidth, listHeight, maxScroll, scrollOffset);
         }
 
         // RIGHT COLUMN: Letter Reader
@@ -989,6 +1163,7 @@ public class MarketMainScreen extends Screen {
         }
 
         if (currentMsg == null) {
+            mailBodyMaxScroll = 0;
             drawClampedCenteredText(graphics, "§7Выберите письмо из списка слева для прочтения.",
                     readerLeft + readerWidth / 2, top + height / 2, readerWidth - 20, 0xFF64748B, false);
             return;
@@ -1003,25 +1178,44 @@ public class MarketMainScreen extends Screen {
         drawClampedText(graphics, "§8От: §f" + senderClean, readerLeft + 8, top + 5, readerWidth - 16, 0xFFE2E8F0, false);
         drawClampedText(graphics, "§8Тема: §e§l" + currentMsg.subject(), readerLeft + 8, top + 18, readerWidth - 16, 0xFFFBBF24, false);
 
-        // Letter Body (Split paragraphs and wrap)
-        int bodyY = top + 44;
-        int bodyMaxY = top + height - (currentMsg.rewardType().equals("NONE") ? 10 : 44);
-        int textMaxW = readerWidth - 20;
+        // Letter Body (Split paragraphs, wrap and allow vertical scroll on tall letters / big GUI scale)
+        int bodyTop = top + 42;
+        int bodyMaxY = top + height - (currentMsg.rewardType().equals("NONE") ? 8 : 42);
+        int bodyAvailH = Math.max(20, bodyMaxY - bodyTop);
+        int textMaxW = readerWidth - 22;
 
+        List<String> renderedRows = new ArrayList<>();
         for (String paragraph : currentMsg.body().split("\n")) {
             if (paragraph.trim().isEmpty()) {
-                bodyY += 5;
+                renderedRows.add("");
                 continue;
             }
             List<net.minecraft.network.chat.FormattedText> lines =
                     font.getSplitter().splitLines(Component.literal("§7" + paragraph), textMaxW, net.minecraft.network.chat.Style.EMPTY);
             for (var line : lines) {
-                if (bodyY + 9 <= bodyMaxY) {
-                    graphics.text(font, line.getString(), readerLeft + 10, bodyY, 0xFFCBD5E1, false);
-                    bodyY += 10;
-                }
+                renderedRows.add(line.getString());
             }
-            bodyY += 3;
+        }
+        int totalBodyH = 0;
+        for (String r : renderedRows) totalBodyH += r.isEmpty() ? 6 : 10;
+        mailBodyMaxScroll = Math.max(0, totalBodyH - bodyAvailH);
+        mailBodyScroll = Math.clamp(mailBodyScroll, 0, mailBodyMaxScroll);
+
+        setScissor(graphics, readerLeft + 4, bodyTop, readerLeft + readerWidth - 4, bodyMaxY);
+        int bodyY = bodyTop - mailBodyScroll;
+        for (String r : renderedRows) {
+            if (r.isEmpty()) {
+                bodyY += 6;
+            } else {
+                if (bodyY + 10 >= bodyTop && bodyY <= bodyMaxY) {
+                    graphics.text(font, r, readerLeft + 10, bodyY, 0xFFCBD5E1, false);
+                }
+                bodyY += 10;
+            }
+        }
+        clearScissor(graphics);
+        if (mailBodyMaxScroll > 0) {
+            renderVerticalScrollbar(graphics, readerLeft, bodyTop, readerWidth - 2, bodyAvailH, mailBodyMaxScroll, mailBodyScroll);
         }
 
         // Attachment / Reward Box at the bottom of the letter (multiline, never truncated to "ВЛОЖ...")
@@ -1609,45 +1803,75 @@ public class MarketMainScreen extends Screen {
     }
 
     // ==========================================
-    // TAB: BLACK_MARKET (Clean Multiline Text)
+    // TAB: BLACK_MARKET (Always-open Invest Roulette + Early Contraband Unlock)
     // ==========================================
     private void renderBlackMarket(GuiGraphicsExtractor graphics, PlayerMarketAccount account, MarketEvent event, int playerDiamonds,
                                    int left, int top, int width, int height, int mouseX, int mouseY) {
         long gameTick = ClientMarketState.getCurrentGameTick();
         boolean unlocked = account.isBlackMarketUnlocked();
 
-        if (!unlocked) {
-            drawSprite(graphics, "hud_bg", left, top, width, height, 0xFF140810);
+        // 1. Always-available High-Voltage Invest Roulette ("ОТЫГРАТЬСЯ 50/50!")
+        int casinoH = 66;
+        drawSprite(graphics, "card_amber", left, top, width, casinoH, 0xFF1F1224);
+        drawClampedText(graphics, "§d§lИНВЕСТ-РУЛЕТКА БИРЖИ §8// §eКАЗИНО (50/50 ОТЫГРАТЬСЯ!)",
+                left + 8, top + 5, width - 16, 0xFFFBBF24, false);
+        drawClampedText(graphics, "§7Шансы: §c46% слив §8| §a34% x2 §8| §e15% x3 §8| §65% ДЖЕКПОТ x5 + ♦",
+                left + 8, top + 16, width - 16, 0xFFCBD5E1, false);
 
-            int cardW = Math.min(420, width - 20);
-            int cardH = 145;
+        int rGap = 5;
+        int rBtnW = (width - 16 - rGap * 3) / 4;
+        int rLastW = (width - 16) - (rBtnW + rGap) * 3;
+        int rBtnY = top + 31;
+        int rBtnH = 26;
+
+        boolean can150 = account.getCrBalance() >= 150L;
+        drawButton(graphics, can150 ? "btn_green" : "btn_gray", left + 8, rBtnY, rBtnW, rBtnH,
+                "150 CR (x2..5)", mouseX, mouseY, () -> {
+                    if (can150) sendMarketAction("SPIN_ROULETTE", "CR_150", "", 0, 0.0);
+                });
+
+        boolean can500 = account.getCrBalance() >= 500L;
+        drawButton(graphics, can500 ? "btn_amber" : "btn_gray", left + 8 + (rBtnW + rGap), rBtnY, rBtnW, rBtnH,
+                "500 CR (x2..5)", mouseX, mouseY, () -> {
+                    if (can500) sendMarketAction("SPIN_ROULETTE", "CR_500", "", 0, 0.0);
+                });
+
+        boolean canAllIn = account.getCrBalance() >= 100L;
+        drawButton(graphics, canAllIn ? "btn_red" : "btn_gray", left + 8 + (rBtnW + rGap) * 2, rBtnY, rBtnW, rBtnH,
+                "ВА-БАНК (ВСЁ!)", mouseX, mouseY, () -> {
+                    if (canAllIn) sendMarketAction("SPIN_ROULETTE", "CR_ALL", "", 0, 0.0);
+                });
+
+        boolean canDia = playerDiamonds >= 2;
+        drawButton(graphics, canDia ? "btn_blue" : "btn_gray", left + 8 + (rBtnW + rGap) * 3, rBtnY, rLastW, rBtnH,
+                "РИСК 2 ♦", mouseX, mouseY, () -> {
+                    if (canDia) sendMarketAction("SPIN_ROULETTE", "DIA_2", "", 0, 0.0);
+                });
+
+        int listTop = top + casinoH + 6;
+        int listH = Math.max(40, height - (listTop - top));
+
+        if (!unlocked) {
+            int cardW = Math.min(420, width - 16);
+            int cardH = Math.min(listH - 8, 134);
             int cardX = left + (width - cardW) / 2;
-            int cardY = top + Math.max(10, (height - cardH) / 2);
+            int cardY = listTop + Math.max(4, (listH - cardH) / 2);
 
             drawSprite(graphics, "card_purple", cardX, cardY, cardW, cardH, 0xFF180E24);
 
             graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_BLACKMARKET, cardX + 10, cardY + 7, 0.0f, 0.0f, 12, 12, 16, 16, 16, 16);
-            drawClampedCenteredText(graphics, "§c§lСЕКТОР 7: ЧЁРНЫЙ РЫНОК ЗАБЛОКИРОВАН", cardX + cardW / 2, cardY + 8, cardW - 40, 0xFFEF4444, true);
-            drawClampedCenteredText(graphics, "§7У вас отсутствует допуск службы корпоративной безопасности.", cardX + cardW / 2, cardY + 22, cardW - 16, 0xFFCBD5E1, false);
+            drawClampedCenteredText(graphics, "§c§lСЕКТОР 7: НЕЛЕГАЛЬНЫЕ ЧИПЫ ЗАКРЫТЫ", cardX + cardW / 2, cardY + 8, cardW - 40, 0xFFEF4444, true);
 
             int stage = account.getStoryStage();
             int vip = account.getUpgradeLevel(UpgradeType.VIP_CLIENT);
             int deals = account.getTotalDealsCount();
-
-            drawClampedText(graphics, "§6Условия допуска (выполните любое ОДНО):", cardX + 14, cardY + 40, cardW - 28, 0xFFFBBF24, false);
-
-            String s1 = (stage >= 4 ? "§a✔ " : "§c○ ") + "§f1. Программа Активов: §eЭтап 4+ §7(Текущий: §e" + stage + "/4§7)";
-            drawClampedText(graphics, s1, cardX + 14, cardY + 54, cardW - 28, 0xFFFFFFFF, false);
-
-            String s2 = (vip >= 3 ? "§a✔ " : "§c○ ") + "§f2. VIP-Инвестиции: §bVIP III в Магазине §7(Текущий: §b" + vip + "/3§7)";
-            drawClampedText(graphics, s2, cardX + 14, cardY + 68, cardW - 28, 0xFFFFFFFF, false);
-
             int progTasks = account.getStoryProgress().getTotalCompletedProgramTasks();
-            String s3 = (progTasks >= 12 ? "§a✔ " : "§c○ ") + "§f3. Задания Программы: §a12 любых квестов §7(Выполнено: §a" + progTasks + "/12§7)";
-            drawClampedText(graphics, s3, cardX + 14, cardY + 82, cardW - 28, 0xFFFFFFFF, false);
 
-            drawClampedText(graphics, "§8* Засчитываются любые основные задачи этапов", cardX + 14, cardY + 104, cardW - 28, 0xFF64748B, false);
-            drawClampedText(graphics, "§8  и дополнительные поручения (побочные квесты) во вкладке «ПРОГРАММА».", cardX + 14, cardY + 116, cardW - 28, 0xFF64748B, false);
+            drawClampedText(graphics, "§6Для допуска к нелегальным чипам выполните ЛЮБОЕ ОДНО:", cardX + 14, cardY + 28, cardW - 28, 0xFFFBBF24, false);
+            drawClampedText(graphics, (stage >= 2 ? "§a✔ " : "§c○ ") + "§f1. Этап Программы: §eЭтап 2+ §7(" + stage + "/2)", cardX + 14, cardY + 44, cardW - 28, 0xFFFFFFFF, false);
+            drawClampedText(graphics, (vip >= 1 ? "§a✔ " : "§c○ ") + "§f2. VIP-Статус: §bVIP I+ §7(" + vip + "/1)", cardX + 14, cardY + 58, cardW - 28, 0xFFFFFFFF, false);
+            drawClampedText(graphics, (deals >= 3 ? "§a✔ " : "§c○ ") + "§f3. Активность: §a3+ сделки (можно рулеткой!) §7(" + deals + "/3)", cardX + 14, cardY + 72, cardW - 28, 0xFFFFFFFF, false);
+            drawClampedText(graphics, (progTasks >= 6 ? "§a✔ " : "§c○ ") + "§f4. Задания Программы: §a6 квестов §7(" + progTasks + "/6)", cardX + 14, cardY + 86, cardW - 28, 0xFFFFFFFF, false);
 
             maxScroll = 0;
             return;
@@ -1656,14 +1880,14 @@ public class MarketMainScreen extends Screen {
         int itemH = 58;
         int spacing = 62;
         BlackMarketItem[] items = BlackMarketItem.values();
-        maxScroll = Math.max(0, items.length * spacing - height);
+        maxScroll = Math.max(0, items.length * spacing - listH);
 
-        setScissor(graphics, left, top, left + width, top + height);
+        setScissor(graphics, left, listTop, left + width, listTop + listH);
 
         for (int i = 0; i < items.length; i++) {
             BlackMarketItem bm = items[i];
-            int cy = top + (i * spacing) - scrollOffset;
-            if (cy + itemH < top || cy > top + height) continue;
+            int cy = listTop + (i * spacing) - scrollOffset;
+            if (cy + itemH < listTop || cy > listTop + listH) continue;
 
             boolean active = account.isBlackMarketEffectActive(bm, gameTick);
             long cd = account.getBlackMarketCooldownRemainingTicks(bm, gameTick);
@@ -1715,7 +1939,7 @@ public class MarketMainScreen extends Screen {
         }
 
         clearScissor(graphics);
-        renderVerticalScrollbar(graphics, left, top, width, height, maxScroll, scrollOffset);
+        renderVerticalScrollbar(graphics, left, listTop, width, listH, maxScroll, scrollOffset);
     }
 
     // ==========================================
@@ -1759,7 +1983,8 @@ public class MarketMainScreen extends Screen {
             List<Integer> validSlots = new ArrayList<>();
             for (int i = 0; i < 36; i++) {
                 ItemStack stack = inv.getItem(i);
-                if (!stack.isEmpty() && !stack.is(com.playermarket.item.MarketAccessCardItem.MARKET_ACCESS_CARD)) {
+                if (!stack.isEmpty() && !net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem())
+                        .getNamespace().equals(PlayerMarketMod.MOD_ID)) {
                     validSlots.add(i);
                 }
             }
@@ -2203,7 +2428,7 @@ public class MarketMainScreen extends Screen {
             scrollOffset = 0;
         });
         px += pillW + pillGap;
-        drawPill(graphics, px, pillY, pillW, pillH, "КОРП", selectedNewsCategory.equalsIgnoreCase("CORP"), mouseX, mouseY, () -> {
+        drawPill(graphics, px, pillY, pillW, pillH, "РЫНОК", selectedNewsCategory.equalsIgnoreCase("CORP"), mouseX, mouseY, () -> {
             selectedNewsCategory = "CORP";
             scrollOffset = 0;
         });
@@ -2213,8 +2438,8 @@ public class MarketMainScreen extends Screen {
             scrollOffset = 0;
         });
         px += pillW + pillGap;
-        drawPill(graphics, px, pillY, lastPillW, pillH, "ГАЙДЫ", selectedNewsCategory.equalsIgnoreCase("GUIDE"), mouseX, mouseY, () -> {
-            selectedNewsCategory = "GUIDE";
+        drawPill(graphics, px, pillY, lastPillW, pillH, "ГАЙДЫ", selectedNewsCategory.equalsIgnoreCase("GUIDES"), mouseX, mouseY, () -> {
+            selectedNewsCategory = "GUIDES";
             scrollOffset = 0;
         });
 
@@ -2480,7 +2705,7 @@ public class MarketMainScreen extends Screen {
         int bodyY = my + 38;
         int contentW = modalW - 24;
         String[] clauses = {
-                "§fПодписывая Финальный Расчёт (ACCEPT FINAL SETTLEMENT), оператор безоговорочно соглашается со следующими последствиями:",
+                "§fПодписывая Финальный Расчёт, оператор безоговорочно соглашается со следующими последствиями:",
                 "§e1. Финансовый расчёт: §7На ваш счёт начисляется +1 000 000 CR, после чего лицевой счёт закрывается.",
                 "§c2. Ликвидация активов: §7Все биологические характеристики переходят в исключительную собственность Корпорации.",
                 "§c3. Аннулирование доступа: §7Карта Доступа [M] превращается в заблокированный носитель, а терминал отключается навсегда.",

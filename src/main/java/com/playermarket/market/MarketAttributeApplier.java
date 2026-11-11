@@ -52,7 +52,10 @@ public class MarketAttributeApplier {
             Attributes.LUCK,
             Attributes.BLOCK_INTERACTION_RANGE,
             Attributes.OXYGEN_BONUS,
-            Attributes.WATER_MOVEMENT_EFFICIENCY
+            Attributes.WATER_MOVEMENT_EFFICIENCY,
+            Attributes.SCALE,
+            Attributes.GRAVITY,
+            Attributes.BOUNCINESS
     );
 
     public static void syncPlayerModifiers(ServerPlayer player) {
@@ -182,7 +185,12 @@ public class MarketAttributeApplier {
             addModifier(player, Attributes.BLOCK_BREAK_SPEED, "bm_overclock_mining", 0.25, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
         }
 
-        // 6. Apply Mild Permanent Debuff if player accepted Final Settlement (Section 17.4):
+        // 6. Apply Synchronized Corporate Chaos Directives (temporarily until expiration or settlement)
+        if (!"FINAL_SETTLEMENT_ACTIVE".equals(data.getCampaignData().getEndingState()) && !impaired) {
+            com.playermarket.story.CorporateChaosDirector.applyDirectiveModifiers(player, data, currentTick);
+        }
+
+        // 7. Apply Mild Permanent Debuff if player accepted Final Settlement (Section 17.4):
         // Preserve full 1-block jumps and normal feel with mild corporate exoskeleton friction (-12% speed, -22% mining)
         if ("FINAL_SETTLEMENT_ACTIVE".equals(data.getCampaignData().getEndingState())) {
             addModifier(player, Attributes.MOVEMENT_SPEED, "ending_cinematic_freeze_spd", -1.0, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
@@ -337,8 +345,8 @@ public class MarketAttributeApplier {
         if (priceLockLvl >= 1 && eventMult < 1.0) {
             eventMult = 1.0;
         }
-        if (priceLockLvl == 2) eventMult = Math.max(eventMult, 1.05);
-        else if (priceLockLvl >= 3) eventMult = Math.max(eventMult, 1.12);
+        if (priceLockLvl == 2) eventMult = Math.max(eventMult, 1.08);
+        else if (priceLockLvl >= 3) eventMult = Math.max(eventMult, 1.18);
         base *= eventMult;
 
         // Premium Account bonus
@@ -400,8 +408,8 @@ public class MarketAttributeApplier {
             mult *= 0.85;
         }
         int vipLvl = account.getUpgradeLevel(UpgradeType.VIP_CLIENT);
-        if (vipLvl == 2) mult *= 0.92;
-        else if (vipLvl >= 3) mult *= 0.85;
+        if (vipLvl == 2) mult *= 0.90;
+        else if (vipLvl >= 3) mult *= 0.80;
 
         return Math.max(1, (int) Math.round(baseCost * mult));
     }
@@ -476,16 +484,17 @@ public class MarketAttributeApplier {
         MarketSavedData data = MarketSavedData.get(server);
         long gameTime = server.overworld().getGameTime();
         var sharedCampaign = data.getCampaignData();
-        boolean worldSettled = sharedCampaign.isEndingStarted()
-                || sharedCampaign.isEndingApplied()
-                || "SETTLED".equals(sharedCampaign.getEndingState());
+        boolean worldSettled = com.playermarket.story.StoryManager.isProgramTerminated(sharedCampaign, null);
 
         if (worldSettled && data.getActiveEvent() != MarketEvent.STABLE_MARKET) {
             data.setActiveEvent(MarketEvent.STABLE_MARKET, gameTime);
         }
 
+        // Tick synchronized Corporate Chaos Directives (~75-95s dynamic co-op chaos loop)
+        com.playermarket.story.CorporateChaosDirector.tickServer(server, data, sharedCampaign, gameTime);
+
         // Check dynamic Market Event rotation (disabled once ending/settlement has locked market access)
-        if (!worldSettled && gameTime >= 3600L && gameTime >= data.getNextEventSwitchTick()) {
+        if (!worldSettled && gameTime >= 2400L && gameTime >= data.getNextEventSwitchTick()) {
             MarketEvent[] events = MarketEvent.values();
             MarketEvent current = data.getActiveEvent();
             MarketEvent next = current;
@@ -533,7 +542,7 @@ public class MarketAttributeApplier {
 
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 PlayerMarketAccount account = data.getOrCreateAccount(player.getUUID());
-                if (account.isPermanentImpaired() || account.isMarketCardBlocked()) {
+                if (worldSettled || com.playermarket.story.StoryManager.isProgramTerminated(sharedCampaign, account)) {
                     if (gameTime % 100L == 0L) {
                         MarketNetworking.sendSyncToPlayer(player);
                     }
@@ -553,7 +562,7 @@ public class MarketAttributeApplier {
                     if (player.isUnderWater()) {
                         campaign.addContribution("underwater_seconds", 1);
                     }
-                    long dayTime = player.level().getGameTime() % 24000L;
+                    long dayTime = player.level().getOverworldClockTime() % 24000L;
                     boolean isNight = dayTime >= 13000L && dayTime <= 23000L;
                     boolean inCave = player.blockPosition().getY() < 56 || !player.level().canSeeSky(player.blockPosition());
                     if (isNight || inCave) {

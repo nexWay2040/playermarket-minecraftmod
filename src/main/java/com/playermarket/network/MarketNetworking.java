@@ -53,7 +53,8 @@ public class MarketNetworking {
         CHOOSE_FINAL_TRANSACTION,
         READ_CRUMPLED_LETTER,
         ACCEPT_SHARED_CONTRACT,
-        DECLINE_SHARED_CONTRACT
+        DECLINE_SHARED_CONTRACT,
+        SPIN_ROULETTE
     }
 
     public record MarketActionPayload(
@@ -88,7 +89,10 @@ public class MarketNetworking {
             long currentGameTick,
             long nextEventSwitchTick,
             String oreScannerReport,
-            String statusMessage
+            String statusMessage,
+            String activeChaosId,
+            long activeChaosEndsTick,
+            String coopSummary
     ) implements CustomPacketPayload {
         public static final CustomPacketPayload.Type<MarketSyncPayload> TYPE =
                 new CustomPacketPayload.Type<>(PlayerMarketMod.id("market_sync"));
@@ -102,6 +106,9 @@ public class MarketNetworking {
                     ByteBufCodecs.VAR_LONG.encode(buf, val.nextEventSwitchTick());
                     ByteBufCodecs.STRING_UTF8.encode(buf, val.oreScannerReport());
                     ByteBufCodecs.STRING_UTF8.encode(buf, val.statusMessage());
+                    ByteBufCodecs.STRING_UTF8.encode(buf, val.activeChaosId());
+                    ByteBufCodecs.VAR_LONG.encode(buf, val.activeChaosEndsTick());
+                    ByteBufCodecs.STRING_UTF8.encode(buf, val.coopSummary());
                 },
                 buf -> new MarketSyncPayload(
                         ByteBufCodecs.COMPOUND_TAG.decode(buf),
@@ -110,6 +117,9 @@ public class MarketNetworking {
                         ByteBufCodecs.VAR_LONG.decode(buf),
                         ByteBufCodecs.VAR_LONG.decode(buf),
                         ByteBufCodecs.STRING_UTF8.decode(buf),
+                        ByteBufCodecs.STRING_UTF8.decode(buf),
+                        ByteBufCodecs.STRING_UTF8.decode(buf),
+                        ByteBufCodecs.VAR_LONG.decode(buf),
                         ByteBufCodecs.STRING_UTF8.decode(buf)
                 )
         );
@@ -153,6 +163,7 @@ public class MarketNetworking {
         CompoundTag campaignCompound = encodedCampaign instanceof CompoundTag cct ? cct : new CompoundTag();
 
         String scannerReport = MarketAttributeApplier.computeOreScannerReport(player, account);
+        String coopSummary = com.playermarket.story.CorporateChaosDirector.buildCoopSummary(server, savedData);
 
         ServerPlayNetworking.send(player, new MarketSyncPayload(
                 compound,
@@ -161,7 +172,10 @@ public class MarketNetworking {
                 gameTick,
                 savedData.getNextEventSwitchTick(),
                 scannerReport,
-                statusMessage != null ? statusMessage : ""
+                statusMessage != null ? statusMessage : "",
+                savedData.getActiveChaosId(),
+                savedData.getActiveChaosEndsTick(),
+                coopSummary
         ));
     }
 
@@ -184,6 +198,13 @@ public class MarketNetworking {
         try {
             actionType = ActionType.valueOf(payload.action());
         } catch (IllegalArgumentException e) {
+            return;
+        }
+
+        if (actionType != ActionType.REQUEST_SYNC
+                && com.playermarket.story.StoryManager.isProgramTerminated(savedData.getCampaignData(), account)) {
+            sendSyncToPlayer(player, "§cДоступ к бирже аннулирован (Статья 17.4).");
+            playErrorSound(player);
             return;
         }
 
@@ -685,9 +706,11 @@ public class MarketNetworking {
                 }
 
                 savedData.getCampaignData().addContribution("black_market_used", 1);
+                com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
                 account.addTransaction(gameTick, "ЧЁРНЫЙ РЫНОК",
                         bm.getTitle(),
                         bm.getSummary(), -crCost, -diaCost);
+                com.playermarket.story.StoryManager.checkAllQuests(player, account);
 
                 status = "§dАКТИВИРОВАН: " + bm.getTitle();
                 playSuccessSound(player);
@@ -885,11 +908,146 @@ public class MarketNetworking {
                 sendSyncToPlayer(player, "§7Вы отклонили предложение Программы Активов.");
                 return;
             }
+
+            case SPIN_ROULETTE -> {
+                status = handleRouletteSpin(player, server, savedData, account, payload.targetId(), gameTick);
+                if (status == null) {
+                    return;
+                }
+            }
         }
 
         savedData.setDirty();
         MarketAttributeApplier.syncPlayerModifiers(player);
         sendSyncToPlayer(player, status);
+    }
+
+    private static String handleRouletteSpin(ServerPlayer player, MinecraftServer server, MarketSavedData savedData,
+                                             PlayerMarketAccount account, String betMode, long gameTick) {
+        Inventory inv = player.getInventory();
+        var rng = server.overworld().getRandom();
+        double roll = rng.nextDouble();
+        String playerName = player.getName().getString();
+
+        if ("DIA_2".equals(betMode)) {
+            int betDia = 2;
+            if (MarketAttributeApplier.countVanillaDiamonds(inv) < betDia) {
+                sendSyncToPlayer(player, "§cДля алмазного риска нужно минимум 2 ♦ в инвентаре!");
+                playErrorSound(player);
+                return null;
+            }
+            MarketAttributeApplier.consumeVanillaDiamonds(inv, betDia);
+            account.recordDiamondsSpent(betDia);
+            account.incrementDealsCount();
+            account.checkBlackMarketUnlock();
+            recordRouletteProgress(player, savedData, account);
+
+            if (roll < 0.46) {
+                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Алмазная ставка (-2 ♦)", "Проигрыш", 0L, -betDia);
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.7f, 0.7f);
+                server.getPlayerList().broadcastSystemMessage(Component.literal(
+                        "§8[§dРУЛЕТКА§8] §f" + playerName + " §cкрутанул алмазы и §lСЛИЛ 2 ♦§c!"), false);
+                return "§cПРОИГРЫШ! -2 ♦ сгорели в биржевом барабане...";
+            } else if (roll < 0.80) {
+                int win = 4;
+                giveDiamondsOrDrop(player, win);
+                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Алмазная ставка x2", "Победа!", 0L, win - betDia);
+                playSuccessSound(player);
+                return "§aПОБЕДА x2! Вы выиграли +" + win + " ♦!";
+            } else if (roll < 0.95) {
+                int win = 6;
+                giveDiamondsOrDrop(player, win);
+                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Алмазная ставка x3", "Крупный выигрыш!", 0L, win - betDia);
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.8f, 1.3f);
+                return "§e§lКУШ x3! Получено +" + win + " ♦!";
+            } else {
+                int win = 10;
+                giveDiamondsOrDrop(player, win);
+                ItemStack gapple = new ItemStack(Items.GOLDEN_APPLE, 1);
+                if (!inv.add(gapple)) player.drop(gapple, false, Prediction.SERVER_ONLY);
+                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "ДЖЕКПОТ АЛМАЗОВ!", "x5 + Золотое яблоко!", 0L, win - betDia);
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 1.2f);
+                server.getPlayerList().broadcastSystemMessage(Component.literal(
+                        "§8[§dРУЛЕТКА§8] §e§lДЖЕКПОТ! §f" + playerName + " §aвыбил §b+10 ♦ §aи Золотое Яблоко!"), false);
+                return "§6§lДЖЕКПОТ x5! +10 ♦ и Золотое Яблоко!";
+            }
+        }
+
+        long betCr = switch (betMode) {
+            case "CR_150" -> 150L;
+            case "CR_500" -> 500L;
+            case "CR_ALL" -> account.getCrBalance();
+            default -> 0L;
+        };
+        if (betCr <= 0L || account.getCrBalance() < betCr || ("CR_ALL".equals(betMode) && betCr < 100L)) {
+            sendSyncToPlayer(player, "§cНедостаточно CR (минимум " + ("CR_ALL".equals(betMode) ? "100" : betCr) + " CR)!");
+            playErrorSound(player);
+            return null;
+        }
+
+        boolean isAllIn = "CR_ALL".equals(betMode);
+        account.spendCr(betCr);
+        account.incrementDealsCount();
+        account.checkBlackMarketUnlock();
+        recordRouletteProgress(player, savedData, account);
+
+        if (roll < 0.46) {
+            account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ",
+                    isAllIn ? "ВА-БАНК: ПРОИГРЫШ" : "Ставка -" + betCr + " CR", "Не повезло", -betCr, 0);
+            player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                    SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.7f, 0.7f);
+            if (isAllIn || betCr >= 500L) {
+                server.getPlayerList().broadcastSystemMessage(Component.literal(
+                        "§8[§dРУЛЕТКА§8] §f" + playerName + " §cпоставил §e" + betCr + " CR §cи §lВСЁ ПРОИГРАЛ§c!"), false);
+            }
+            return "§cПРОИГРЫШ! Ставка -" + betCr + " CR ушла корпорации...";
+        } else if (roll < 0.80) {
+            long payout = betCr * 2L;
+            account.addCr(payout);
+            account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Победа x2 (+" + (payout - betCr) + " CR)", "Удвоение ставки", payout - betCr, 0);
+            playSuccessSound(player);
+            return "§aПОБЕДА x2! Получено +" + payout + " CR!";
+        } else if (roll < 0.95) {
+            long payout = betCr * 3L;
+            account.addCr(payout);
+            account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Крупный куш x3", "Тройная выплата", payout - betCr, 0);
+            player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                    SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.85f, 1.3f);
+            if (isAllIn || betCr >= 500L) {
+                server.getPlayerList().broadcastSystemMessage(Component.literal(
+                        "§8[§dРУЛЕТКА§8] §f" + playerName + " §aвыиграл x3 и поднял §e+" + payout + " CR§a!"), false);
+            }
+            return "§e§lКУШ x3! Получено +" + payout + " CR!";
+        } else {
+            long payout = betCr * 5L;
+            account.addCr(payout);
+            giveDiamondsOrDrop(player, 2);
+            account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "ДЖЕКПОТ x5!", "Суперприз +2 ♦", payout - betCr, 2);
+            player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                    SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 1.2f);
+            server.getPlayerList().broadcastSystemMessage(Component.literal(
+                    "§8[§dРУЛЕТКА§8] §6§lМЕГА-ДЖЕКПОТ! §f" + playerName + " §eсорвал x5: +" + payout + " CR §8+ §b2 ♦!"), false);
+            return "§6§lДЖЕКПОТ x5! +" + payout + " CR и +2 ♦!";
+        }
+    }
+
+    private static void recordRouletteProgress(ServerPlayer player, MarketSavedData savedData, PlayerMarketAccount account) {
+        savedData.getCampaignData().addContribution("roulette_spins", 1);
+        com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "ROULETTE_SPINS", 1);
+        com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
+        com.playermarket.story.StoryManager.checkAllQuests(player, account);
+    }
+
+    private static void giveDiamondsOrDrop(ServerPlayer player, int amount) {
+        if (amount <= 0) return;
+        ItemStack stack = new ItemStack(Items.DIAMOND, amount);
+        if (!player.getInventory().add(stack)) {
+            player.drop(stack, false, Prediction.SERVER_ONLY);
+        }
+        player.getInventory().setChanged();
     }
 
     private static double validateSaleTier(double raw) {
