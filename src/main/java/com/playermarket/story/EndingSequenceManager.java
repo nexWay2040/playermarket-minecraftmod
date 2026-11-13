@@ -19,9 +19,17 @@ import net.minecraft.world.item.ItemStack;
 import java.util.UUID;
 
 public class EndingSequenceManager {
+    private static boolean liveSessionEndingActive = false;
     private static long endingLastTickWallMs = 0L;
     private static long endingAccumulatedActiveMs = 0L;
     private static int lastCueStep = 0;
+
+    public static void resetRuntimeState() {
+        liveSessionEndingActive = false;
+        endingLastTickWallMs = 0L;
+        endingAccumulatedActiveMs = 0L;
+        lastCueStep = 0;
+    }
 
     public static void startSynchronizedFinalSettlement(MinecraftServer server) {
         if (server == null) return;
@@ -29,6 +37,7 @@ public class EndingSequenceManager {
         SharedCampaignData campaignData = savedData.getCampaignData();
 
         // 1. Set independent ending lifecycle flags & clear prior completion flags so it ALWAYS runs & kicks
+        liveSessionEndingActive = true;
         campaignData.setEndingStarted(true);
         campaignData.setEndingApplied(true);
         campaignData.setCinematicCompleted(false);
@@ -106,7 +115,12 @@ public class EndingSequenceManager {
     }
 
     public static void resetEnding(ServerPlayer player) {
-        MinecraftServer server = player.level().getServer();
+        if (player != null) {
+            resetEnding(player.level().getServer());
+        }
+    }
+
+    public static void resetEnding(MinecraftServer server) {
         if (server == null) return;
         MarketSavedData savedData = MarketSavedData.get(server);
         SharedCampaignData campaignData = savedData.getCampaignData();
@@ -117,21 +131,32 @@ public class EndingSequenceManager {
         campaignData.setEndingState("NONE");
         campaignData.getImpairedPlayers().clear();
         campaignData.getDisconnectedPlayers().clear();
-        endingLastTickWallMs = 0L;
-        endingAccumulatedActiveMs = 0L;
-        lastCueStep = 0;
+        resetRuntimeState();
 
-        for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
-            PlayerMarketAccount account = savedData.getOrCreateAccount(sp.getUUID());
+        // Reset ALL persisted accounts (including offline friends) so nobody stays banned/locked
+        for (PlayerMarketAccount account : savedData.getAccountsView().values()) {
             account.setEndingState("NONE");
             account.setAccountClosed(false);
             account.setMarketCardBlocked(false);
             account.setPermanentImpaired(false);
+            account.ensureDefaultContracts();
+        }
+
+        for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
+            sp.removeEffect(MobEffects.BLINDNESS);
+            sp.removeEffect(MobEffects.SLOWNESS);
+            for (int i = 0; i < sp.getInventory().getContainerSize(); i++) {
+                ItemStack stack = sp.getInventory().getItem(i);
+                if (!stack.isEmpty() && stack.is(BlockedMarketCardItem.BLOCKED_MARKET_CARD)) {
+                    sp.getInventory().setItem(i, new ItemStack(MarketAccessCardItem.MARKET_ACCESS_CARD));
+                }
+            }
+            sp.getInventory().setChanged();
             MarketAttributeApplier.syncPlayerModifiers(sp);
         }
 
         savedData.setDirty();
-        MarketNetworking.broadcastSync(server, "§aСтатус концовки сброшен.");
+        MarketNetworking.broadcastSync(server, "§aСтатус концовки сброшен для всех игроков.");
     }
 
     public static void tickServer(MinecraftServer server) {
@@ -139,6 +164,15 @@ public class EndingSequenceManager {
         SharedCampaignData campaignData = savedData.getCampaignData();
 
         if (!"FINAL_SETTLEMENT_ACTIVE".equals(campaignData.getEndingState())) {
+            return;
+        }
+        // If server restarted mid-ending, recover safely to SETTLED without kicking reconnecting players
+        if (!liveSessionEndingActive) {
+            campaignData.setEndingState("SETTLED");
+            campaignData.setCinematicCompleted(true);
+            campaignData.setDisconnectSent(true);
+            resetRuntimeState();
+            savedData.setDirty();
             return;
         }
 
@@ -211,9 +245,7 @@ public class EndingSequenceManager {
             campaignData.setEndingState("SETTLED");
             campaignData.setCinematicCompleted(true);
             campaignData.setDisconnectSent(true);
-            endingLastTickWallMs = 0L;
-            endingAccumulatedActiveMs = 0L;
-            lastCueStep = 0;
+            resetRuntimeState();
             savedData.setDirty();
 
             for (ServerPlayer target : new java.util.ArrayList<>(server.getPlayerList().getPlayers())) {

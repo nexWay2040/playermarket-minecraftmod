@@ -37,6 +37,10 @@ public final class CorporateTaskTracker {
         STATES.remove(uuid);
     }
 
+    public static void clearAll() {
+        STATES.clear();
+    }
+
     /**
      * Advances matching active contracts and announces completion with audio/visual feedback.
      */

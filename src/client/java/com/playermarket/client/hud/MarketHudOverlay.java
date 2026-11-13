@@ -92,6 +92,15 @@ public class MarketHudOverlay {
         String currencyPrefix = "   §f§l" + crDisplay + " §aCR §8| ";
         lines.add(currencyPrefix + "   §b§l" + diamonds);
 
+        if (campaign.isCampaignAccepted()) {
+            int soldStats = account.getSoldAssetCount();
+            if (soldStats <= 0) {
+                lines.add("§c⚠ 0 статов: доход 30% [M->Продажа]");
+            } else if (soldStats >= 3) {
+                lines.add("§a★ Био-бонус: +35% CR & +1♦");
+            }
+        }
+
         if (event != MarketEvent.STABLE_MARKET) {
             lines.add("§6Рынок: §e" + event.getHeadline());
         }
@@ -107,6 +116,21 @@ public class MarketHudOverlay {
                 if ("hr_workout".equals(chaosId) && client.player != null) {
                     int sq = campaign.getObjective("chaos_sq_" + client.player.getUUID());
                     lines.add("   §fПриседания Shift: §a" + sq + " / " + com.playermarket.story.CorporateChaosDirector.WORKOUT_TARGET_SQUATS);
+                } else if ("confiscation_sale".equals(chaosId) && client.player != null) {
+                    int jmp = campaign.getObjective("chaos_jmp_" + client.player.getUUID());
+                    lines.add("   §fПрыжки от приставов: §e" + jmp + " / " + com.playermarket.story.CorporateChaosDirector.CONFISCATION_TARGET_JUMPS);
+                } else if ("vault_heist".equals(chaosId)) {
+                    lines.add("   §aБей/ПКМ 3D Банкомат поблизости!");
+                } else if ("drone_strike".equals(chaosId)) {
+                    lines.add("   §cВыбегай из красного кольца 3D Дрона!");
+                } else if ("hot_potato".equals(chaosId)) {
+                    lines.add("   §eВ воду / бег 32м / передай другу [ПКМ]!");
+                } else if ("allay_bonus".equals(chaosId)) {
+                    lines.add("   §eЛови Верити-Колобка по земле (ПКМ/удар)!");
+                } else if ("supply_crate".equals(chaosId)) {
+                    lines.add("   §bНайди 3D Груз по лучу и открой!");
+                } else if ("tax_audit".equals(chaosId)) {
+                    lines.add("   §c0 статов = штраф -18% (от 450 CR)!");
                 }
             }
         }
@@ -195,12 +219,36 @@ public class MarketHudOverlay {
             lines.add("§8[ALT: Реестр развёрнут]");
         }
 
-        int maxLineW = 190;
-        for (String line : lines) {
-            maxLineW = Math.max(maxLineW, font.width(line) + 14);
+        int sw = client.getWindow().getGuiScaledWidth();
+        int sh = client.getWindow().getGuiScaledHeight();
+        int maxHudW = Math.min(235, Math.max(150, sw / 2 - 12));
+        int innerMaxW = maxHudW - 14;
+
+        record HudRow(String rawText, FormattedCharSequence seq, int sourceIdx) {}
+        List<HudRow> rows = new ArrayList<>();
+        int maxLineW = 165;
+        int maxRows = Math.max(4, (sh - 24) / 10);
+
+        for (int i = 0; i < lines.size(); i++) {
+            String raw = lines.get(i);
+            if (i <= 1) {
+                rows.add(new HudRow(raw, null, i));
+                maxLineW = Math.max(maxLineW, Math.min(maxHudW, font.width(raw) + 14));
+                continue;
+            }
+            for (FormattedCharSequence seq : font.split(Component.literal(raw), innerMaxW)) {
+                if (rows.size() >= maxRows - 1 && i < lines.size() - 1) {
+                    rows.add(new HudRow("§8...", null, i));
+                    i = lines.size();
+                    break;
+                }
+                rows.add(new HudRow(null, seq, i));
+                maxLineW = Math.max(maxLineW, Math.min(maxHudW, font.width(seq) + 14));
+            }
         }
-        int width = maxLineW;
-        int height = 12 + lines.size() * 10;
+
+        int width = Math.min(maxHudW, maxLineW);
+        int height = 12 + rows.size() * 10;
 
         // Render Background
         try {
@@ -213,15 +261,18 @@ public class MarketHudOverlay {
             graphics.fill(x + width - 1, y, x + width, y + height, 0xFF1E293B);
         }
 
-        // Render Lines
+        // Render Lines cleanly within clamped HUD box
         int lineY = y + 5;
-        for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i);
-            graphics.text(font, line, x + 6, lineY, 0xFFFFFFFF, true);
-            if (i == 1) {
-                graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_CR, x + 5, lineY - 1, 0.0f, 0.0f, 9, 9, 16, 16, 16, 16);
-                int diaX = x + 6 + font.width(currencyPrefix);
-                graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_DIAMOND, diaX + 1, lineY - 1, 0.0f, 0.0f, 9, 9, 16, 16, 16, 16);
+        for (HudRow row : rows) {
+            if (row.rawText != null) {
+                graphics.text(font, row.rawText, x + 6, lineY, 0xFFFFFFFF, true);
+                if (row.sourceIdx == 1) {
+                    graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_CR, x + 5, lineY - 1, 0.0f, 0.0f, 9, 9, 16, 16, 16, 16);
+                    int diaX = x + 6 + font.width(currencyPrefix);
+                    graphics.blit(RenderPipelines.GUI_TEXTURED, ICON_DIAMOND, diaX + 1, lineY - 1, 0.0f, 0.0f, 9, 9, 16, 16, 16, 16);
+                }
+            } else if (row.seq != null) {
+                graphics.text(font, row.seq, x + 6, lineY, 0xFFFFFFFF, true);
             }
             lineY += 10;
         }

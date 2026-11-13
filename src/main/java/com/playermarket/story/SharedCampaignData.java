@@ -189,4 +189,23 @@ public class SharedCampaignData {
     public int getTotalCompletedProgramTasks() {
         return completedTasks.size() + completedSideQuests.size();
     }
+
+    public void resetAll() {
+        this.campaignAccepted = false;
+        this.currentStage = 1;
+        this.completedTasks.clear();
+        this.completedSideQuests.clear();
+        this.objectiveProgress.clear();
+        this.registeredParticipants.clear();
+        this.endingState = "NONE";
+        this.endingStartedTick = 0L;
+        this.impairedPlayers.clear();
+        this.disconnectedPlayers.clear();
+        this.triggeredStoryEvents.clear();
+        this.lastStoryEventTick = 0L;
+        this.endingStarted = false;
+        this.endingApplied = false;
+        this.cinematicCompleted = false;
+        this.disconnectSent = false;
+    }
 }

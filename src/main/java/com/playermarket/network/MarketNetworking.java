@@ -54,7 +54,8 @@ public class MarketNetworking {
         READ_CRUMPLED_LETTER,
         ACCEPT_SHARED_CONTRACT,
         DECLINE_SHARED_CONTRACT,
-        SPIN_ROULETTE
+        SPIN_ROULETTE,
+        SPAWN_EVENT_MOB
     }
 
     public record MarketActionPayload(
@@ -267,14 +268,25 @@ public class MarketNetworking {
                 recordCompletedDeal(player, account, event);
                 com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
 
+                // First-time permanent sale Bio-Bonus: +2 ♦ once per unique AssetType (cannot be exploit-farmed)
+                String bioDiaKey = "bio_first_dia_" + asset.getId();
+                var tp = account.getStoryProgress().getTaskProgress();
+                int bioDiamondBonus = 0;
+                if (tp.getOrDefault(bioDiaKey, 0L) == 0L) {
+                    tp.put(bioDiaKey, 1L);
+                    bioDiamondBonus = 2;
+                    giveDiamondsOrDrop(player, bioDiamondBonus);
+                }
+
                 String divId = account.getSelectedDividends().get(asset.getId());
                 account.addTransaction(gameTick, "ПРОДАЖА АКТИВА",
                         asset.getDisplayName() + " (" + Math.round(requestedFraction * 100) + "%)",
-                        "Дивидент: " + divId, payout, 0);
+                        "Дивидент: " + divId, payout, bioDiamondBonus);
 
                 com.playermarket.story.StoryManager.onStatSold(player, account, asset, requestedFraction, false);
 
-                status = "§aПРОДАНО " + Math.round(requestedFraction * 100) + "% " + asset.getDisplayName() + " за +" + payout + " CR";
+                status = "§aПРОДАНО " + Math.round(requestedFraction * 100) + "% " + asset.getDisplayName() + " за +" + payout + " CR"
+                        + (bioDiamondBonus > 0 ? " §b[БИО-БОНУС: +" + bioDiamondBonus + " ♦!]" : "");
                 playSuccessSound(player);
             }
 
@@ -422,6 +434,7 @@ public class MarketNetworking {
                 if (account.hasDividend("corporate_focus") || account.hasDividend("scholar_yield")) {
                     totalPayout = Math.round(totalPayout * 1.05);
                 }
+                totalPayout = MarketAttributeApplier.scaleBioCr(account, totalPayout);
                 if (account.isGoldenContractArmed()) {
                     totalPayout *= 2L;
                     account.setGoldenContractArmed(false);
@@ -444,11 +457,13 @@ public class MarketNetworking {
                 com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
                 account.addTransaction(gameTick, "ПРОДАЖА РЕСУРСА",
                         countToSell + "x " + itemName,
-                        "Цена: " + unitPrice + " CR/шт", totalPayout, 0);
+                        "Цена: " + unitPrice + " CR/шт (ставка x" + String.format(java.util.Locale.ROOT, "%.2f", MarketAttributeApplier.getBioPayoutMultiplier(account)) + ")",
+                        totalPayout, 0);
 
                 com.playermarket.story.StoryManager.onResourceSold(player, account, totalPayout);
 
-                status = "§aПРОДАНО " + countToSell + "x " + itemName + " за +" + totalPayout + " CR";
+                status = "§aПРОДАНО " + countToSell + "x " + itemName + " за +" + totalPayout + " CR"
+                        + (account.getSoldAssetCount() <= 0 ? " §c(0 статов: ставка 30%!)" : "");
                 if (diamondEquivalentPerUnit > 0) {
                     status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + dailyLimit + ")";
                 }
@@ -501,6 +516,7 @@ public class MarketNetworking {
                 }
                 inv.setChanged();
 
+                totalPayout = MarketAttributeApplier.scaleBioCr(account, totalPayout);
                 if (account.isGoldenContractArmed()) {
                     totalPayout *= 2L;
                     account.setGoldenContractArmed(false);
@@ -513,11 +529,13 @@ public class MarketNetworking {
                 com.playermarket.story.CorporateTaskTracker.advanceContract(player, account, "MARKET_TRADES", 1);
                 account.addTransaction(gameTick, "ОПТОВАЯ ПРОДАЖА",
                         totalCount + "x " + itemName,
-                        "Партия ресурсов", totalPayout, 0);
+                        "Партия ресурсов (ставка x" + String.format(java.util.Locale.ROOT, "%.2f", MarketAttributeApplier.getBioPayoutMultiplier(account)) + ")",
+                        totalPayout, 0);
 
                 com.playermarket.story.StoryManager.onResourceSold(player, account, totalPayout);
 
-                status = "§aОПТОМ ПРОДАНО " + totalCount + "x " + itemName + " за +" + totalPayout + " CR";
+                status = "§aОПТОМ ПРОДАНО " + totalCount + "x " + itemName + " за +" + totalPayout + " CR"
+                        + (account.getSoldAssetCount() <= 0 ? " §c(0 статов: ставка 30%!)" : "");
                 if (diamondEquivalentPerUnit > 0) {
                     status += " §8(Лимит алмазов: " + account.getDiamondsExchangedOnDay(dayIndex) + "/" + dailyLimit + ")";
                 }
@@ -588,6 +606,11 @@ public class MarketNetworking {
                 int targetLvl = currentLvl + 1;
                 if (targetLvl > upgrade.getMaxLevel()) {
                     sendSyncToPlayer(player, "§cУлучшение уже прокачано на максимум!");
+                    playErrorSound(player);
+                    return;
+                }
+                if (targetLvl >= 2 && account.getSoldAssetCount() <= 0) {
+                    sendSyncToPlayer(player, "§cУлучшения Ур. 2+ открываются после продажи минимум 1 характеристики в ПРОДАЖЕ!");
                     playErrorSound(player);
                     return;
                 }
@@ -733,6 +756,7 @@ public class MarketNetworking {
                         if (premLvl > 0) mult += UpgradeType.PREMIUM_ACCOUNT.getValueForLevel(premLvl);
 
                         long payout = Math.round(c.rewardCr() * mult);
+                        payout = MarketAttributeApplier.scaleBioCr(account, payout);
                         if (account.isGoldenContractArmed()) {
                             payout *= 2L;
                             account.setGoldenContractArmed(false);
@@ -741,7 +765,8 @@ public class MarketNetworking {
                         account.getContracts().set(i, c.markClaimed());
                         ContractBoardCatalog.ensurePopulated(account.getContracts());
                         account.addCr(payout);
-                        int diaReward = c.rewardDiamonds();
+                        int soldCount = account.getSoldAssetCount();
+                        int diaReward = soldCount <= 0 ? 0 : (c.rewardDiamonds() + (soldCount >= 3 ? 1 : 0));
                         if (diaReward > 0) {
                             ItemStack diaStack = new ItemStack(Items.DIAMOND, diaReward);
                             if (!player.getInventory().add(diaStack)) {
@@ -751,11 +776,14 @@ public class MarketNetworking {
                         }
                         recordCompletedDeal(player, account, event);
                         account.addTransaction(gameTick, "НАГРАДА ПО КОНТРАКТУ",
-                                c.title(), "Выполнение корпоративного заказа", payout, diaReward);
+                                c.title(),
+                                soldCount <= 0 ? "Удержано 70% CR и ♦ (0 статов)" : "Выполнение корпоративного заказа",
+                                payout, diaReward);
 
                         com.playermarket.story.StoryManager.onContractClaimed(player, account, event != MarketEvent.STABLE_MARKET);
 
-                        status = "§aКОНТРАКТ ВЫПОЛНЕН! +" + payout + " CR" + (diaReward > 0 ? " §8| §b+" + diaReward + " ♦" : "");
+                        status = "§aКОНТРАКТ ВЫПОЛНЕН! +" + payout + " CR"
+                                + (diaReward > 0 ? " §8| §b+" + diaReward + " ♦" : " §c(0 статов: без ♦!)");
                         playSuccessSound(player);
                         break;
                     }
@@ -839,7 +867,12 @@ public class MarketNetworking {
                     status = "§aНаграда за задачу получена!";
                     playSuccessSound(player);
                 } else {
-                    sendSyncToPlayer(player, "§cНаграда уже получена или задача не выполнена.");
+                    String err = account.getSoldAssetCount() <= 0
+                            ? "§cСначала продайте хотя бы 1 стат (10%+) во вкладке ПРОДАЖА!"
+                            : (stageIdx >= 4 && account.getSoldAssetCount() < 2
+                                ? "§cДля Этапа " + stageIdx + " нужно продать минимум 2 стата!"
+                                : "§cНаграда уже получена или задача не выполнена.");
+                    sendSyncToPlayer(player, err);
                     playErrorSound(player);
                     return;
                 }
@@ -915,6 +948,9 @@ public class MarketNetworking {
                     return;
                 }
             }
+            case SPAWN_EVENT_MOB -> {
+                status = com.playermarket.story.CorporateChaosDirector.triggerStageManualSpawn(server, player, savedData, gameTick);
+            }
         }
 
         savedData.setDirty();
@@ -942,37 +978,37 @@ public class MarketNetworking {
             account.checkBlackMarketUnlock();
             recordRouletteProgress(player, savedData, account);
 
-            if (roll < 0.46) {
+            if (roll < 0.48) {
                 account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Алмазная ставка (-2 ♦)", "Проигрыш", 0L, -betDia);
                 player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                         SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.7f, 0.7f);
                 server.getPlayerList().broadcastSystemMessage(Component.literal(
                         "§8[§dРУЛЕТКА§8] §f" + playerName + " §cкрутанул алмазы и §lСЛИЛ 2 ♦§c!"), false);
                 return "§cПРОИГРЫШ! -2 ♦ сгорели в биржевом барабане...";
-            } else if (roll < 0.80) {
+            } else if (roll < 0.84) {
+                int win = 3;
+                giveDiamondsOrDrop(player, win);
+                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Алмазная ставка x1.5", "Победа!", 0L, win - betDia);
+                playSuccessSound(player);
+                return "§aПОБЕДА x1.5! Вы выиграли +" + win + " ♦!";
+            } else if (roll < 0.96) {
                 int win = 4;
                 giveDiamondsOrDrop(player, win);
-                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Алмазная ставка x2", "Победа!", 0L, win - betDia);
-                playSuccessSound(player);
-                return "§aПОБЕДА x2! Вы выиграли +" + win + " ♦!";
-            } else if (roll < 0.95) {
-                int win = 6;
-                giveDiamondsOrDrop(player, win);
-                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Алмазная ставка x3", "Крупный выигрыш!", 0L, win - betDia);
+                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Алмазная ставка x2", "Крупный выигрыш!", 0L, win - betDia);
                 player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                         SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.8f, 1.3f);
-                return "§e§lКУШ x3! Получено +" + win + " ♦!";
+                return "§e§lКУШ x2! Получено +" + win + " ♦!";
             } else {
-                int win = 10;
+                int win = 6;
                 giveDiamondsOrDrop(player, win);
                 ItemStack gapple = new ItemStack(Items.GOLDEN_APPLE, 1);
                 if (!inv.add(gapple)) player.drop(gapple, false, Prediction.SERVER_ONLY);
-                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "ДЖЕКПОТ АЛМАЗОВ!", "x5 + Золотое яблоко!", 0L, win - betDia);
+                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "ДЖЕКПОТ АЛМАЗОВ!", "x3 + Золотое яблоко!", 0L, win - betDia);
                 player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                         SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 1.2f);
                 server.getPlayerList().broadcastSystemMessage(Component.literal(
-                        "§8[§dРУЛЕТКА§8] §e§lДЖЕКПОТ! §f" + playerName + " §aвыбил §b+10 ♦ §aи Золотое Яблоко!"), false);
-                return "§6§lДЖЕКПОТ x5! +10 ♦ и Золотое Яблоко!";
+                        "§8[§dРУЛЕТКА§8] §e§lДЖЕКПОТ! §f" + playerName + " §aвыбил §b+6 ♦ §aи Золотое Яблоко!"), false);
+                return "§6§lДЖЕКПОТ x3! +6 ♦ и Золотое Яблоко!";
             }
         }
 
@@ -1023,14 +1059,19 @@ public class MarketNetworking {
             return "§e§lКУШ x3! Получено +" + payout + " CR!";
         } else {
             long payout = betCr * 5L;
+            int diaBonus = (betCr >= 500L && account.getSoldAssetCount() >= 1) ? 1 : 0;
             account.addCr(payout);
-            giveDiamondsOrDrop(player, 2);
-            account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "ДЖЕКПОТ x5!", "Суперприз +2 ♦", payout - betCr, 2);
+            if (diaBonus > 0) {
+                giveDiamondsOrDrop(player, diaBonus);
+            }
+            account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "ДЖЕКПОТ x5!",
+                    diaBonus > 0 ? "Суперприз +1 ♦" : "Выигрыш x5 CR", payout - betCr, diaBonus);
             player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                     SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 1.2f);
             server.getPlayerList().broadcastSystemMessage(Component.literal(
-                    "§8[§dРУЛЕТКА§8] §6§lМЕГА-ДЖЕКПОТ! §f" + playerName + " §eсорвал x5: +" + payout + " CR §8+ §b2 ♦!"), false);
-            return "§6§lДЖЕКПОТ x5! +" + payout + " CR и +2 ♦!";
+                    "§8[§dРУЛЕТКА§8] §6§lМЕГА-ДЖЕКПОТ! §f" + playerName + " §eсорвал x5: +" + payout + " CR"
+                            + (diaBonus > 0 ? " §8+ §b1 ♦!" : "!")), false);
+            return "§6§lДЖЕКПОТ x5! +" + payout + " CR" + (diaBonus > 0 ? " и +1 ♦!" : "!");
         }
     }
 

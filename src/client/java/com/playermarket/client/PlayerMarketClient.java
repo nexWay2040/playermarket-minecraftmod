@@ -78,9 +78,13 @@ public class PlayerMarketClient implements ClientModInitializer {
             }
         });
 
-        // Network receiver & clean state reset on disconnect (never lock controls outside world)
+        // Network receiver & clean state reset on join/disconnect (never lock controls outside world)
         ClientPlayNetworking.registerGlobalReceiver(MarketNetworking.MarketSyncPayload.TYPE, (payload, context) -> {
             context.client().execute(() -> ClientMarketState.applySync(payload));
+        });
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            resetEndingScreamer();
+            ClientMarketState.reset();
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             resetEndingScreamer();
@@ -93,6 +97,7 @@ public class PlayerMarketClient implements ClientModInitializer {
 
         // Keybinding listener for key 'M' + ending cinematic screen lock + scanner tick
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            ClientMarketState.tickClient(client);
             OreScannerRenderer.tickScan(client);
             if (MarketHudOverlay.isEndingCinematicPlaying()) {
                 if (client.gui != null && client.gui.screen() != null

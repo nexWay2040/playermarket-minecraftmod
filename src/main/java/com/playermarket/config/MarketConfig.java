@@ -2,12 +2,14 @@ package com.playermarket.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.playermarket.PlayerMarketMod;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -17,7 +19,7 @@ public class MarketConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static MarketConfig INSTANCE = new MarketConfig();
 
-    public int configVersion = 2;
+    public int configVersion = 5;
     public long startingCr = 250L;
     public double assetPriceMultiplier = 1.0;
     public double resourceSellRatio = 0.65;
@@ -29,7 +31,7 @@ public class MarketConfig {
     public double maxAttributeSaleFraction = 0.80; // Max 80% of any attribute can be sold
     public int maxUpgradeLevelCap = 3;
     public int contractRefreshTicks = 24000; // 1 Minecraft day
-    public int marketEventDurationTicks = 3000; // 2.5 minutes fast dynamic cycle
+    public int marketEventDurationTicks = 2400; // 2.0 minutes dynamic cycle
     public double premiumAccountBonus = 0.10; // +10% CR payout
     public double brokerLicenseDiscount = 0.15; // -15% buyback commission
     public double diamondCashbackChance = 0.25; // 25% chance to refund 1 diamond on L2/L3 purchases
@@ -39,8 +41,8 @@ public class MarketConfig {
     public boolean enableStoryToasts = true;
     public boolean enableSideQuests = true;
     public boolean enableChaosDirectives = true;
-    public int chaosIntervalMinTicks = 1500; // 75s
-    public int chaosIntervalMaxTicks = 1900; // 95s
+    public int chaosIntervalMinTicks = 240; // 12s
+    public int chaosIntervalMaxTicks = 400; // 20s
 
     public Map<String, Long> customResourceBasePrices = new LinkedHashMap<>();
     public Map<String, Long> customAssetUnitPrices = new LinkedHashMap<>();
@@ -103,8 +105,18 @@ public class MarketConfig {
     public static void load() {
         Path path = getConfigPath();
         if (Files.exists(path)) {
-            try (Reader reader = Files.newBufferedReader(path)) {
-                MarketConfig loaded = GSON.fromJson(reader, MarketConfig.class);
+            try {
+                String rawJson = Files.readString(path, StandardCharsets.UTF_8);
+                int rawVersion = 0;
+                try {
+                    JsonObject obj = JsonParser.parseString(rawJson).getAsJsonObject();
+                    if (obj.has("configVersion") && obj.get("configVersion").isJsonPrimitive()) {
+                        rawVersion = obj.get("configVersion").getAsInt();
+                    }
+                } catch (Exception ignored) {
+                }
+
+                MarketConfig loaded = GSON.fromJson(rawJson, MarketConfig.class);
                 if (loaded != null) {
                     if (loaded.customResourceBasePrices == null || loaded.customResourceBasePrices.isEmpty()) {
                         loaded.initDefaults();
@@ -114,9 +126,9 @@ public class MarketConfig {
                         loaded.buybackCommission = 1.35;
                         upgraded = true;
                     }
-                    if (loaded.configVersion < 2) {
+                    if (rawVersion < 3) {
                         if (loaded.marketEventDurationTicks >= 6000) {
-                            loaded.marketEventDurationTicks = 3000;
+                            loaded.marketEventDurationTicks = 2400;
                         }
                         if (loaded.blackMarketMinDeals > 3) {
                             loaded.blackMarketMinDeals = 3;
@@ -124,12 +136,25 @@ public class MarketConfig {
                         if (loaded.blackMarketMinNetTurnover > 1000L) {
                             loaded.blackMarketMinNetTurnover = 1000L;
                         }
+                        if (loaded.startingCr > 300L) {
+                            loaded.startingCr = 250L;
+                        }
                         loaded.enableStoryProgram = true;
                         loaded.enableSideQuests = true;
                         loaded.enableChaosDirectives = true;
-                        if (loaded.chaosIntervalMinTicks <= 0) loaded.chaosIntervalMinTicks = 1500;
-                        if (loaded.chaosIntervalMaxTicks <= loaded.chaosIntervalMinTicks) loaded.chaosIntervalMaxTicks = 1900;
-                        loaded.configVersion = 2;
+                        upgraded = true;
+                    }
+                    if (rawVersion < 5) {
+                        if (loaded.marketEventDurationTicks >= 3000 || loaded.marketEventDurationTicks <= 0) {
+                            loaded.marketEventDurationTicks = 2400;
+                        }
+                        if (loaded.chaosIntervalMinTicks <= 0 || loaded.chaosIntervalMinTicks >= 300) {
+                            loaded.chaosIntervalMinTicks = 240;
+                        }
+                        if (loaded.chaosIntervalMaxTicks <= loaded.chaosIntervalMinTicks || loaded.chaosIntervalMaxTicks >= 520) {
+                            loaded.chaosIntervalMaxTicks = 400;
+                        }
+                        loaded.configVersion = 5;
                         upgraded = true;
                     }
                     INSTANCE = loaded;

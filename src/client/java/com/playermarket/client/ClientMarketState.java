@@ -36,7 +36,11 @@ public class ClientMarketState {
                     .ifPresent(parsed -> sharedCampaign = parsed);
         }
         activeEvent = MarketEvent.byId(payload.activeEventId()).orElse(MarketEvent.STABLE_MARKET);
-        currentGameTick = payload.currentGameTick();
+        long incomingTick = payload.currentGameTick();
+        // Prevent 1-4 tick backward jitter while smoothly advancing timers at 20 TPS
+        if (currentGameTick <= 0L || incomingTick >= currentGameTick || (currentGameTick - incomingTick) > 4L) {
+            currentGameTick = incomingTick;
+        }
         nextEventSwitchTick = payload.nextEventSwitchTick();
         oreScannerReport = payload.oreScannerReport() != null ? payload.oreScannerReport() : "OFFLINE";
         activeChaosId = payload.activeChaosId() != null ? payload.activeChaosId() : "NONE";
@@ -106,6 +110,12 @@ public class ClientMarketState {
 
     public static MarketEvent getActiveEvent() {
         return activeEvent;
+    }
+
+    public static void tickClient(Minecraft mc) {
+        if (mc != null && mc.level != null && !mc.isPaused() && currentGameTick > 0L) {
+            currentGameTick++;
+        }
     }
 
     public static long getCurrentGameTick() {

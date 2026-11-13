@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.playermarket.PlayerMarketMod;
 import com.playermarket.config.MarketConfig;
 import com.playermarket.market.*;
 import com.playermarket.network.MarketNetworking;
@@ -228,43 +229,72 @@ public class MarketCommands {
                                         })))
                         .then(Commands.literal("reset")
                                 .executes(ctx -> {
-                                    ServerPlayer player = ctx.getSource().getPlayerOrException();
-                                    var server = player.level().getServer();
+                                    var server = ctx.getSource().getServer();
                                     MarketSavedData data = MarketSavedData.get(server);
                                     var campaign = data.getCampaignData();
+                                    long gameTime = server.overworld().getGameTime();
                                     campaign.setCurrentStage(1);
                                     campaign.getCompletedTasks().clear();
                                     campaign.getCompletedSideQuests().clear();
                                     campaign.getObjectiveProgress().clear();
                                     campaign.getTriggeredStoryEvents().clear();
                                     campaign.setLastStoryEventTick(0L);
-                                    PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
-                                    acc.getStoryProgress().setCurrentStage(1);
-                                    acc.getStoryProgress().getCompletedTasks().clear();
-                                    acc.getStoryProgress().getClaimedTaskRewards().clear();
-                                    acc.getStoryProgress().getCompletedSideQuests().clear();
-                                    acc.getStoryProgress().getClaimedSideQuestRewards().clear();
-                                    acc.getStoryProgress().getTaskProgress().clear();
-                                    acc.getStoryProgress().setFinalChoice("NONE");
+                                    for (PlayerMarketAccount acc : data.getAccountsView().values()) {
+                                        acc.getStoryProgress().setCurrentStage(1);
+                                        acc.getStoryProgress().getCompletedTasks().clear();
+                                        acc.getStoryProgress().getClaimedTaskRewards().clear();
+                                        acc.getStoryProgress().getCompletedSideQuests().clear();
+                                        acc.getStoryProgress().getClaimedSideQuestRewards().clear();
+                                        acc.getStoryProgress().getTaskProgress().clear();
+                                        acc.getStoryProgress().setFinalChoice("NONE");
+                                    }
+                                    data.setActiveEvent(MarketEvent.STABLE_MARKET, gameTime);
                                     data.setDirty();
                                     MarketNetworking.broadcastSync(server, "§aПрогресс сюжета сброшен на Этап 1");
-                                    ctx.getSource().sendSuccess(() -> Component.literal("§8[§aPLAYER MARKET§8] §eStory reset to Stage 1"), true);
+                                    ctx.getSource().sendSuccess(() -> Component.literal("§8[§aPLAYER MARKET§8] §eStory reset to Stage 1 for all accounts"), true);
                                     return 1;
                                 })))
                 .then(Commands.literal("reset")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(ctx -> {
                             ServerPlayer player = ctx.getSource().getPlayerOrException();
-                            MarketSavedData data = MarketSavedData.get(player.level().getServer());
+                            var server = player.level().getServer();
+                            MarketSavedData data = MarketSavedData.get(server);
                             PlayerMarketAccount acc = data.getOrCreateAccount(player.getUUID());
                             acc.resetAll();
                             data.setDirty();
-                            com.playermarket.story.EndingSequenceManager.resetEnding(player);
+                            com.playermarket.story.EndingSequenceManager.resetEnding(server);
                             MarketAttributeApplier.syncPlayerModifiers(player);
                             MarketNetworking.sendSyncToPlayer(player, "§eMarket account reset to factory defaults.");
                             ctx.getSource().sendSuccess(() -> Component.literal("§8[§aPLAYER MARKET§8] §eReset account for " + player.getName().getString()), true);
                             return 1;
-                        }))
+                        })
+                        .then(Commands.literal("all")
+                                .executes(ctx -> {
+                                    var server = ctx.getSource().getServer();
+                                    long gameTime = server.overworld().getGameTime();
+                                    MarketSavedData data = MarketSavedData.get(server);
+                                    com.playermarket.story.CorporateChaosDirector.clearAllWorldEntities(server);
+                                    com.playermarket.story.CorporateChaosDirector.resetRuntimeState();
+                                    com.playermarket.story.CorporateTaskTracker.clearAll();
+                                    MarketAttributeApplier.clearScannerCache();
+                                    data.getCampaignData().resetAll();
+                                    data.resetAllAccounts();
+                                    data.setActiveEvent(MarketEvent.STABLE_MARKET, gameTime);
+                                    data.setActiveChaos("NONE", 0L);
+                                    data.setNextChaosTick(gameTime + 180L);
+                                    com.playermarket.story.EndingSequenceManager.resetEnding(server);
+                                    for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
+                                        PlayerMarketAccount acc = data.getOrCreateAccount(sp.getUUID());
+                                        data.ensureAccountRegistered(sp.getUUID(), acc);
+                                        PlayerMarketMod.grantCrumpledLetterSafely(sp, acc);
+                                        MarketAttributeApplier.syncPlayerModifiers(sp);
+                                    }
+                                    data.setDirty();
+                                    MarketNetworking.broadcastSync(server, "§eПолный сброс мира Player Market выполнен! Выдано новое Мятое письмо.");
+                                    ctx.getSource().sendSuccess(() -> Component.literal("§8[§aPLAYER MARKET§8] §aFull co-op campaign & all accounts reset cleanly."), true);
+                                    return 1;
+                                })))
                 .then(Commands.literal("reload")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .executes(ctx -> {

@@ -406,12 +406,33 @@ public class MarketAttributeApplier {
         double mult = 1.0;
         if (event == MarketEvent.CORPORATE_AUDIT || event == MarketEvent.PREMIUM_WEEK) {
             mult *= 0.85;
+        } else if (event == MarketEvent.TECH_BREAKTHROUGH) {
+            mult *= 0.70;
+        } else if (event == MarketEvent.OLIGARCH_TAX_HOLIDAY) {
+            mult *= 0.75;
         }
         int vipLvl = account.getUpgradeLevel(UpgradeType.VIP_CLIENT);
         if (vipLvl == 2) mult *= 0.90;
         else if (vipLvl >= 3) mult *= 0.80;
 
         return Math.max(1, (int) Math.round(baseCost * mult));
+    }
+
+    /**
+     * Progressive bio-contribution multiplier rewarding players who actively sell stats.
+     * 0 sold stats = 30% payouts (heavy freeloader penalty), 1-2 = 100%, 3+ = 135% Liquidator bonus.
+     */
+    public static double getBioPayoutMultiplier(PlayerMarketAccount account) {
+        if (account == null) return 0.30;
+        int sold = account.getSoldAssetCount();
+        if (sold <= 0) return 0.30;
+        if (sold >= 3) return 1.35;
+        return 1.00;
+    }
+
+    public static long scaleBioCr(PlayerMarketAccount account, long baseCr) {
+        if (baseCr <= 0L) return baseCr;
+        return Math.max(1L, Math.round(baseCr * getBioPayoutMultiplier(account)));
     }
 
     // === VANILLA DIAMOND INVENTORY HELPERS (Strictly minecraft:diamond regardless of mod origin) ===
@@ -450,11 +471,34 @@ public class MarketAttributeApplier {
 
     // === ORE SCANNER TELEMETRY ===
 
+    private record OreScanCacheEntry(String report, long scanTick, BlockPos pos, int level, String dimId) {}
+
+    private static final java.util.Map<UUID, OreScanCacheEntry> SCANNER_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<UUID, Long> LAST_INTEGRITY_TAX_TICK = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void clearScannerCache() {
+        SCANNER_CACHE.clear();
+        LAST_INTEGRITY_TAX_TICK.clear();
+    }
+
     public static String computeOreScannerReport(ServerPlayer player, PlayerMarketAccount account) {
         int lvl = account.getUpgradeLevel(UpgradeType.ORE_SCANNER);
-        if (lvl <= 0) return "OFFLINE";
-        int radius = (int) Math.round(UpgradeType.ORE_SCANNER.getValueForLevel(lvl));
+        if (lvl <= 0) {
+            SCANNER_CACHE.remove(player.getUUID());
+            return "OFFLINE";
+        }
+        long nowTick = player.level().getGameTime();
         BlockPos center = player.blockPosition();
+        String dimId = player.level().dimension().identifier().toString();
+        OreScanCacheEntry cached = SCANNER_CACHE.get(player.getUUID());
+        if (cached != null
+                && cached.level() == lvl
+                && cached.dimId().equals(dimId)
+                && Math.abs(nowTick - cached.scanTick()) < 80L
+                && cached.pos().distSqr(center) < 16.0) {
+            return cached.report();
+        }
+        int radius = (int) Math.round(UpgradeType.ORE_SCANNER.getValueForLevel(lvl));
         int diamond = 0, emerald = 0, gold = 0, iron = 0, redstone = 0, coal = 0, debris = 0;
 
         for (int dx = -radius; dx <= radius; dx++) {
@@ -472,8 +516,10 @@ public class MarketAttributeApplier {
                 }
             }
         }
-        return String.format(Locale.ROOT, "R:%dм | ♦:%d ИЗУМ:%d ОБЛ:%d ЗОЛ:%d ЖЕЛ:%d РЕД:%d УГ:%d",
+        String report = String.format(Locale.ROOT, "R:%dм | ♦:%d ИЗУМ:%d ОБЛ:%d ЗОЛ:%d ЖЕЛ:%d РЕД:%d УГ:%d",
                 radius, diamond, emerald, debris, gold, iron, redstone, coal);
+        SCANNER_CACHE.put(player.getUUID(), new OreScanCacheEntry(report, nowTick, center, lvl, dimId));
+        return report;
     }
 
     // === SERVER TICK HANDLER ===
@@ -485,16 +531,23 @@ public class MarketAttributeApplier {
         long gameTime = server.overworld().getGameTime();
         var sharedCampaign = data.getCampaignData();
         boolean worldSettled = com.playermarket.story.StoryManager.isProgramTerminated(sharedCampaign, null);
+        boolean campaignAccepted = sharedCampaign.isCampaignAccepted();
 
-        if (worldSettled && data.getActiveEvent() != MarketEvent.STABLE_MARKET) {
+        // Keep Market Event strictly at STABLE_MARKET and timers frozen until the campaign contract is signed
+        if ((worldSettled || !campaignAccepted) && data.getActiveEvent() != MarketEvent.STABLE_MARKET) {
             data.setActiveEvent(MarketEvent.STABLE_MARKET, gameTime);
+        }
+        if (!campaignAccepted && !worldSettled) {
+            if (data.getNextEventSwitchTick() < gameTime + 200L) {
+                data.setNextEventSwitchTick(gameTime + 2400L);
+            }
         }
 
         // Tick synchronized Corporate Chaos Directives (~75-95s dynamic co-op chaos loop)
         com.playermarket.story.CorporateChaosDirector.tickServer(server, data, sharedCampaign, gameTime);
 
-        // Check dynamic Market Event rotation (disabled once ending/settlement has locked market access)
-        if (!worldSettled && gameTime >= 2400L && gameTime >= data.getNextEventSwitchTick()) {
+        // Check dynamic Market Event rotation (only after contract signed & before settlement)
+        if (campaignAccepted && !worldSettled && gameTime >= 2400L && gameTime >= data.getNextEventSwitchTick()) {
             MarketEvent[] events = MarketEvent.values();
             MarketEvent current = data.getActiveEvent();
             MarketEvent next = current;
@@ -521,6 +574,13 @@ public class MarketAttributeApplier {
                 p.sendSystemMessage(Component.literal("§8[§6БИРЖЕВОЙ ВЕСТНИК§8] §eВНИМАНИЕ! Смена рыночного цикла:\n"
                         + "§f▶ §e§l" + next.getHeadline() + "\n"
                         + "§7" + next.getDescription()));
+                if (p.connection != null) {
+                    p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket(5, 36, 8));
+                    p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(
+                            Component.literal((isCrash ? "§c§l📉 " : "§a§l📈 ") + next.getHeadline())));
+                    p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket(
+                            Component.literal("§fРыночный цикл биржи обновлён")));
+                }
                 MarketNetworking.sendSyncToPlayer(p);
             }
         }
@@ -543,7 +603,7 @@ public class MarketAttributeApplier {
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 PlayerMarketAccount account = data.getOrCreateAccount(player.getUUID());
                 if (worldSettled || com.playermarket.story.StoryManager.isProgramTerminated(sharedCampaign, account)) {
-                    if (gameTime % 100L == 0L) {
+                    if (gameTime % 20L == 0L) {
                         MarketNetworking.sendSyncToPlayer(player);
                     }
                     continue;
@@ -587,16 +647,16 @@ public class MarketAttributeApplier {
                 for (int i = 0; i < contracts.size(); i++) {
                     ContractEntry c = contracts.get(i);
                     if (c.active() && !c.completed() && !c.claimed() && c.deadlineTick() > 0L && gameTime >= c.deadlineTick()) {
-                        long basePenalty = c.penaltyCr();
-                        long wealthTax = (long) (account.getCrBalance() * 0.05); // 5% Progressive Wealth Tax
+                        long basePenalty = Math.max(c.penaltyCr(), 260L);
+                        long wealthTax = Math.round(account.getCrBalance() * 0.15); // 15% Progressive Wealth Tax
                         long totalFine = basePenalty + Math.max(0L, wealthTax);
                         long fine = account.forcePenaltyCr(totalFine);
                         account.addTransaction(gameTime, "ШТРАФ И НАЛОГ", c.title(),
-                                "Просрочен дедлайн принятого контракта (" + c.durationDays() + " дн.) [База: -" + basePenalty + " | Налог 5%: -" + wealthTax + " CR]", -fine, 0);
+                                "Просрочен дедлайн принятого контракта (" + c.durationDays() + " дн.) [База: -" + basePenalty + " | Налог 15%: -" + wealthTax + " CR]", -fine, 0);
                         player.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 600, 0));
                         player.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 600, 0));
                         player.sendSystemMessage(Component.literal("§8[§cPLAYER MARKET§8] §cПринятый контракт просрочен: §f" + c.title()
-                                + "§c! Штраф: §e-" + basePenalty + " CR §8+ §cНалог (5%): §e-" + wealthTax + " CR §8(§cВсего: §e-" + fine + " CR§8)§c."));
+                                + "§c! Штраф: §e-" + basePenalty + " CR §8+ §cНалог (15%): §e-" + wealthTax + " CR §8(§cВсего: §e-" + fine + " CR§8)§c."));
                         player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
                                 SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.45f, 0.8f);
                         contracts.set(i, c.resetForNewCycle(gameTime));
@@ -693,13 +753,36 @@ public class MarketAttributeApplier {
                     player.setAirSupply(Math.max(-20, player.getAirSupply() - extraAirLoss));
                 }
 
+                // 9. Luxury Integrity Tax on hoarders who refuse to sell any body stats
+                if (campaign.isCampaignAccepted() && !player.isCreative() && !player.isSpectator()
+                        && gameTime >= 1600L && account.getSoldAssetCount() <= 0) {
+                    long lastTaxTick = LAST_INTEGRITY_TAX_TICK.computeIfAbsent(player.getUUID(), id -> gameTime);
+                    int invDiamonds = countVanillaDiamonds(player.getInventory());
+                    if ((gameTime - lastTaxTick) >= 1600L && (account.getCrBalance() >= 600L || invDiamonds >= 4)) {
+                        LAST_INTEGRITY_TAX_TICK.put(player.getUUID(), gameTime);
+                        long taxAmount = Math.max(250L, Math.round(account.getCrBalance() * 0.18));
+                        long deducted = account.forcePenaltyCr(taxAmount);
+                        if (deducted > 0L) {
+                            account.addTransaction(gameTickSafe(server), "НАЛОГ ЦЕЛОСТНОСТИ", "Неиспользуемое тело",
+                                    "0 проданных статов при накоплении капитала (18%)", -deducted, 0);
+                            player.sendSystemMessage(Component.literal("§8[§cНАЛОГОВАЯ HR§8] §c⚠ Налог на целостность: §e-" + deducted
+                                    + " CR §7(18%, мин. 250 CR)! Вы не продали ни 1 стата, но копите богатство. Откройте §a[M] -> ПРОДАЖА§7!"));
+                            player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                                    SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.5f, 0.9f);
+                            needsSync = true;
+                        }
+                    }
+                } else {
+                    LAST_INTEGRITY_TAX_TICK.remove(player.getUUID());
+                }
+
                 // Periodically check story tasks & dynamic corporate situations
                 if (gameTime % 40L == 0L) {
                     com.playermarket.story.StoryManager.checkAllQuests(player, account);
                 }
 
-                // Sync every 5 seconds for HUD timers or immediately if state changed
-                if (needsSync || (gameTime % 100L == 0L)) {
+                // Sync once per second for smooth HUD timers or immediately if state changed
+                if (needsSync || (gameTime % 20L == 0L)) {
                     if (needsSync) {
                         data.setDirty();
                         syncPlayerModifiers(player);
@@ -708,5 +791,9 @@ public class MarketAttributeApplier {
                 }
             }
         }
+    }
+
+    private static long gameTickSafe(MinecraftServer server) {
+        return server != null ? server.overworld().getGameTime() : 0L;
     }
 }

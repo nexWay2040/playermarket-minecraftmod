@@ -26,12 +26,12 @@ public class MarketSavedData extends SavedData {
         public static final Codec<ChaosData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.optionalFieldOf("activeChaosId", "NONE").forGetter(ChaosData::activeChaosId),
                 Codec.LONG.optionalFieldOf("activeChaosEndsTick", 0L).forGetter(ChaosData::activeChaosEndsTick),
-                Codec.LONG.optionalFieldOf("nextChaosTick", 900L).forGetter(ChaosData::nextChaosTick),
+                Codec.LONG.optionalFieldOf("nextChaosTick", 240L).forGetter(ChaosData::nextChaosTick),
                 Codec.BOOL.optionalFieldOf("chaosEnabled", true).forGetter(ChaosData::chaosEnabled)
         ).apply(instance, ChaosData::new));
 
         public ChaosData() {
-            this("NONE", 0L, 900L, true);
+            this("NONE", 0L, 240L, true);
         }
     }
 
@@ -56,7 +56,7 @@ public class MarketSavedData extends SavedData {
     private SharedCampaignData campaignData = new SharedCampaignData();
     private String activeChaosId = "NONE";
     private long activeChaosEndsTick = 0L;
-    private long nextChaosTick = 900L;
+    private long nextChaosTick = 240L;
     private boolean chaosEnabled = true;
 
     public MarketSavedData() {
@@ -136,6 +136,17 @@ public class MarketSavedData extends SavedData {
             setDirty();
             return new PlayerMarketAccount();
         });
+    }
+
+    public Map<UUID, PlayerMarketAccount> getAccountsView() {
+        return java.util.Collections.unmodifiableMap(accounts);
+    }
+
+    public void resetAllAccounts() {
+        for (PlayerMarketAccount acc : accounts.values()) {
+            acc.resetAll();
+        }
+        setDirty();
     }
 
     public MarketEvent getActiveEvent() {

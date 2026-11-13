@@ -92,8 +92,8 @@ public class StoryManager {
 
         long gameTick = server.overworld().getGameTime();
         if (firstActivation) {
-            // Fire first hilarious Corporate Chaos Directive ~40s after signing
-            savedData.setNextChaosTick(gameTick + 800L);
+            // Fire first hilarious Corporate Chaos Directive ~9s after signing
+            savedData.setNextChaosTick(gameTick + 180L);
             savedData.setNextEventSwitchTick(gameTick + 2400L);
         }
 
@@ -116,6 +116,10 @@ public class StoryManager {
         server.getPlayerList().broadcastSystemMessage(
                 Component.literal("§8[§6ПРОГРАММА АКТИВОВ§8] §aУчастник §f" + player.getName().getString()
                         + " §aподписал договор! Все игроки получили Карту Доступа [M] и +100 CR!"),
+                false
+        );
+        server.getPlayerList().broadcastSystemMessage(
+                Component.literal("§8[§bКАК ИГРАТЬ§8] §71) Нажми §f[M] §7или ПКМ Картой §8| §72) Продавай статы и торгуй на бирже §8| §73) Берегись §cдиректив хаоса и 3D-бомб§7: просрочки и штрафы бьют в §c% от баланса§7!"),
                 false
         );
 
@@ -840,16 +844,30 @@ public class StoryManager {
         if (player.level().getServer() != null && isProgramTerminated(MarketSavedData.get(player.level().getServer()).getCampaignData(), account)) {
             return false;
         }
+        int soldCount = account.getSoldAssetCount();
+        if (soldCount <= 0) {
+            player.sendSystemMessage(Component.literal("§c[ОТКАЗ HR] Награда за Этап " + stage + " недоступна с 0 проданных статов! Откройте [M] -> ПРОДАЖА и продайте хотя бы 1 стат."));
+            return false;
+        }
+        if (stage >= 4 && soldCount < 2) {
+            player.sendSystemMessage(Component.literal("§c[ОТКАЗ HR] Для получения наград Этапа " + stage + " нужно лично продать минимум 2 характеристики!"));
+            return false;
+        }
         StoryProgress story = account.getStoryProgress();
         for (StoryQuests.StageTask task : StoryQuests.getTasksForStage(stage)) {
             if (task.id().equals(taskId)) {
                 if (story.claimTaskReward(taskId)) {
-                    if (task.rewardCr() > 0) {
-                        account.addCr(task.rewardCr());
-                        account.addTransaction(gameTick, "НАГРАДА ЗА ЭТАП", task.title(), "Программа Активов (Этап " + stage + ")", task.rewardCr(), 0);
+                    long crReward = task.rewardCr() > 0 ? MarketAttributeApplier.scaleBioCr(account, task.rewardCr()) : 0L;
+                    int diaReward = task.rewardDiamonds();
+                    if (diaReward > 0 && soldCount >= 3) {
+                        diaReward += 1; // +1 ♦ Liquidator VIP Bonus
                     }
-                    if (task.rewardDiamonds() > 0) {
-                        ItemStack dia = new ItemStack(Items.DIAMOND, task.rewardDiamonds());
+                    if (crReward > 0) {
+                        account.addCr(crReward);
+                        account.addTransaction(gameTick, "НАГРАДА ЗА ЭТАП", task.title(), "Программа Активов (Этап " + stage + ")", crReward, diaReward);
+                    }
+                    if (diaReward > 0) {
+                        ItemStack dia = new ItemStack(Items.DIAMOND, diaReward);
                         if (!player.getInventory().add(dia)) {
                             player.drop(dia, false, net.minecraft.util.Prediction.SERVER_ONLY);
                         }
@@ -868,20 +886,27 @@ public class StoryManager {
         if (player.level().getServer() != null && isProgramTerminated(MarketSavedData.get(player.level().getServer()).getCampaignData(), account)) {
             return false;
         }
+        int soldCount = account.getSoldAssetCount();
         StoryProgress story = account.getStoryProgress();
         for (StoryQuests.SideQuest sq : StoryQuests.SIDE_QUESTS) {
             if (sq.id().equals(questId)) {
                 if (story.claimSideQuestReward(questId)) {
-                    if (sq.rewardCr() > 0) {
-                        account.addCr(sq.rewardCr());
-                        account.addTransaction(gameTick, "НАГРАДА ЗА ПОРУЧЕНИЕ", sq.title(), "Корпоративный контракт", sq.rewardCr(), 0);
+                    long crReward = sq.rewardCr() > 0 ? MarketAttributeApplier.scaleBioCr(account, sq.rewardCr()) : 0L;
+                    int diaReward = soldCount <= 0 ? 0 : sq.rewardDiamonds();
+                    if (crReward > 0) {
+                        account.addCr(crReward);
+                        account.addTransaction(gameTick, "НАГРАДА ЗА ПОРУЧЕНИЕ", sq.title(),
+                                soldCount <= 0 ? "Удержано 70% CR и ♦ (0 статов)" : "Корпоративный контракт", crReward, diaReward);
                     }
-                    if (sq.rewardDiamonds() > 0) {
-                        ItemStack dia = new ItemStack(Items.DIAMOND, sq.rewardDiamonds());
+                    if (diaReward > 0) {
+                        ItemStack dia = new ItemStack(Items.DIAMOND, diaReward);
                         if (!player.getInventory().add(dia)) {
                             player.drop(dia, false, net.minecraft.util.Prediction.SERVER_ONLY);
                         }
                         player.getInventory().setChanged();
+                    }
+                    if (soldCount <= 0) {
+                        player.sendSystemMessage(Component.literal("§c[ШТРАФ БИО-ВКЛАДА] §7За 0 проданных статов выплата по поручению урезана до §e" + crReward + " CR §cи §f0 ♦§7! Продайте стат в [M]->ПРОДАЖА."));
                     }
                     checkAllQuests(player, account);
                     return true;

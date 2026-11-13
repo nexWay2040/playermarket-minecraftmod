@@ -368,6 +368,10 @@ public class ResourceValuationEngine {
             if (priceLockLvl == 2) eventMult = Math.max(eventMult, 1.08);
             else if (priceLockLvl >= 3) eventMult = Math.max(eventMult, 1.18);
             value *= eventMult;
+
+            if (activeEvent == MarketEvent.JUNK_HYPERINFLATION && isTrashHyperinflationItem(item)) {
+                value = Math.max(value * 8.0, 32.0);
+            }
         }
 
         // Corporate privilege: Premium Account bonus
@@ -379,6 +383,17 @@ public class ResourceValuationEngine {
         }
 
         return Math.max(1L, Math.round(value));
+    }
+
+    private static boolean isTrashHyperinflationItem(Item item) {
+        return item == Items.DANDELION || item == Items.POPPY || item == Items.BLUE_ORCHID
+                || item == Items.ALLIUM || item == Items.AZURE_BLUET || item == Items.RED_TULIP
+                || item == Items.ORANGE_TULIP || item == Items.WHITE_TULIP || item == Items.PINK_TULIP
+                || item == Items.OXEYE_DAISY || item == Items.CORNFLOWER || item == Items.LILY_OF_THE_VALLEY
+                || item == Items.PUFFERFISH || item == Items.ROTTEN_FLESH || item == Items.SPIDER_EYE
+                || item == Items.POISONOUS_POTATO || item == Items.GLASS || item == Items.GLASS_PANE
+                || item == Items.DEAD_BUSH || item == Items.SHORT_GRASS || item == Items.WHEAT_SEEDS
+                || item == Items.KELP || item == Items.INK_SAC || item == Items.FEATHER || item == Items.BONE;
     }
 
     private static long estimateFallbackByRarity(ItemStack stack) {

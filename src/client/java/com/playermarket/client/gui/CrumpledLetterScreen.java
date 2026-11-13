@@ -43,13 +43,19 @@ public class CrumpledLetterScreen extends Screen {
         // Render high-resolution procedural aged parchment background texture with wax seal & border
         graphics.blit(RenderPipelines.GUI_TEXTURED, PARCHMENT_TEXTURE, dx, dy, 0.0f, 0.0f, docW, docH, 400, 280, 400, 280);
 
-        // Header Title & Stamp
-        graphics.text(font, "§4§lКОРПОРАТИВНЫЙ РЕЕСТР §8// §0ASSET PROGRAM", dx + 20, dy + 18, 0xFF24150D, false);
-        graphics.text(font, "§8REF #00-B", dx + docW - 85, dy + 18, 0xFF634D35, false);
+        // Header Title & Stamp (clamped cleanly against right edge)
+        String refText = "§8REF #00-B";
+        int refW = font.width(refText);
+        int titleX = dx + 20;
+        int refX = dx + docW - 20 - refW;
+        String headerTitle = docW >= 340 ? "§4§lКОРПОРАТИВНЫЙ РЕЕСТР §8// §0ASSET PROGRAM" : "§4§lРЕЕСТР §8// §0ASSET PROGRAM";
+        graphics.text(font, headerTitle, titleX, dy + 18, 0xFF24150D, false);
+        graphics.text(font, refText, refX, dy + 18, 0xFF634D35, false);
 
         // Official Contract Body Text (Russian)
-        int textY = dy + 44;
-        int textMaxW = docW - 80; // Leave room on right for the wax seal
+        int textY = dy + 42;
+        int textMaxW = Math.max(120, docW - 72);
+        int btnY = dy + docH - 38;
 
         String[] contractLines = {
                 "§0§lУважаемый кандидат!",
@@ -65,32 +71,37 @@ public class CrumpledLetterScreen extends Screen {
                 "§8Подписывая настоящий документ, вы соглашаетесь на внесение в корпоративный реестр."
         };
 
+        int maxBodyBottom = btnY - 30;
         for (String line : contractLines) {
             if (line.isEmpty()) {
-                textY += 4;
+                textY += 3;
                 continue;
             }
             List<net.minecraft.network.chat.FormattedText> wrapped =
                     font.getSplitter().splitLines(Component.literal(line), textMaxW, net.minecraft.network.chat.Style.EMPTY);
             for (var wl : wrapped) {
+                if (textY + 10 > maxBodyBottom) break;
                 graphics.text(font, wl.getString(), dx + 20, textY, 0xFF1C1309, false);
                 textY += 10;
             }
         }
 
-        // Hidden tiny legal boilerplate tucked subtly above the action buttons
-        int btnY = dy + docH - 42;
-        int fineY = Math.min(btnY - 22, textY + 4);
+        // Hidden tiny legal boilerplate wrapped cleanly within parchment bounds
+        float fScale = 0.60f;
+        int fineMaxUnscaledW = Math.max(120, Math.round((docW - 44) / fScale));
         String b1 = "Рег. форма #00-B/АУД: сторона подтверждает обработку сессионной телеметрии, курсов CR/♦, архивное хранение";
-        String b2 = "учётных логов и принятие сопутствующих положений регламента, вкл. ";
+        List<net.minecraft.util.FormattedCharSequence> b1Lines = font.split(Component.literal(b1), fineMaxUnscaledW);
+        int fineH = Math.round((b1Lines.size() + 1) * 10 * fScale);
+        int fineY = Math.min(btnY - fineH - 4, textY + 3);
+
+        String b2 = "учётных логов и принятие регламента, вкл. ";
         String link17 = "п. 17.4 (протокол отчуждения)";
         String b3 = " без оговорок.";
-        float fScale = 0.60f;
-        int line1W = Math.round(font.width(b1) * fScale);
         int b2W = Math.round(font.width(b2) * fScale);
         int l17W = Math.round(font.width(link17) * fScale);
+        int linkUnscaledY = b1Lines.size() * 10;
         clauseMinX = dx + 20 + b2W - 1;
-        clauseMinY = fineY + 6;
+        clauseMinY = fineY + Math.round(linkUnscaledY * fScale) - 1;
         clauseMaxX = clauseMinX + l17W + 2;
         clauseMaxY = clauseMinY + 8;
         boolean clauseHover = !clause17Open && (mouseX >= clauseMinX && mouseX <= clauseMaxX && mouseY >= clauseMinY && mouseY <= clauseMaxY);
@@ -98,21 +109,27 @@ public class CrumpledLetterScreen extends Screen {
         graphics.pose().pushMatrix();
         graphics.pose().translate(dx + 20.0f, (float) fineY);
         graphics.pose().scale(fScale, fScale);
-        graphics.text(font, b1, 0, 0, 0x77735B40, false);
-        graphics.text(font, b2, 0, 11, 0x77735B40, false);
-        graphics.text(font, link17, font.width(b2), 11, clauseHover ? 0xFF7F1D1D : 0x77735B40, false);
-        if (clauseHover) {
-            graphics.fill(font.width(b2), 20, font.width(b2) + font.width(link17), 21, 0xFF7F1D1D);
+        int fyOffset = 0;
+        for (var seq : b1Lines) {
+            graphics.text(font, seq, 0, fyOffset, 0x77735B40, false);
+            fyOffset += 10;
         }
-        graphics.text(font, b3, font.width(b2) + font.width(link17), 11, 0x77735B40, false);
+        graphics.text(font, b2, 0, fyOffset, 0x77735B40, false);
+        graphics.text(font, link17, font.width(b2), fyOffset, clauseHover ? 0xFF7F1D1D : 0x77735B40, false);
+        if (clauseHover) {
+            graphics.fill(font.width(b2), fyOffset + 9, font.width(b2) + font.width(link17), fyOffset + 10, 0xFF7F1D1D);
+        }
+        graphics.text(font, b3, font.width(b2) + font.width(link17), fyOffset, 0x77735B40, false);
         graphics.pose().popMatrix();
 
-        // Two prominent interactive buttons at the bottom of the parchment
-        int signBtnW = 180;
+        // Two responsive interactive buttons at the bottom of the parchment
+        int btnGap = 10;
+        int availBtnW = docW - 44 - btnGap;
+        int signBtnW = Math.min(180, (availBtnW * 62) / 100);
         int signBtnH = 24;
         int signBtnX = dx + 22;
 
-        int declineBtnW = 110;
+        int declineBtnW = Math.min(110, availBtnW - signBtnW);
         int declineBtnH = 24;
         int declineBtnX = dx + docW - declineBtnW - 22;
 
@@ -122,14 +139,16 @@ public class CrumpledLetterScreen extends Screen {
         // Sign Button (Dark Forest / Emerald styling with gold border)
         graphics.fill(signBtnX, btnY, signBtnX + signBtnW, btnY + signBtnH, signHovered ? 0xFF14532D : 0xFF166534);
         graphics.fill(signBtnX + 1, btnY + 1, signBtnX + signBtnW - 1, btnY + signBtnH - 1, signHovered ? 0xFF052E16 : 0xFF14532D);
-        String signText = signHovered ? "§a§l✔ ПОДПИСАТЬ ДОГОВОР" : "§f§l✔ ПОДПИСАТЬ ДОГОВОР";
+        String signText = signBtnW >= 155 ? (signHovered ? "§a§l✔ ПОДПИСАТЬ ДОГОВОР" : "§f§l✔ ПОДПИСАТЬ ДОГОВОР")
+                : (signHovered ? "§a§l✔ ПОДПИСАТЬ" : "§f§l✔ ПОДПИСАТЬ");
         int stw = font.width(signText);
         graphics.text(font, signText, signBtnX + (signBtnW - stw) / 2, btnY + 7, 0xFFFFFFFF, false);
 
         // Decline Button (Muted Dark Slate)
         graphics.fill(declineBtnX, btnY, declineBtnX + declineBtnW, btnY + declineBtnH, declineHovered ? 0xFF334155 : 0xFF475569);
         graphics.fill(declineBtnX + 1, btnY + 1, declineBtnX + declineBtnW - 1, btnY + declineBtnH - 1, declineHovered ? 0xFF0F172A : 0xFF1E293B);
-        String decText = declineHovered ? "§c✖ ОТКЛОНИТЬ" : "§7✖ ОТКЛОНИТЬ";
+        String decText = declineBtnW >= 95 ? (declineHovered ? "§c✖ ОТКЛОНИТЬ" : "§7✖ ОТКЛОНИТЬ")
+                : (declineHovered ? "§c✖ ОТКАЗ" : "§7✖ ОТКАЗ");
         int dtw = font.width(decText);
         graphics.text(font, decText, declineBtnX + (declineBtnW - dtw) / 2, btnY + 7, 0xFFFFFFFF, false);
 
@@ -203,12 +222,14 @@ public class CrumpledLetterScreen extends Screen {
         int dx = (width - docW) / 2;
         int dy = (height - docH) / 2;
 
-        int btnY = dy + docH - 42;
-        int signBtnW = 180;
+        int btnY = dy + docH - 38;
+        int btnGap = 10;
+        int availBtnW = docW - 44 - btnGap;
+        int signBtnW = Math.min(180, (availBtnW * 62) / 100);
         int signBtnH = 24;
         int signBtnX = dx + 22;
 
-        int declineBtnW = 110;
+        int declineBtnW = Math.min(110, availBtnW - signBtnW);
         int declineBtnH = 24;
         int declineBtnX = dx + docW - declineBtnW - 22;
 

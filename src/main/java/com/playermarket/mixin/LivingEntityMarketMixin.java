@@ -363,4 +363,13 @@ public abstract class LivingEntityMarketMixin {
             }
         }
     }
+
+    @Inject(method = "jumpFromGround", at = @At("TAIL"))
+    private void playermarket$onJumpConfiscationCheck(CallbackInfo ci) {
+        LivingEntity self = (LivingEntity) (Object) this;
+        if (self instanceof ServerPlayer sp && !sp.isSpectator() && sp.level().getServer() != null) {
+            MarketSavedData data = MarketSavedData.get(sp.level().getServer());
+            com.playermarket.story.CorporateChaosDirector.onPlayerJump(sp, data, data.getCampaignData());
+        }
+    }
 }
