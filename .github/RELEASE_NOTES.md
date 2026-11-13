@@ -4,6 +4,20 @@
 
 ---
 
+## Скриншоты интерфейса и 3D-ивентов
+
+| Обзор терминала и 3D Био-монитор | Программа и кнопка призыва `✦ ИВЕНТ-МОБ` |
+| :---: | :---: |
+| ![Обзор терминала](https://raw.githubusercontent.com/nexWay2040/playermarket-minecraftmod/leafxup-edition/docs/screenshots/ui_overview.png) | ![Программа и этапы](https://raw.githubusercontent.com/nexWay2040/playermarket-minecraftmod/leafxup-edition/docs/screenshots/ui_program.png) |
+| **Продажа статов, лизинг и выкуп** | **Чёрный рынок и Инвест-Рулетка 50/50** |
+| ![Продажа характеристик](https://raw.githubusercontent.com/nexWay2040/playermarket-minecraftmod/leafxup-edition/docs/screenshots/ui_sell_biomonitor.png) | ![Чёрный рынок и рулетка](https://raw.githubusercontent.com/nexWay2040/playermarket-minecraftmod/leafxup-edition/docs/screenshots/ui_blackmarket.png) |
+| **3D Бомба «Горячая картошка» HR** | **3D Груз Снабжения и Кооп-HUD** |
+| ![3D Бомба HR](https://raw.githubusercontent.com/nexWay2040/playermarket-minecraftmod/leafxup-edition/docs/screenshots/gameplay_3d_bomb.png) | ![3D Груз Снабжения](https://raw.githubusercontent.com/nexWay2040/playermarket-minecraftmod/leafxup-edition/docs/screenshots/gameplay_3d_crate.png) |
+| **3D Верити-Колобок в мире** | **Контракты с процентными штрафами** |
+| ![3D Верити-Колобок](https://raw.githubusercontent.com/nexWay2040/playermarket-minecraftmod/leafxup-edition/docs/screenshots/gameplay_3d_kolobok.png) | ![Контракты](https://raw.githubusercontent.com/nexWay2040/playermarket-minecraftmod/leafxup-edition/docs/screenshots/ui_contracts.png) |
+
+---
+
 ## Системные требования
 
 - **Minecraft Java Edition**: `26.3`
