@@ -50,6 +50,7 @@ public class PlayerMarketMod implements ModInitializer {
         com.playermarket.item.CrumpledLetterItem.registerItems();
         com.playermarket.item.BlockedMarketCardItem.registerItems();
         com.playermarket.item.MarketPropItems.registerItems();
+        com.playermarket.item.MarketRelicItems.registerItems();
         MarketNetworking.registerServer();
 
         // Register /market commands
@@ -61,12 +62,14 @@ public class PlayerMarketMod implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             com.playermarket.story.EndingSequenceManager.resetRuntimeState();
             com.playermarket.story.CorporateChaosDirector.resetRuntimeState();
+            com.playermarket.story.ChiefAuditorBossManager.clearBoss(server);
             com.playermarket.story.CorporateTaskTracker.clearAll();
             MarketAttributeApplier.clearScannerCache();
             ResourceValuationEngine.ensureInitialized(server);
         });
         ServerLifecycleEvents.SERVER_STARTED.register(ResourceValuationEngine::ensureInitialized);
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            com.playermarket.story.ChiefAuditorBossManager.clearBoss(server);
             com.playermarket.story.CorporateChaosDirector.clearAllWorldEntities(server);
             com.playermarket.story.CorporateChaosDirector.resetRuntimeState();
             com.playermarket.story.EndingSequenceManager.resetRuntimeState();
@@ -76,6 +79,7 @@ public class PlayerMarketMod implements ModInitializer {
 
         // Server tick for leases, market events, and custom attribute effects
         ServerTickEvents.END_SERVER_TICK.register(MarketAttributeApplier::tickServer);
+        ServerTickEvents.END_SERVER_TICK.register(com.playermarket.story.ChiefAuditorBossManager::tickServer);
 
         // Sync player modifiers and grant crumpled letter / market card on join
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {

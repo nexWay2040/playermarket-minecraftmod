@@ -53,7 +53,9 @@ public abstract class LivingEntityMarketMixin {
             PlayerMarketAccount acc = MarketSavedData.get(player.level().getServer()).getOrCreateAccount(player.getUUID());
             long gameTick = player.level().getServer().overworld().getGameTime();
             if (acc.isBlackMarketEffectActive(BlackMarketItem.PHANTOM_STEP, gameTick)
-                    || acc.isBlackMarketEffectActive(BlackMarketItem.EMERGENCY_BATTERY, gameTick)) {
+                    || acc.isBlackMarketEffectActive(BlackMarketItem.EMERGENCY_BATTERY, gameTick)
+                    || gameTick < acc.getGrappleSafeTick()) {
+                cir.setReturnValue(0);
                 return;
             }
             double soldFall = acc.getTotalSoldFraction(AssetType.FALL_RESISTANCE);
@@ -78,9 +80,19 @@ public abstract class LivingEntityMarketMixin {
     @ModifyVariable(method = "hurtServer", at = @At("HEAD"), argsOnly = true, ordinal = 0)
     private float playermarket$modifyIncomingAndOutgoingDamage(float amount, ServerLevel level, DamageSource source) {
         LivingEntity target = (LivingEntity) (Object) this;
+        Entity attackerEntity = source.getEntity();
+
+        // Special Boss Multipliers:
+        if (com.playermarket.story.ChiefAuditorBossManager.isAuditorBoss(target)) {
+            if (com.playermarket.story.ChiefAuditorBossManager.isCoreStaggered(target)) {
+                amount *= 2.5f;
+            }
+            if (attackerEntity instanceof ServerPlayer sp && sp.getMainHandItem().is(com.playermarket.item.MarketRelicItems.DOOM_HAMMER)) {
+                amount *= 1.5f;
+            }
+        }
 
         // 1. Outgoing Critical & Projectile Damage from a ServerPlayer attacker
-        Entity attackerEntity = source.getEntity();
         if (attackerEntity instanceof ServerPlayer attacker) {
             PlayerMarketAccount attackerAcc = MarketSavedData.get(level.getServer()).getOrCreateAccount(attacker.getUUID());
 

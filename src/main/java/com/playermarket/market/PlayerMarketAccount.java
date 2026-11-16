@@ -78,6 +78,7 @@ public class PlayerMarketAccount {
     private boolean permanentImpaired = false;
     private long lastDiamondExchangeDay = -1L;
     private int diamondsExchangedToday = 0;
+    private transient long grappleSafeTick = 0L;
 
     private final Map<String, Double> permanentSoldFractions = new LinkedHashMap<>();
     private final Map<String, Long> permanentSalePayoutBasis = new LinkedHashMap<>();
@@ -589,5 +590,13 @@ public class PlayerMarketAccount {
 
     public void setPermanentImpaired(boolean permanentImpaired) {
         this.permanentImpaired = permanentImpaired;
+    }
+
+    public long getGrappleSafeTick() {
+        return grappleSafeTick;
+    }
+
+    public void setGrappleSafeTick(long grappleSafeTick) {
+        this.grappleSafeTick = grappleSafeTick;
     }
 }

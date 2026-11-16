@@ -733,7 +733,9 @@ public class StoryManager {
             case "FINAL_SETTLEMENT", "ACCOUNT_SETTLEMENT", "MAIN_ENDING", "TRANSFER_OF_OWNERSHIP" -> {
                 net.minecraft.server.MinecraftServer server = player.level().getServer();
                 if (server != null) {
-                    EndingSequenceManager.startSynchronizedFinalSettlement(server);
+                    player.closeContainer();
+                    ChiefAuditorBossManager.startBossBattle(server, player);
+                    MarketNetworking.sendSyncToPlayer(player);
                     return true;
                 }
                 return false;

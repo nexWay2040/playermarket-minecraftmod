@@ -1001,14 +1001,27 @@ public class MarketNetworking {
             } else {
                 int win = 6;
                 giveDiamondsOrDrop(player, win);
-                ItemStack gapple = new ItemStack(Items.GOLDEN_APPLE, 1);
+                ItemStack gapple = new ItemStack(Items.GOLDEN_APPLE, 2);
                 if (!inv.add(gapple)) player.drop(gapple, false, Prediction.SERVER_ONLY);
-                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "ДЖЕКПОТ АЛМАЗОВ!", "x3 + Золотое яблоко!", 0L, win - betDia);
+
+                // Legendary Relic drop from Casino
+                ItemStack relic = pickLegendaryRouletteRelic(rng);
+                if (!inv.add(relic)) player.drop(relic, false, Prediction.SERVER_ONLY);
+                String relicTitle = relic.getHoverName().getString();
+
+                account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "ДЖЕКПОТ АЛМАЗОВ!", "x3 + Золотые яблоки + " + relicTitle, 0L, win - betDia);
                 player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                        SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 1.2f);
+                        SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 1.0f);
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.TOTEM_USE, SoundSource.PLAYERS, 1.0f, 1.2f);
+
                 server.getPlayerList().broadcastSystemMessage(Component.literal(
-                        "§8[§dРУЛЕТКА§8] §e§lДЖЕКПОТ! §f" + playerName + " §aвыбил §b+6 ♦ §aи Золотое Яблоко!"), false);
-                return "§6§lДЖЕКПОТ x3! +6 ♦ и Золотое Яблоко!";
+                        "\n§d§l========================================================\n"
+                                + "§6§l🔥 ЛЕГЕНДАРНЫЙ ДЖЕКПОТ АЛМАЗНОЙ РУЛЕТКИ! 🔥\n"
+                                + "§fИгрок §e" + playerName + " §fвыбил §b+6 ♦§f, §62 Золотых Яблока §fи РЕЛИК:\n"
+                                + "§c§l>>> «" + relicTitle + "» <<<\n"
+                                + "§d§l========================================================\n"), false);
+                return "§6§lДЖЕКПОТ x3! +6 ♦, 2 Золотых Яблока и «" + relicTitle + "»!";
             }
         }
 
@@ -1046,7 +1059,7 @@ public class MarketNetworking {
             account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Победа x2 (+" + (payout - betCr) + " CR)", "Удвоение ставки", payout - betCr, 0);
             playSuccessSound(player);
             return "§aПОБЕДА x2! Получено +" + payout + " CR!";
-        } else if (roll < 0.95) {
+        } else if (roll < 0.94) {
             long payout = betCr * 3L;
             account.addCr(payout);
             account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "Крупный куш x3", "Тройная выплата", payout - betCr, 0);
@@ -1064,15 +1077,51 @@ public class MarketNetworking {
             if (diaBonus > 0) {
                 giveDiamondsOrDrop(player, diaBonus);
             }
+
+            // High roll / All-in / Big bet triggers Legendary Power Relic
+            ItemStack relic = null;
+            if (isAllIn || betCr >= 500L || rng.nextDouble() < 0.35) {
+                relic = pickLegendaryRouletteRelic(rng);
+                if (!inv.add(relic)) player.drop(relic, false, Prediction.SERVER_ONLY);
+            }
+
+            String relicTitle = relic != null ? relic.getHoverName().getString() : null;
+
             account.addTransaction(gameTick, "РУЛЕТКА БИРЖИ", "ДЖЕКПОТ x5!",
-                    diaBonus > 0 ? "Суперприз +1 ♦" : "Выигрыш x5 CR", payout - betCr, diaBonus);
+                    relicTitle != null ? "Суперприз «" + relicTitle + "»" : "Выигрыш x5 CR", payout - betCr, diaBonus);
             player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                    SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 1.2f);
-            server.getPlayerList().broadcastSystemMessage(Component.literal(
-                    "§8[§dРУЛЕТКА§8] §6§lМЕГА-ДЖЕКПОТ! §f" + playerName + " §eсорвал x5: +" + payout + " CR"
-                            + (diaBonus > 0 ? " §8+ §b1 ♦!" : "!")), false);
-            return "§6§lДЖЕКПОТ x5! +" + payout + " CR" + (diaBonus > 0 ? " и +1 ♦!" : "!");
+                    SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.0f, 1.0f);
+            if (relic != null) {
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.TOTEM_USE, SoundSource.PLAYERS, 1.0f, 1.2f);
+            }
+
+            if (relic != null) {
+                server.getPlayerList().broadcastSystemMessage(Component.literal(
+                        "\n§d§l========================================================\n"
+                                + "§6§l🔥 ДЖЕКПОТ КАЗИНО: ЕБАНУТАЯ МОЩЬ! 🔥\n"
+                                + "§fИгрок §e" + playerName + " §aсорвал x5 (+§e" + payout + " CR§a)"
+                                + (diaBonus > 0 ? " §8+ §b1 ♦" : "") + " и выбил РЕЛИК:\n"
+                                + "§c§l>>> «" + relicTitle + "» <<<\n"
+                                + "§d§l========================================================\n"), false);
+                return "§6§lМЕГА-ДЖЕКПОТ! +" + payout + " CR, «" + relicTitle + "»" + (diaBonus > 0 ? " и +1 ♦!" : "!");
+            } else {
+                server.getPlayerList().broadcastSystemMessage(Component.literal(
+                        "§8[§dРУЛЕТКА§8] §6§lМЕГА-ДЖЕКПОТ! §f" + playerName + " §eсорвал x5: +" + payout + " CR"
+                                + (diaBonus > 0 ? " §8+ §b1 ♦!" : "!")), false);
+                return "§6§lДЖЕКПОТ x5! +" + payout + " CR" + (diaBonus > 0 ? " и +1 ♦!" : "!");
+            }
         }
+    }
+
+    private static ItemStack pickLegendaryRouletteRelic(net.minecraft.util.RandomSource rng) {
+        int choice = rng.nextInt(4);
+        return switch (choice) {
+            case 0 -> new ItemStack(com.playermarket.item.MarketRelicItems.CORPORATE_GRAPPLE);
+            case 1 -> new ItemStack(com.playermarket.item.MarketRelicItems.DOOM_HAMMER);
+            case 2 -> new ItemStack(com.playermarket.item.MarketRelicItems.TITAN_HEART);
+            default -> new ItemStack(com.playermarket.item.MarketRelicItems.GOLDEN_EXPLOIT, 2);
+        };
     }
 
     private static void recordRouletteProgress(ServerPlayer player, MarketSavedData savedData, PlayerMarketAccount account) {

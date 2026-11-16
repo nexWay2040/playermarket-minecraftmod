@@ -377,6 +377,22 @@ public class MarketCommands {
                                             com.playermarket.story.CorporateChaosDirector.triggerDirective(ctx.getSource().getServer(), dirOpt.get());
                                             return 1;
                                         }))))
+                .then(Commands.literal("boss")
+                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("spawn")
+                                .executes(ctx -> {
+                                    ServerPlayer player = ctx.getSource().getPlayerOrException();
+                                    com.playermarket.story.ChiefAuditorBossManager.startBossBattle(player.level().getServer(), player);
+                                    ctx.getSource().sendSuccess(() -> Component.literal("§8[§cPLAYER MARKET§8] §4Главный Аудитор Corp 17.4 призван!"), true);
+                                    return 1;
+                                }))
+                        .then(Commands.literal("clear")
+                                .executes(ctx -> {
+                                    ServerPlayer player = ctx.getSource().getPlayerOrException();
+                                    com.playermarket.story.ChiefAuditorBossManager.clearBoss(player.level().getServer());
+                                    ctx.getSource().sendSuccess(() -> Component.literal("§8[§aPLAYER MARKET§8] §aБитва с Аудитором остановлена."), true);
+                                    return 1;
+                                })))
                 .then(Commands.literal("ending")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                         .then(Commands.literal("main")

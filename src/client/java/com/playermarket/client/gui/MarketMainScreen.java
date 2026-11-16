@@ -1904,7 +1904,7 @@ public class MarketMainScreen extends Screen {
         drawSprite(graphics, "card_amber", left, top, width, casinoH, 0xFF1F1224);
         drawClampedText(graphics, "§d§lИНВЕСТ-РУЛЕТКА БИРЖИ §8// §eКАЗИНО (50/50 ОТЫГРАТЬСЯ!)",
                 left + 8, top + 5, width - 16, 0xFFFBBF24, false);
-        drawClampedText(graphics, "§7Шансы: §c46% слив §8| §a34% x2 §8| §e15% x3 §8| §65% ДЖЕКПОТ x5 + ♦",
+        drawClampedText(graphics, "§7Шансы: §c46% слив §8| §a34% x2 §8| §e14% x3 §8| §66% ДЖЕКПОТ (🔥 ЕБАНУТАЯ МОЩЬ!)",
                 left + 8, top + 16, width - 16, 0xFFCBD5E1, false);
 
         int rGap = 5;
@@ -1913,7 +1913,7 @@ public class MarketMainScreen extends Screen {
         int rBtnY = top + 31;
         int rBtnH = 26;
         boolean compactR = rBtnW < 88;
-        String rTip = "§7Шансы: §c46% слив §8| §a34% x2 §8| §e15% x3 §8| §65% ДЖЕКПОТ x5 + ♦";
+        String rTip = "§7Шансы: §c46% слив §8| §a34% x2 §8| §e14% x3 §8| §66% ДЖЕКПОТ\n§d★ ДЖЕКПОТ: §eКрюк-Кошка, Молот Судного Дня (x3 боссу), Сердце Титана!";
 
         boolean can150 = account.getCrBalance() >= 150L;
         drawSmallButton(graphics, can150 ? "btn_green" : "btn_gray", left + 8, rBtnY, rBtnW, rBtnH,
