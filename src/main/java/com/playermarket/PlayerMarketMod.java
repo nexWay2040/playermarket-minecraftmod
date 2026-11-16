@@ -80,6 +80,7 @@ public class PlayerMarketMod implements ModInitializer {
         // Server tick for leases, market events, and custom attribute effects
         ServerTickEvents.END_SERVER_TICK.register(MarketAttributeApplier::tickServer);
         ServerTickEvents.END_SERVER_TICK.register(com.playermarket.story.ChiefAuditorBossManager::tickServer);
+        ServerTickEvents.END_SERVER_TICK.register(com.playermarket.story.CorporateQuotaManager::tickServer);
 
         // Sync player modifiers and grant crumpled letter / market card on join
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {

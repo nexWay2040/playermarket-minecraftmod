@@ -377,30 +377,39 @@ public final class CorporateChaosDirector {
         var rng = server.overworld().getRandom();
         boolean canSpawnMob = !hasAnyLiveTrackedMob(server) && gameTime >= mobSpawnCooldownUntil;
 
-        // First showcase directive guarantees a vivid 3D prop / bomb / drone Chaos event!
+        ChaosDirective[] goldenPool = {
+                ChaosDirective.SUPPLY_OR_MIMIC,
+                ChaosDirective.VAULT_HEIST,
+                ChaosDirective.DRONE_STRIKE,
+                ChaosDirective.BOUNTY_HUNT,
+                ChaosDirective.PIGGY_BANK,
+                ChaosDirective.COLLECTOR_RAID,
+                ChaosDirective.RAINBOW_PINATA,
+                ChaosDirective.BRIBE_INSPECTOR
+        };
+
+        // First showcase directive guarantees an airdrop, heist, or drone
         if (lastCompletedDirectiveId == null || lastCompletedDirectiveId.isEmpty()) {
             ChaosDirective[] starters = {
                     ChaosDirective.SUPPLY_OR_MIMIC,
-                    ChaosDirective.HOT_POTATO,
                     ChaosDirective.VAULT_HEIST,
-                    ChaosDirective.DRONE_STRIKE
+                    ChaosDirective.DRONE_STRIKE,
+                    ChaosDirective.PIGGY_BANK
             };
             return starters[rng.nextInt(starters.length)];
         }
 
-        // Streamer-Chaos weighted pool: 3D Bombs, Crates, ATMs, Drones & Verity dominate (~73%)
-        // while Entropy-style recency memory prevents any of the last 3 directives from repeating.
+        // Focused pool of the 8 high-stakes events (eliminates gymnastics/screen spam)
         List<ChaosDirective> pool = new ArrayList<>();
-        for (ChaosDirective d : ChaosDirective.values()) {
+        for (ChaosDirective d : goldenPool) {
             if (d.getId().equals(lastCompletedDirectiveId) || RECENT_DIRECTIVES.contains(d.getId())) continue;
             if (d == ChaosDirective.COLLECTOR_RAID && server.overworld().getDifficulty() == Difficulty.PEACEFUL) continue;
             if (d.isSpawnsEntity() && !canSpawnMob) continue;
 
             int weight = switch (d) {
-                case SUPPLY_OR_MIMIC, HOT_POTATO, DRONE_STRIKE, VAULT_HEIST -> 10;
-                case ALLAY_BONUS, BOUNTY_HUNT -> 7;
-                case HR_WORKOUT, FLOOR_LAVA_PANIC, TAX_AUDIT_FREEZE, CONFISCATION_SALE,
-                        PIGGY_BANK, RAINBOW_PINATA, SKY_PARCEL -> 3;
+                case SUPPLY_OR_MIMIC, VAULT_HEIST, DRONE_STRIKE -> 5;
+                case PIGGY_BANK, BOUNTY_HUNT -> 4;
+                case COLLECTOR_RAID, RAINBOW_PINATA, BRIBE_INSPECTOR -> 3;
                 default -> 1;
             };
             for (int w = 0; w < weight; w++) {
@@ -408,7 +417,7 @@ public final class CorporateChaosDirector {
             }
         }
         if (pool.isEmpty()) {
-            return ChaosDirective.HOT_POTATO;
+            return goldenPool[rng.nextInt(goldenPool.length)];
         }
         return pool.get(rng.nextInt(pool.size()));
     }

@@ -69,6 +69,28 @@ public class MarketCommands {
                             ), false);
                             return 1;
                         }))
+                .then(Commands.literal("quota")
+                        .executes(ctx -> {
+                            ServerPlayer player = ctx.getSource().getPlayerOrException();
+                            if (player.level().getServer() == null) return 0;
+                            MarketSavedData data = MarketSavedData.get(player.level().getServer());
+                            com.playermarket.story.SharedCampaignData campaign = data.getCampaignData();
+                            int collected = com.playermarket.story.CorporateQuotaManager.getCollectedCr(campaign);
+                            int target = com.playermarket.story.CorporateQuotaManager.getTargetQuota(player.level().getServer(), campaign);
+                            long deadline = campaign.getObjective("quota_deadline_tick");
+                            long remTicks = Math.max(0, deadline - player.level().getServer().overworld().getGameTime());
+                            boolean panic = com.playermarket.story.CorporateQuotaManager.isAuditPanicActive(player.level().getServer().overworld().getGameTime());
+
+                            ctx.getSource().sendSuccess(() -> Component.literal(
+                                    "\n§6§l========================================================\n"
+                                            + "§e§l[КОРПОРАТИВНАЯ КВОТА СМЕНЫ]\n"
+                                            + "§fСобрано: §a" + collected + " §7/ §e" + target + " CR §7(" + String.format(java.util.Locale.ROOT, "%.1f", (collected * 100.0 / Math.max(1, target))) + "%)\n"
+                                            + "§fДо дедлайна: §b" + (remTicks / 1200) + " мин.\n"
+                                            + (panic ? "§c§l⚠ АУДИТ-ПАНИКА АКТИВНА! ОПАСНОСТЬ!\n" : "§7Статус: ШТАТНЫЙ РЕЖИМ\n")
+                                            + "§6§l========================================================"
+                            ), false);
+                            return 1;
+                        }))
                 .then(Commands.literal("stats")
                         .executes(ctx -> {
                             ServerPlayer player = ctx.getSource().getPlayerOrException();

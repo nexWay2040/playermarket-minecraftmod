@@ -41,8 +41,8 @@ public class MarketConfig {
     public boolean enableStoryToasts = true;
     public boolean enableSideQuests = true;
     public boolean enableChaosDirectives = true;
-    public int chaosIntervalMinTicks = 240; // 12s
-    public int chaosIntervalMaxTicks = 400; // 20s
+    public int chaosIntervalMinTicks = 6000; // 5 minutes
+    public int chaosIntervalMaxTicks = 9600; // 8 minutes
 
     public Map<String, Long> customResourceBasePrices = new LinkedHashMap<>();
     public Map<String, Long> customAssetUnitPrices = new LinkedHashMap<>();
@@ -148,13 +148,13 @@ public class MarketConfig {
                         if (loaded.marketEventDurationTicks >= 3000 || loaded.marketEventDurationTicks <= 0) {
                             loaded.marketEventDurationTicks = 2400;
                         }
-                        if (loaded.chaosIntervalMinTicks <= 0 || loaded.chaosIntervalMinTicks >= 300) {
-                            loaded.chaosIntervalMinTicks = 240;
+                        if (loaded.chaosIntervalMinTicks <= 0 || loaded.chaosIntervalMinTicks < 1200) {
+                            loaded.chaosIntervalMinTicks = 6000;
                         }
-                        if (loaded.chaosIntervalMaxTicks <= loaded.chaosIntervalMinTicks || loaded.chaosIntervalMaxTicks >= 520) {
-                            loaded.chaosIntervalMaxTicks = 400;
+                        if (loaded.chaosIntervalMaxTicks <= loaded.chaosIntervalMinTicks) {
+                            loaded.chaosIntervalMaxTicks = 9600;
                         }
-                        loaded.configVersion = 5;
+                        loaded.configVersion = 6;
                         upgraded = true;
                     }
                     INSTANCE = loaded;

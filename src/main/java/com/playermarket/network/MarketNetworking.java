@@ -1168,6 +1168,9 @@ public class MarketNetworking {
                     SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 0.9f, 1.2f);
         }
         com.playermarket.story.StoryManager.onDealMade(player, account, event);
+        if (player.level().getServer() != null) {
+            com.playermarket.story.CorporateQuotaManager.contribute(player.level().getServer(), 120L);
+        }
     }
 
     private static void playSuccessSound(ServerPlayer player) {
