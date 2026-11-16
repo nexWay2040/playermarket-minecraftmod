@@ -362,6 +362,24 @@ public class MarketCommands {
                         }))
                 .then(Commands.literal("chaos")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("status")
+                                .executes(ctx -> {
+                                    var server = ctx.getSource().getServer();
+                                    MarketSavedData data = MarketSavedData.get(server);
+                                    long gt = server.overworld().getGameTime();
+                                    long nextRem = Math.max(0L, (data.getNextChaosTick() - gt) / 20L);
+                                    long actRem = Math.max(0L, (data.getActiveChaosEndsTick() - gt) / 20L);
+
+                                    String msg = "\n§6§l=== СТАТУС CORPORATE CHAOS 2.0 ==="
+                                            + "\n§eСостояние: §f" + data.getChaosState()
+                                            + "\n§eАктивное событие: §f" + data.getActiveChaosId() + (actRem > 0 ? " §7(" + actRem + "с)" : "")
+                                            + "\n§eМодификатор: §f" + data.getActiveModifierId()
+                                            + "\n§eСобытий за час: §f" + data.getEventsThisHour() + "/4"
+                                            + "\n§eСледующее событие через: §f" + nextRem + " сек"
+                                            + "\n§6§l=================================";
+                                    ctx.getSource().sendSuccess(() -> Component.literal(msg), false);
+                                    return 1;
+                                }))
                         .then(Commands.literal("list")
                                 .executes(ctx -> {
                                     StringBuilder sb = new StringBuilder("§8[§6CHAOS DIRECTIVES§8]");

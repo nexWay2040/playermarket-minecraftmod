@@ -265,25 +265,85 @@ public final class CorporateChaosDirector {
         // 2. Tick animated 3D Display & Interaction props
         ChaosProp3DManager.tickAll(server, data, campaign, gameTime);
 
-        // 3. Tick active interactive Chaos mechanics (Hot Potato, 3D ATM, Drone, Crown, Lava, Magnet, etc.)
-        String curId = data.getActiveChaosId();
-        if (!"NONE".equals(curId)) {
-            if (gameTime >= data.getActiveChaosEndsTick()) {
-                endActiveDirective(server, data, campaign, gameTime, true);
-            } else {
-                tickActiveDirectiveMechanics(server, data, campaign, curId, gameTime);
-            }
+        // 3. State Machine (PEACE -> WARNING -> ACTIVE -> COOLDOWN) with 12-18 min rhythm & hourly limits
+        String state = data.getChaosState();
+        if (state == null || state.isEmpty()) {
+            state = "PEACE";
+            data.setChaosState("PEACE");
         }
 
-        // 3. Periodic next directive spawn when none is active (clamp stale timers from older saves)
-        if ("NONE".equals(data.getActiveChaosId())) {
-            long maxAllowedNext = gameTime + Math.max(400L, MarketConfig.get().chaosIntervalMaxTicks);
-            if (data.getNextChaosTick() > maxAllowedNext) {
-                data.setNextChaosTick(gameTime + 120L);
+        // Manage hourly quota limit (max 4 events per 72,000 active ticks)
+        long hourStart = data.getHourStartTick();
+        if (hourStart == 0L || gameTime - hourStart >= 72000L) {
+            data.setHourStartTick(gameTime);
+            data.setEventsThisHour(0);
+        }
+
+        if (server.getPlayerList().getPlayers().isEmpty()) {
+            // Quiet mode when no players online: timers freeze
+            return;
+        }
+
+        switch (state) {
+            case "PEACE" -> {
+                if (gameTime >= data.getNextChaosTick()) {
+                    if (data.getEventsThisHour() < 4) {
+                        ChaosDirective next = pickNextDirective(server, gameTime);
+                        startWarningPhase(server, data, campaign, next, gameTime);
+                    } else {
+                        // Hour limit reached, postpone until next cycle
+                        data.setNextChaosTick(gameTime + 2400L);
+                    }
+                }
             }
-            if (gameTime >= data.getNextChaosTick() && !server.getPlayerList().getPlayers().isEmpty()) {
-                ChaosDirective next = pickNextDirective(server, gameTime);
-                triggerDirective(server, next);
+
+            case "WARNING" -> {
+                long endsTick = data.getActiveChaosEndsTick();
+                long remainingTicks = endsTick - gameTime;
+
+                // Actionbar countdown for the last 10 seconds (200 ticks)
+                if (remainingTicks <= 200L && remainingTicks > 0L && remainingTicks % 20L == 0L) {
+                    int sec = (int) (remainingTicks / 20L);
+                    for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
+                        sp.sendOverlayMessage(Component.literal("§c§l⚠ ИНЦИДЕНТ ЧЕРЕЗ: §e" + sec + " СЕК! ⚠"));
+                        sp.level().playSound(null, sp.getX(), sp.getY(), sp.getZ(),
+                                SoundEvents.NOTE_BLOCK_BELL.value(), SoundSource.PLAYERS, 0.7f, 1.0f + (10 - sec) * 0.05f);
+                    }
+                }
+
+                if (gameTime >= endsTick) {
+                    String activeId = data.getActiveChaosId();
+                    Optional<ChaosDirective> dirOpt = ChaosDirective.byId(activeId);
+                    if (dirOpt.isPresent()) {
+                        triggerDirective(server, dirOpt.get());
+                    } else {
+                        data.setChaosState("PEACE");
+                        data.setActiveChaos("NONE", 0L);
+                    }
+                }
+            }
+
+            case "ACTIVE" -> {
+                String curId = data.getActiveChaosId();
+                if ("NONE".equals(curId) || "COOLDOWN".equals(curId)) {
+                    data.setChaosState("PEACE");
+                } else if (gameTime >= data.getActiveChaosEndsTick()) {
+                    endActiveDirective(server, data, campaign, gameTime, true);
+                } else {
+                    tickActiveDirectiveMechanics(server, data, campaign, curId, gameTime);
+                    String modId = data.getActiveModifierId();
+                    if (modId != null && !"none".equalsIgnoreCase(modId)) {
+                        tickModifierMechanics(server, data, modId, gameTime);
+                    }
+                }
+            }
+
+            case "COOLDOWN" -> {
+                if (gameTime >= data.getActiveChaosEndsTick()) {
+                    data.setChaosState("PEACE");
+                    data.setActiveChaos("NONE", 0L);
+                    data.setActiveModifierId("none");
+                }
             }
         }
 
@@ -422,6 +482,73 @@ public final class CorporateChaosDirector {
         return pool.get(rng.nextInt(pool.size()));
     }
 
+    public static void startWarningPhase(MinecraftServer server, MarketSavedData data, SharedCampaignData campaign, ChaosDirective directive, long gameTime) {
+        if (server == null || directive == null) return;
+        var rng = server.overworld().getRandom();
+        // 60 to 120 seconds warning
+        int warningTicks = 1200 + rng.nextInt(1201);
+        long endsTick = gameTime + warningTicks;
+
+        data.setChaosState("WARNING");
+        data.setActiveChaos(directive.getId(), endsTick);
+
+        // 18% chance for compatible modifier
+        ChaosModifier mod = ChaosModifier.NONE;
+        if (rng.nextInt(100) < 18) {
+            ChaosModifier[] mods = {ChaosModifier.HOT_POTATO, ChaosModifier.MAGNET_PULSE, ChaosModifier.BLACKOUT, ChaosModifier.SWAP_ROULETTE, ChaosModifier.FLOOR_PANIC};
+            mod = mods[rng.nextInt(mods.length)];
+        }
+        data.setActiveModifierId(mod.getId());
+
+        int warnSec = warningTicks / 20;
+        for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
+            sp.connection.send(new ClientboundSetTitlesAnimationPacket(6, 40, 10));
+            sp.connection.send(new ClientboundSetTitleTextPacket(Component.literal("§c§l⚠ ОРБИТАЛЬНЫЙ СИГНАЛ ⚠")));
+            sp.connection.send(new ClientboundSetSubtitleTextPacket(Component.literal("§e" + directive.getTitle() + " §7(через " + warnSec + "с)")));
+            sp.sendSystemMessage(Component.literal(
+                    "\n§8[§cВНИМАНИЕ ASSET CORP§8] §eОбнаружен корпоративный инцидент: §f§l" + directive.getTitle()
+                            + (mod != ChaosModifier.NONE ? " §c[Модификатор: " + mod.getTitle() + "]" : "")
+                            + "\n§7" + directive.getDescription()
+                            + "\n§6Ожидаемое время до сброса: §e" + warnSec + " секунд§6. Приготовьтесь!\n"));
+            sp.level().playSound(null, sp.getX(), sp.getY(), sp.getZ(),
+                    SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 1.0f, 1.2f);
+        }
+    }
+
+    public static void enterCooldownPhase(MinecraftServer server, MarketSavedData data, long gameTime) {
+        if (server == null || data == null) return;
+        var rng = server.overworld().getRandom();
+        long cooldownTicks = 6000L; // 5 minutes cooldown
+        data.setChaosState("COOLDOWN");
+        data.setActiveChaos("COOLDOWN", gameTime + cooldownTicks);
+        data.setActiveModifierId("none");
+
+        // Schedule next event 12 to 18 minutes from now (between event starts)
+        long nextInterval = 14400L + rng.nextInt(7201); // 12-18 minutes
+        data.setNextChaosTick(gameTime + nextInterval);
+
+        for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
+            sp.sendOverlayMessage(Component.literal("§7☕ Перерыв между директивами (5 мин)..."));
+        }
+    }
+
+    private static void tickModifierMechanics(MinecraftServer server, MarketSavedData data, String modId, long gameTime) {
+        if (server == null || modId == null || "none".equalsIgnoreCase(modId)) return;
+        long elapsed = gameTime - directiveStartTick;
+        long remaining = Math.max(0L, data.getActiveChaosEndsTick() - gameTime);
+
+        ChaosModifier.byId(modId).ifPresent(mod -> {
+            switch (mod) {
+                case HOT_POTATO -> tickHotPotato(server, data, data.getCampaignData(), gameTime, remaining);
+                case MAGNET_PULSE -> tickMagnetPulse(server, gameTime);
+                case BLACKOUT -> tickBlackoutParanoia(server, gameTime);
+                case SWAP_ROULETTE -> tickSwapRoulette(server, data, elapsed, gameTime);
+                case FLOOR_PANIC -> tickFloorLava(server, data, gameTime);
+                default -> {}
+            }
+        });
+    }
+
     public static void triggerDirective(MinecraftServer server, ChaosDirective directive) {
         if (server == null || directive == null) return;
         MarketSavedData data = MarketSavedData.get(server);
@@ -437,7 +564,9 @@ public final class CorporateChaosDirector {
         ChaosProp3DManager.clearAll(server);
         directiveStartTick = gameTime;
         long endsAt = gameTime + directive.getDurationTicks();
+        data.setChaosState("ACTIVE");
         data.setActiveChaos(directive.getId(), endsAt);
+        data.setEventsThisHour(data.getEventsThisHour() + 1);
         lastCompletedDirectiveId = directive.getId();
         RECENT_DIRECTIVES.addLast(directive.getId());
         while (RECENT_DIRECTIVES.size() > 3) {
@@ -1134,7 +1263,13 @@ public final class CorporateChaosDirector {
 
         clearDirectiveRuntimeState();
         ChaosProp3DManager.clearAll(server);
-        data.setActiveChaos("NONE", 0L);
+        if (evaluateChallenge) {
+            enterCooldownPhase(server, data, gameTime);
+        } else {
+            data.setChaosState("PEACE");
+            data.setActiveChaos("NONE", 0L);
+            data.setActiveModifierId("none");
+        }
         for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
             campaign.setObjective("chaos_sq_" + sp.getUUID(), 0);
             campaign.setObjective("chaos_jmp_" + sp.getUUID(), 0);

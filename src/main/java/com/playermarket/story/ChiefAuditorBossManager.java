@@ -24,10 +24,12 @@ import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.monster.illager.Vindicator;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
@@ -250,6 +252,9 @@ public final class ChiefAuditorBossManager {
 
         stateTimerTicks++;
 
+        // Tick dynamic Reactor Core visuals (pulsing cyan hum, violent red telegraph, and 8 orbiting sparks during stagger)
+        BossCoreVisuals.tick(bossLevel, boss, activeState, stateTimerTicks, phase2Triggered);
+
         switch (activeState) {
             case COMBAT -> {
                 skyfallCooldownTicks--;
@@ -349,6 +354,33 @@ public final class ChiefAuditorBossManager {
 
                     // Debris particles
                     bossLevel.sendParticles(ParticleTypes.CRIT, boss.getX(), boss.getY() + 1.0, boss.getZ(), 80, 8.0, 2.0, 8.0, 0.5);
+
+                    // Flying earth & stone chunks propelled into the sky (visual only, drop disabled)
+                    BlockState[] flyingBlocks = {
+                            Blocks.DIRT.defaultBlockState(),
+                            Blocks.COARSE_DIRT.defaultBlockState(),
+                            Blocks.STONE.defaultBlockState(),
+                            Blocks.COBBLESTONE.defaultBlockState()
+                    };
+                    for (int i = 0; i < 14; i++) {
+                        double angle = (2 * Math.PI / 14) * i + (Math.random() - 0.5) * 0.35;
+                        double dist = 3.5 + Math.random() * 7.5;
+                        double bx = boss.getX() + Math.cos(angle) * dist;
+                        double bz = boss.getZ() + Math.sin(angle) * dist;
+                        BlockPos bPos = BlockPos.containing(bx, boss.getY() + 0.6, bz);
+                        var debris = FallingBlockEntity.fall(bossLevel, bPos, flyingBlocks[i % flyingBlocks.length]);
+                        if (debris != null) {
+                            debris.dropItem = false;
+                            debris.disableDrop();
+                            debris.time = 1;
+                            debris.setDeltaMovement(
+                                    (Math.random() - 0.5) * 0.55,
+                                    1.65 + Math.random() * 0.8,
+                                    (Math.random() - 0.5) * 0.55
+                            );
+                            debris.needsSync = true;
+                        }
+                    }
 
                     // Launch players into the stratosphere (25-35 blocks high!)
                     for (ServerPlayer sp : bossLevel.players()) {

@@ -21,17 +21,25 @@ public class MarketSavedData extends SavedData {
             String activeChaosId,
             long activeChaosEndsTick,
             long nextChaosTick,
-            boolean chaosEnabled
+            boolean chaosEnabled,
+            String chaosState,
+            String activeModifierId,
+            int eventsThisHour,
+            long hourStartTick
     ) {
         public static final Codec<ChaosData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.optionalFieldOf("activeChaosId", "NONE").forGetter(ChaosData::activeChaosId),
                 Codec.LONG.optionalFieldOf("activeChaosEndsTick", 0L).forGetter(ChaosData::activeChaosEndsTick),
                 Codec.LONG.optionalFieldOf("nextChaosTick", 240L).forGetter(ChaosData::nextChaosTick),
-                Codec.BOOL.optionalFieldOf("chaosEnabled", true).forGetter(ChaosData::chaosEnabled)
+                Codec.BOOL.optionalFieldOf("chaosEnabled", true).forGetter(ChaosData::chaosEnabled),
+                Codec.STRING.optionalFieldOf("chaosState", "PEACE").forGetter(ChaosData::chaosState),
+                Codec.STRING.optionalFieldOf("activeModifierId", "none").forGetter(ChaosData::activeModifierId),
+                Codec.INT.optionalFieldOf("eventsThisHour", 0).forGetter(ChaosData::eventsThisHour),
+                Codec.LONG.optionalFieldOf("hourStartTick", 0L).forGetter(ChaosData::hourStartTick)
         ).apply(instance, ChaosData::new));
 
         public ChaosData() {
-            this("NONE", 0L, 240L, true);
+            this("NONE", 0L, 240L, true, "PEACE", "none", 0, 0L);
         }
     }
 
@@ -58,6 +66,10 @@ public class MarketSavedData extends SavedData {
     private long activeChaosEndsTick = 0L;
     private long nextChaosTick = 240L;
     private boolean chaosEnabled = true;
+    private String chaosState = "PEACE";
+    private String activeModifierId = "none";
+    private int eventsThisHour = 0;
+    private long hourStartTick = 0L;
 
     public MarketSavedData() {
     }
@@ -77,10 +89,14 @@ public class MarketSavedData extends SavedData {
         this.activeChaosEndsTick = cd.activeChaosEndsTick();
         this.nextChaosTick = cd.nextChaosTick();
         this.chaosEnabled = cd.chaosEnabled();
+        this.chaosState = cd.chaosState() != null ? cd.chaosState() : "PEACE";
+        this.activeModifierId = cd.activeModifierId() != null ? cd.activeModifierId() : "none";
+        this.eventsThisHour = cd.eventsThisHour();
+        this.hourStartTick = cd.hourStartTick();
     }
 
     public ChaosData getChaosData() {
-        return new ChaosData(activeChaosId, activeChaosEndsTick, nextChaosTick, chaosEnabled);
+        return new ChaosData(activeChaosId, activeChaosEndsTick, nextChaosTick, chaosEnabled, chaosState, activeModifierId, eventsThisHour, hourStartTick);
     }
 
     public String getActiveChaosId() {
@@ -90,6 +106,42 @@ public class MarketSavedData extends SavedData {
     public void setActiveChaos(String id, long endsTick) {
         this.activeChaosId = id != null ? id : "NONE";
         this.activeChaosEndsTick = endsTick;
+        setDirty();
+    }
+
+    public String getChaosState() {
+        return chaosState != null ? chaosState : "PEACE";
+    }
+
+    public void setChaosState(String state) {
+        this.chaosState = state != null ? state : "PEACE";
+        setDirty();
+    }
+
+    public String getActiveModifierId() {
+        return activeModifierId != null ? activeModifierId : "none";
+    }
+
+    public void setActiveModifierId(String modifierId) {
+        this.activeModifierId = modifierId != null ? modifierId : "none";
+        setDirty();
+    }
+
+    public int getEventsThisHour() {
+        return eventsThisHour;
+    }
+
+    public void setEventsThisHour(int count) {
+        this.eventsThisHour = count;
+        setDirty();
+    }
+
+    public long getHourStartTick() {
+        return hourStartTick;
+    }
+
+    public void setHourStartTick(long tick) {
+        this.hourStartTick = tick;
         setDirty();
     }
 
