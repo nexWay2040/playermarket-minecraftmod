@@ -47,6 +47,9 @@ public class PlayerMarketMod implements ModInitializer {
 
         Registry.register(BuiltInRegistries.SOUND_EVENT, id("screamer"), SCREAMER_SOUND);
         MarketConfig.load();
+        MarketCoreCurator.configureMarketEventIds(java.util.List.of(
+                "HEALTH_DEMAND", "BUYBACK_DISCOUNT", "MINING_BOOM", "BULL_MARKET", "MARKET_PANIC"
+        ));
         MarketAccessCardItem.registerItems();
         com.playermarket.item.CrumpledLetterItem.registerItems();
         com.playermarket.item.BlockedMarketCardItem.registerItems();
@@ -72,6 +75,7 @@ public class PlayerMarketMod implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             com.playermarket.story.EndingSequenceManager.resetRuntimeState();
             com.playermarket.story.CorporateChaosDirector.resetRuntimeState();
+            com.playermarket.story.CorporateQuotaManager.resetRuntimeState();
             com.playermarket.story.ChiefAuditorBossManager.clearBoss(server);
             com.playermarket.story.CorporateTaskTracker.clearAll();
             MarketAttributeApplier.clearScannerCache();
@@ -80,6 +84,7 @@ public class PlayerMarketMod implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register(ResourceValuationEngine::ensureInitialized);
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             com.playermarket.story.ChiefAuditorBossManager.clearBoss(server);
+            com.playermarket.story.CorporateQuotaManager.resetRuntimeState();
             com.playermarket.story.CorporateChaosDirector.clearAllWorldEntities(server);
             com.playermarket.story.CorporateChaosDirector.resetRuntimeState();
             com.playermarket.story.EndingSequenceManager.resetRuntimeState();

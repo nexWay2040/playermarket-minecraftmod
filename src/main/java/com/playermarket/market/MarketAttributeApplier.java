@@ -546,16 +546,12 @@ public class MarketAttributeApplier {
         // Tick synchronized Corporate Chaos Directives (~75-95s dynamic co-op chaos loop)
         com.playermarket.story.CorporateChaosDirector.tickServer(server, data, sharedCampaign, gameTime);
 
-        // Check dynamic Market Event rotation (only after contract signed & before settlement)
+        // Check dynamic Market Event rotation (5 curated high-impact market events)
         if (campaignAccepted && !worldSettled && gameTime >= 2400L && gameTime >= data.getNextEventSwitchTick()) {
-            MarketEvent[] events = MarketEvent.values();
             MarketEvent current = data.getActiveEvent();
-            MarketEvent next = current;
-            int attempts = 0;
-            while ((next == current || next == MarketEvent.STABLE_MARKET) && attempts < 30) {
-                next = events[server.overworld().getRandom().nextInt(events.length)];
-                attempts++;
-            }
+            MarketEvent next = MarketCoreCurator.pickRandomCuratedMarketEvent(
+                    MarketEvent.values(), server.overworld().getRandom(), current);
+            if (next == null) next = MarketEvent.HEALTH_DEMAND;
             data.setActiveEvent(next, gameTime);
 
             boolean isCrash = next.isNegativeEvent();

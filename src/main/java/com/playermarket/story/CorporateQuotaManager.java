@@ -15,8 +15,23 @@ public final class CorporateQuotaManager {
 
     private static boolean auditPanicActive = false;
     private static long auditPanicEndsTick = 0L;
+    private static final CorporateQuotaBarController QUOTA_BAR = new CorporateQuotaBarController();
 
     private CorporateQuotaManager() {}
+
+    public static void resetRuntimeState() {
+        auditPanicActive = false;
+        auditPanicEndsTick = 0L;
+        QUOTA_BAR.hideAndClear();
+    }
+
+    public static void onPlayerJoin(ServerPlayer player) {
+        QUOTA_BAR.onPlayerJoin(player);
+    }
+
+    public static void onPlayerDisconnect(ServerPlayer player) {
+        QUOTA_BAR.onPlayerDisconnect(player);
+    }
 
     public static boolean isAuditPanicActive(long currentTick) {
         return auditPanicActive && currentTick < auditPanicEndsTick;
@@ -65,7 +80,11 @@ public final class CorporateQuotaManager {
         // Only tick quota if campaign is active and running
         MarketSavedData data = MarketSavedData.get(server);
         SharedCampaignData campaign = data.getCampaignData();
-        if (!campaign.isCampaignAccepted() || StoryManager.isProgramTerminated(campaign, null)) return;
+        boolean terminated = StoryManager.isProgramTerminated(campaign, null);
+        if (!campaign.isCampaignAccepted() || terminated) {
+            QUOTA_BAR.tick(server, 0L, 0L, 0, false, 0, ChiefAuditorBossManager.isBattleActive(), true);
+            return;
+        }
 
         long deadline = campaign.getObjective("quota_deadline_tick");
         if (deadline <= 0) {
@@ -90,6 +109,14 @@ public final class CorporateQuotaManager {
             campaign.setObjective("quota_collected", 0);
             data.setDirty();
         }
+
+        // Update live KPI BossBar on screen (auto-hides during Titan Boss fight or after campaign victory)
+        int curCollected = campaign.getObjective("quota_collected");
+        int curTarget = getTargetQuota(server, campaign);
+        int remSec = (int) Math.max(0L, (campaign.getObjective("quota_deadline_tick") - gameTime) / 20L);
+        int panicRemSec = auditPanicActive ? (int) Math.max(0L, (auditPanicEndsTick - gameTime) / 20L) : 0;
+        QUOTA_BAR.tick(server, curCollected, curTarget, remSec, auditPanicActive, panicRemSec,
+                ChiefAuditorBossManager.isBattleActive(), false);
     }
 
     private static void onQuotaCompleted(MinecraftServer server, MarketSavedData data, SharedCampaignData campaign) {

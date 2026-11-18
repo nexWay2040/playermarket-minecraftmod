@@ -611,10 +611,22 @@ public class MarketMainScreen extends Screen {
         int bgMouseX = isModalOpen() ? -9999 : mouseX;
         int bgMouseY = isModalOpen() ? -9999 : mouseY;
 
-        // 5. Sidebar Navigation
-        Tab[] tabs = Tab.values();
+        // 5. Sidebar Navigation (Curated core tabs — eliminates 12-tab clutter!)
+        List<Tab> visibleTabs = new ArrayList<>(MarketCoreCurator.filterVisibleTabs(Tab.values()));
+        if (account.getSoldAssetCount() > 0 && !visibleTabs.contains(Tab.BUY_BACK)) {
+            int sellIdx = visibleTabs.indexOf(Tab.SELL_ASSETS);
+            if (sellIdx >= 0) {
+                visibleTabs.add(sellIdx + 1, Tab.BUY_BACK);
+            } else {
+                visibleTabs.add(Tab.BUY_BACK);
+            }
+        }
+        if (!visibleTabs.contains(activeTab)) {
+            activeTab = Tab.DASHBOARD;
+        }
+        Tab[] tabs = visibleTabs.toArray(new Tab[0]);
         int availableSidebarH = footerTop - sidebarTop;
-        int tabHeight = Math.max(16, availableSidebarH / tabs.length);
+        int tabHeight = Math.min(28, Math.max(18, availableSidebarH / Math.max(1, tabs.length)));
         for (int i = 0; i < tabs.length; i++) {
             Tab t = tabs[i];
             int ty = sidebarTop + (i * tabHeight);
@@ -665,7 +677,7 @@ public class MarketMainScreen extends Screen {
 
         // 6. Footer Content
         // Sidebar footer column
-        graphics.text(font, "§8PM // LX-1.3.1", left + 8, footerTop + 6, 0xFF475569, false);
+        graphics.text(font, "§8PM // LX-1.4.0", left + 8, footerTop + 6, 0xFF475569, false);
 
         // Footer main status starts to the right of the sidebar (left + sidebarWidth + 8)
         String eventBadge = "§6[ " + event.getHeadline() + " ]";
@@ -1380,7 +1392,7 @@ public class MarketMainScreen extends Screen {
         int listH = height - (listY - top);
 
         List<AssetType> assets = new ArrayList<>();
-        for (AssetType a : AssetType.values()) {
+        for (AssetType a : MarketCoreCurator.filterCuratedAssets(AssetType.values())) {
             if (assetFilter == null || a.getCategory() == assetFilter) {
                 assets.add(a);
             }
@@ -1705,7 +1717,7 @@ public class MarketMainScreen extends Screen {
         int listH = height - (listY - top);
 
         List<UpgradeType> list = new ArrayList<>();
-        for (UpgradeType u : UpgradeType.values()) {
+        for (UpgradeType u : MarketCoreCurator.filterCuratedUpgrades(UpgradeType.values())) {
             if (u.getCategory() == upgradeFilter) {
                 list.add(u);
             }
@@ -1970,7 +1982,8 @@ public class MarketMainScreen extends Screen {
 
         int itemH = 62;
         int spacing = 66;
-        BlackMarketItem[] items = BlackMarketItem.values();
+        List<BlackMarketItem> curatedBm = MarketCoreCurator.filterCuratedBlackMarketItems(BlackMarketItem.values());
+        BlackMarketItem[] items = curatedBm.toArray(new BlackMarketItem[0]);
         maxScroll = Math.max(0, items.length * spacing - listH);
 
         setScissor(graphics, left, listTop, left + width, listTop + listH);

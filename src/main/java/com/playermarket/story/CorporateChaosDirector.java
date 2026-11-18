@@ -63,7 +63,7 @@ public final class CorporateChaosDirector {
         TAX_AUDIT_FREEZE("tax_audit", "НАЛОГОВЫЙ РЕЙД HR",
                 "Камера HR следит! 0 статов = штраф -18% (от 450 CR)! Продай стат ради кэшбэка!", 260, false),
         SUPPLY_OR_MIMIC("supply_crate", "ГРУЗ С НЕБА 3D",
-                "Сброшен 3D Контейнер Asset Corp! Открой ПКМ/ударом — алмазы или пранк HR!", 520, false),
+                "Сброшен 3D Контейнер Asset Corp! Жди ради x1.5/x2/x3 куша (охрана каждые 30с) или вскрой сразу!", 2400, false),
         VAULT_HEIST("vault_heist", "ВЗЛОМ БАНКОМАТА 3D",
                 "Сброшен 3D Банкомат! Пробей 6 раз (ПКМ/удар) за 22 сек — иначе штраф -10%!", 440, false),
         DRONE_STRIKE("drone_strike", "ОРБИТАЛЬНЫЙ ДРОН HR",
@@ -211,8 +211,17 @@ public final class CorporateChaosDirector {
         clearDirectiveRuntimeState();
     }
 
+    private static final AirdropGreedManager AIRDROP_GREED = new AirdropGreedManager();
+    private static UUID activeCrateGreedId = null;
+    private static BlockPos activeCratePos = null;
+    private static ServerLevel activeCrateLevel = null;
+
     private static void clearDirectiveRuntimeState() {
         directiveStartTick = 0L;
+        AIRDROP_GREED.clearAll();
+        activeCrateGreedId = null;
+        activeCratePos = null;
+        activeCrateLevel = null;
         hotPotatoHolderId = null;
         hotPotatoPassCooldownUntil = 0L;
         hotPotatoLastBeepTick = 0L;
@@ -751,7 +760,22 @@ public final class CorporateChaosDirector {
             case DRONE_STRIKE -> tickDroneStrike(server, data, gameTime);
             case BOUNTY_HUNT -> tickBountyHunt(server, data, gameTime, remaining);
             case SCHIZO_AUDIT -> tickSchizoAudit(server, gameTime);
+            case SUPPLY_OR_MIMIC -> tickSupplyCrateGreed(server, gameTime);
             default -> {}
+        }
+    }
+
+    private static void tickSupplyCrateGreed(MinecraftServer server, long gameTime) {
+        if (activeCrateGreedId == null || activeCrateLevel == null || activeCratePos == null) return;
+        AirdropGreedManager.GreedTickResult res = AIRDROP_GREED.tickContainer(activeCrateGreedId);
+        if (res == AirdropGreedManager.GreedTickResult.EMPTY) return;
+
+        if (res.tierUpgraded() || gameTime % 20L == 0L) {
+            ChaosProp3DManager.updateTextLabel(server, ChaosProp3DManager.PropKind.SUPPLY_CRATE,
+                    AIRDROP_GREED.getFloatingLabel(activeCrateGreedId).getString());
+        }
+        if (res.shouldSpawnGuardWave() && activeCrateLevel.getDifficulty() != Difficulty.PEACEFUL) {
+            AIRDROP_GREED.spawnGuardWave(activeCrateLevel, activeCratePos, res.vindicatorCount(), res.pillagerCount(), null);
         }
     }
 
@@ -1350,6 +1374,14 @@ public final class CorporateChaosDirector {
         switch (kind) {
             case SUPPLY_CRATE -> {
                 ChaosProp3DManager.removeKind(server, ChaosProp3DManager.PropKind.SUPPLY_CRATE);
+                AirdropGreedManager.GreedSnapshot greedSnap = activeCrateGreedId != null
+                        ? AIRDROP_GREED.claimAndRemove(activeCrateGreedId) : null;
+                double greedMult = greedSnap != null ? greedSnap.multiplier() : 1.0;
+                String greedTag = greedMult > 1.0 ? String.format(java.util.Locale.ROOT, " §6[ЖАДНОСТЬ x%.1f!]", greedMult) : "";
+                activeCrateGreedId = null;
+                activeCratePos = null;
+                activeCrateLevel = null;
+
                 boolean isPrank = sl.getRandom().nextInt(10) < 3;
                 sl.playSound(null, px, py, pz, SoundEvents.CHEST_OPEN, SoundSource.PLAYERS, 1.0f, 1.15f);
                 if (isPrank) {
@@ -1358,22 +1390,24 @@ public final class CorporateChaosDirector {
                     sl.sendParticles(ParticleTypes.FIREWORK, px, py + 0.5, pz, 28, 0.5, 0.5, 0.5, 0.22);
                     player.setDeltaMovement(0.0, 0.45, 0.0);
                     player.needsSync = true;
-                    long cr = MarketAttributeApplier.scaleBioCr(acc, 130L);
+                    long cr = Math.round(MarketAttributeApplier.scaleBioCr(acc, 130L) * greedMult);
                     acc.addCr(cr);
+                    CorporateQuotaManager.contribute(server, cr / 4L);
                     acc.addTransaction(gameTime, "ГРУЗ-ПРАНК 3D", "Мимик HR!", "Печеньки, опыт и откат", cr, 0);
-                    player.sendSystemMessage(Component.literal("§d🎉 ХА-ХА! В 3D контейнере был пранк-мимик HR! Приз: §e+" + cr + " CR §dи печенье!"));
+                    player.sendSystemMessage(Component.literal("§d🎉 ХА-ХА! В 3D контейнере был пранк-мимик HR! Приз: §e+" + cr + " CR" + greedTag));
                 } else {
-                    if (acc.getSoldAssetCount() >= 1) {
-                        spawnDrop(sl, px, py, pz, new ItemStack(Items.DIAMOND, 1));
+                    if (acc.getSoldAssetCount() >= 1 || greedMult >= 2.0) {
+                        spawnDrop(sl, px, py, pz, new ItemStack(Items.DIAMOND, greedMult >= 3.0 ? 2 : 1));
                     }
-                    spawnDrop(sl, px, py, pz, new ItemStack(Items.GOLDEN_APPLE, 1));
+                    spawnDrop(sl, px, py, pz, new ItemStack(Items.GOLDEN_APPLE, greedMult >= 2.0 ? 2 : 1));
                     spawnDrop(sl, px, py, pz, new ItemStack(Items.IRON_INGOT, 5));
                     spawnDrop(sl, px, py, pz, new ItemStack(Items.COOKED_BEEF, 6));
                     sl.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, px, py + 0.5, pz, 28, 0.5, 0.5, 0.5, 0.2);
-                    long cr = MarketAttributeApplier.scaleBioCr(acc, 190L);
+                    long cr = Math.round(MarketAttributeApplier.scaleBioCr(acc, 220L) * greedMult);
                     acc.addCr(cr);
-                    acc.addTransaction(gameTime, "СНАБЖЕНИЕ 3D", "3D Груз Asset Corp вскрыт!", "Провизия и алмазы", cr, 0);
-                    player.sendSystemMessage(Component.literal("§a📦 3D ГРУЗ ВСКРЫТ: §e+" + cr + " CR§a, Яблоко и ресурсы!"));
+                    CorporateQuotaManager.contribute(server, cr / 4L);
+                    acc.addTransaction(gameTime, "СНАБЖЕНИЕ 3D", "3D Груз Asset Corp вскрыт!", "Множитель жадности x" + greedMult, cr, 0);
+                    player.sendSystemMessage(Component.literal("§a📦 3D ГРУЗ ВСКРЫТ: §e+" + cr + " CR" + greedTag + "§a, Яблоки и ресурсы!"));
                 }
                 CorporateTaskTracker.advanceContract(player, acc, "COURIER_LOOT", 1);
                 StoryManager.checkAllQuests(player, acc);
@@ -1625,11 +1659,16 @@ public final class CorporateChaosDirector {
 
         BlockPos pos = findForwardGroundPos(sl, anchor, 3, 6);
         ChaosProp3DManager.spawnSupplyCrate(sl, pos, gameTime);
+        activeCrateGreedId = UUID.randomUUID();
+        activeCratePos = pos;
+        activeCrateLevel = sl;
+        AIRDROP_GREED.registerContainer(activeCrateGreedId);
         sl.sendParticles(ParticleTypes.FIREWORK, pos.getX() + 0.5, pos.getY() + 0.7, pos.getZ() + 0.5, 22, 0.4, 0.5, 0.4, 0.12);
         sl.playSound(null, pos.getX(), pos.getY(), pos.getZ(), SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.65f, 1.3f);
 
         for (ServerPlayer sp : sl.players()) {
-            sp.sendSystemMessage(Component.literal("§8[§6ЛОГИСТИКА 3D§8] §eСброшен 3D Груз Asset Corp у §fX:" + pos.getX() + " Z:" + pos.getZ() + "§e! Нажмите ПКМ или ударьте!"));
+            sp.sendSystemMessage(Component.literal("§8[§6ЛОГИСТИКА 3D§8] §eСброшен 3D Груз Asset Corp у §fX:" + pos.getX() + " Z:" + pos.getZ()
+                    + "§e!\n§6Механика Жадности: §fподожди 30с (x1.5), 60с (x2.0) или 90с (x3.0), но отбивайся от волн охраны!"));
         }
     }
 

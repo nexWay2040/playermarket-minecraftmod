@@ -66,6 +66,7 @@ public final class ChiefAuditorBossManager {
     private static final List<Vec3> activeBarrageMarks = new ArrayList<>();
     private static int barrageTimerTicks = 0;
     private static final Set<UUID> HANDLED_DEFEAT_UUIDS = new HashSet<>();
+    private static final BossArenaTetherController TETHER_CONTROLLER = new BossArenaTetherController();
 
     private ChiefAuditorBossManager() {}
 
@@ -131,6 +132,7 @@ public final class ChiefAuditorBossManager {
         phase2Triggered = false;
         activeBarrageMarks.clear();
         barrageTimerTicks = 0;
+        TETHER_CONTROLLER.reset();
 
         // Init Boss Bar
         bossBar = new ServerBossEvent(
@@ -178,6 +180,7 @@ public final class ChiefAuditorBossManager {
         activeBarrageMarks.clear();
         stateTimerTicks = 0;
         phase2Triggered = false;
+        TETHER_CONTROLLER.reset();
     }
 
     /**
@@ -296,6 +299,7 @@ public final class ChiefAuditorBossManager {
         switch (activeState) {
             case COMBAT -> {
                 boss.setBossState(ChiefAuditorBossEntity.STATE_COMBAT);
+                TETHER_CONTROLLER.tick(bossLevel, boss, nearestPlayer);
                 skyfallCooldownTicks--;
                 barrageCooldownTicks--;
 
@@ -479,6 +483,7 @@ public final class ChiefAuditorBossManager {
         bossUuid = null;
         activeBarrageMarks.clear();
         phase2Triggered = false;
+        TETHER_CONTROLLER.reset();
 
         if (level != null && deathPos != null) {
             // Victory fireworks & audio
