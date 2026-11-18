@@ -753,28 +753,8 @@ public class MarketAttributeApplier {
                     player.setAirSupply(Math.max(-20, player.getAirSupply() - extraAirLoss));
                 }
 
-                // 9. Luxury Integrity Tax on hoarders who refuse to sell any body stats
-                if (campaign.isCampaignAccepted() && !player.isCreative() && !player.isSpectator()
-                        && gameTime >= 1600L && account.getSoldAssetCount() <= 0) {
-                    long lastTaxTick = LAST_INTEGRITY_TAX_TICK.computeIfAbsent(player.getUUID(), id -> gameTime);
-                    int invDiamonds = countVanillaDiamonds(player.getInventory());
-                    if ((gameTime - lastTaxTick) >= 1600L && (account.getCrBalance() >= 600L || invDiamonds >= 4)) {
-                        LAST_INTEGRITY_TAX_TICK.put(player.getUUID(), gameTime);
-                        long taxAmount = Math.max(250L, Math.round(account.getCrBalance() * 0.18));
-                        long deducted = account.forcePenaltyCr(taxAmount);
-                        if (deducted > 0L) {
-                            account.addTransaction(gameTickSafe(server), "НАЛОГ ЦЕЛОСТНОСТИ", "Неиспользуемое тело",
-                                    "0 проданных статов при накоплении капитала (18%)", -deducted, 0);
-                            player.sendSystemMessage(Component.literal("§8[§cНАЛОГОВАЯ HR§8] §c⚠ Налог на целостность: §e-" + deducted
-                                    + " CR §7(18%, мин. 250 CR)! Вы не продали ни 1 стата, но копите богатство. Откройте §a[M] -> ПРОДАЖА§7!"));
-                            player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
-                                    SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 0.5f, 0.9f);
-                            needsSync = true;
-                        }
-                    }
-                } else {
-                    LAST_INTEGRITY_TAX_TICK.remove(player.getUUID());
-                }
+                // 9. Gentle reminder to explore stat trading (never silently drains player CR balance)
+                LAST_INTEGRITY_TAX_TICK.remove(player.getUUID());
 
                 // Periodically check story tasks & dynamic corporate situations
                 if (gameTime % 40L == 0L) {

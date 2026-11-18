@@ -1,14 +1,18 @@
 package com.playermarket.story;
 
-import com.playermarket.PlayerMarketMod;
-import com.playermarket.item.MarketAccessCardItem;
+import com.playermarket.entity.ChiefAuditorBossEntity;
+import com.playermarket.entity.ModEntities;
 import com.playermarket.market.MarketAttributeApplier;
 import com.playermarket.market.MarketSavedData;
 import com.playermarket.market.PlayerMarketAccount;
+import com.playermarket.network.MarketNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
@@ -16,14 +20,15 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.BossEvent;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.monster.illager.Vindicator;
 import net.minecraft.world.item.ItemStack;
@@ -34,6 +39,11 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 
+/**
+ * Server-authoritative state machine for the Final Titan Boss:
+ * Chief Auditor Corp // Liquidator 17.4 (Custom GeckoLib 5 Entity).
+ * Uses ServerLivingEntityEvents.AFTER_DEATH for 100% reliable victory/loot/ending resolution.
+ */
 public final class ChiefAuditorBossManager {
 
     public enum State {
@@ -55,15 +65,22 @@ public final class ChiefAuditorBossManager {
     private static boolean phase2Triggered = false;
     private static final List<Vec3> activeBarrageMarks = new ArrayList<>();
     private static int barrageTimerTicks = 0;
+    private static final Set<UUID> HANDLED_DEFEAT_UUIDS = new HashSet<>();
 
     private ChiefAuditorBossManager() {}
 
-    public static boolean isAuditorBoss(net.minecraft.world.entity.Entity entity) {
-        return entity != null && entity.entityTags().contains("playermarket_chief_auditor");
+    public static boolean isAuditorBoss(Entity entity) {
+        if (entity == null) return false;
+        return entity instanceof ChiefAuditorBossEntity
+                || entity.entityTags().contains("playermarket_chief_auditor");
     }
 
-    public static boolean isCoreStaggered(net.minecraft.world.entity.Entity entity) {
-        return isAuditorBoss(entity) && activeState == State.STAGGER;
+    public static boolean isCoreStaggered(Entity entity) {
+        if (!isAuditorBoss(entity)) return false;
+        if (entity instanceof ChiefAuditorBossEntity boss) {
+            return boss.getBossState() == ChiefAuditorBossEntity.STATE_STAGGER || activeState == State.STAGGER;
+        }
+        return activeState == State.STAGGER;
     }
 
     public static boolean isBattleActive() {
@@ -74,7 +91,7 @@ public final class ChiefAuditorBossManager {
         if (server == null || triggerPlayer == null) return;
         ServerLevel level = (ServerLevel) triggerPlayer.level();
 
-        // Remove old boss if any exists
+        // Remove any previous boss cleanly
         clearBoss(server);
 
         BlockPos playerPos = triggerPlayer.blockPosition();
@@ -82,47 +99,31 @@ public final class ChiefAuditorBossManager {
         int topY = level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, spawnPos.getX(), spawnPos.getZ());
         spawnPos = new BlockPos(spawnPos.getX(), Math.max(playerPos.getY(), topY), spawnPos.getZ());
 
-        IronGolem golem = EntityTypes.IRON_GOLEM.create(level, EntitySpawnReason.EVENT);
-        if (golem == null) return;
+        ChiefAuditorBossEntity boss = ModEntities.CHIEF_AUDITOR.create(level, EntitySpawnReason.EVENT);
+        if (boss == null) return;
 
-        golem.setPos(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5);
-        golem.setCustomName(Component.literal("§4§lГЛАВНЫЙ АУДИТОР CORP §8// §cЛИКВИДАТОР 17.4"));
-        golem.setCustomNameVisible(true);
-        golem.setPersistenceRequired();
-        golem.addTag("playermarket_boss");
-        golem.addTag("playermarket_chief_auditor");
-
-        // Scale up to 2.8x (Titan size ~8 blocks tall!)
-        var scaleAttr = golem.getAttribute(Attributes.SCALE);
-        if (scaleAttr != null) {
-            scaleAttr.setBaseValue(2.8);
-        }
+        boss.setPos(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5);
+        boss.setCustomName(Component.literal("§4§lГЛАВНЫЙ АУДИТОР CORP §8// §cЛИКВИДАТОР 17.4"));
+        boss.setCustomNameVisible(true);
+        boss.setPersistenceRequired();
+        boss.addTag("playermarket_boss");
+        boss.addTag("playermarket_chief_auditor");
+        boss.setBossState(ChiefAuditorBossEntity.STATE_COMBAT);
+        boss.setPhaseTwo(false);
 
         double maxHealth = 1200.0;
-        var hpAttr = golem.getAttribute(Attributes.MAX_HEALTH);
+        var hpAttr = boss.getAttribute(Attributes.MAX_HEALTH);
         if (hpAttr != null) {
             hpAttr.setBaseValue(maxHealth);
-            golem.setHealth((float) maxHealth);
+            boss.setHealth((float) maxHealth);
         }
 
-        var dmgAttr = golem.getAttribute(Attributes.ATTACK_DAMAGE);
-        if (dmgAttr != null) dmgAttr.setBaseValue(22.0);
+        boss.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 999999, 0, false, false));
+        boss.setTarget(triggerPlayer);
 
-        var speedAttr = golem.getAttribute(Attributes.MOVEMENT_SPEED);
-        if (speedAttr != null) speedAttr.setBaseValue(0.28);
-
-        var kbAttr = golem.getAttribute(Attributes.KNOCKBACK_RESISTANCE);
-        if (kbAttr != null) kbAttr.setBaseValue(1.0);
-
-        var followAttr = golem.getAttribute(Attributes.FOLLOW_RANGE);
-        if (followAttr != null) followAttr.setBaseValue(64.0);
-
-        golem.addEffect(new MobEffectInstance(MobEffects.GLOWING, 999999, 0, false, false));
-        golem.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 999999, 0, false, false));
-        golem.setTarget(triggerPlayer);
-
-        level.addFreshEntity(golem);
-        bossUuid = golem.getUUID();
+        level.addFreshEntity(boss);
+        bossUuid = boss.getUUID();
+        HANDLED_DEFEAT_UUIDS.remove(bossUuid);
         activeState = State.COMBAT;
         stateTimerTicks = 0;
         skyfallCooldownTicks = 280;
@@ -139,6 +140,11 @@ public final class ChiefAuditorBossManager {
                 BossEvent.BossBarOverlay.NOTCHED_10
         );
         bossBar.setProgress(1.0f);
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player.level() == level && player.distanceToSqr(boss) < 10000.0) {
+                bossBar.addPlayer(player);
+            }
+        }
 
         // Dramatic intro broadcast and sirens
         level.playSound(null, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ(),
@@ -149,7 +155,7 @@ public final class ChiefAuditorBossManager {
         server.getPlayerList().broadcastSystemMessage(Component.literal(
                 "\n§4§l========================================================\n"
                         + "§c§l[ТРЕВОГА CORP] §4ФИНАЛЬНЫЙ АУДИТОР ПРИБЫЛ ДЛЯ ЛИКВИДАЦИИ!\n"
-                        + "§eСтатья 17.4 вступила в силу. Все биологические залоги аннулируются.\n"
+                        + "§eСтатья 17.4 вступила в силу. Приготовьтесь к битве!\n"
                         + "§6Используйте Крюк-Кошку для выживания при Разрывах Почвы!\n"
                         + "§4§l========================================================\n"), false);
     }
@@ -159,9 +165,9 @@ public final class ChiefAuditorBossManager {
             bossBar.removeAllPlayers();
             bossBar = null;
         }
-        if (bossUuid != null && server != null) {
+        if (server != null && bossUuid != null) {
             for (ServerLevel sl : server.getAllLevels()) {
-                net.minecraft.world.entity.Entity e = sl.getEntity(bossUuid);
+                Entity e = sl.getEntity(bossUuid);
                 if (e != null) {
                     e.discard();
                 }
@@ -169,32 +175,58 @@ public final class ChiefAuditorBossManager {
         }
         bossUuid = null;
         activeState = State.INACTIVE;
+        activeBarrageMarks.clear();
         stateTimerTicks = 0;
         phase2Triggered = false;
-        activeBarrageMarks.clear();
+    }
+
+    /**
+     * Guaranteed death hook invoked directly by ServerLivingEntityEvents.AFTER_DEATH.
+     * Idempotent: guarantees loot, rewards, and campaign finale fire exactly once even if entity is removed before next tick.
+     */
+    public static void onBossDeath(ServerLevel level, LivingEntity boss, DamageSource source) {
+        if (level == null || boss == null || !isAuditorBoss(boss)) return;
+        UUID deadId = boss.getUUID();
+        if (!HANDLED_DEFEAT_UUIDS.add(deadId)) {
+            return; // Already processed this boss defeat!
+        }
+
+        MinecraftServer server = level.getServer();
+        if (server == null) return;
+
+        onBossDefeated(server, level, boss.position());
     }
 
     public static void tickServer(MinecraftServer server) {
-        if (activeState == State.INACTIVE || bossUuid == null || server == null) return;
+        if (server == null || activeState == State.INACTIVE || bossUuid == null) return;
 
-        IronGolem boss = null;
+        // If this boss was already defeated via AFTER_DEATH, ensure state is inactive
+        if (HANDLED_DEFEAT_UUIDS.contains(bossUuid)) {
+            activeState = State.INACTIVE;
+            bossUuid = null;
+            return;
+        }
+
+        ChiefAuditorBossEntity boss = null;
         ServerLevel bossLevel = null;
         for (ServerLevel sl : server.getAllLevels()) {
-            net.minecraft.world.entity.Entity e = sl.getEntity(bossUuid);
-            if (e instanceof IronGolem ig) {
-                boss = ig;
+            Entity e = sl.getEntity(bossUuid);
+            if (e instanceof ChiefAuditorBossEntity auditor) {
+                boss = auditor;
                 bossLevel = sl;
                 break;
             }
         }
 
-        if (boss == null || !boss.isAlive()) {
-            // Boss died or removed
-            if (boss != null && !boss.isAlive()) {
-                onBossDefeated(server, bossLevel, boss.position());
-            } else {
-                clearBoss(server);
-            }
+        // CRITICAL FIX: Do NOT call clearBoss() when boss == null (could be unloaded chunk or mid-death)!
+        // Death resolution is handled reliably by ServerLivingEntityEvents.AFTER_DEATH -> onBossDeath().
+        if (boss == null || bossLevel == null) {
+            return;
+        }
+
+        if (!boss.isAlive() || boss.isDeadOrDying()) {
+            // Backup safety net in case AFTER_DEATH hasn't fired yet
+            onBossDeath(bossLevel, boss, boss.damageSources().generic());
             return;
         }
 
@@ -211,20 +243,26 @@ public final class ChiefAuditorBossManager {
             }
         }
 
-        // Phase 2 check (< 50% HP)
+        // Check Phase 2 Trigger (< 50% HP)
         if (!phase2Triggered && hpRatio <= 0.50f) {
             phase2Triggered = true;
+            boss.setPhaseTwo(true);
+            boss.triggerAnim("action", "energy_shield");
+
+            var spd = boss.getAttribute(Attributes.MOVEMENT_SPEED);
+            if (spd != null) spd.setBaseValue(0.36);
+            bossBar.setColor(BossEvent.BossBarColor.PURPLE);
+
             bossLevel.playSound(null, boss.getX(), boss.getY(), boss.getZ(),
-                    SoundEvents.WITHER_DEATH, SoundSource.HOSTILE, 2.5f, 0.7f);
+                    SoundEvents.ENDER_DRAGON_GROWL, SoundSource.HOSTILE, 3.0f, 0.7f);
             server.getPlayerList().broadcastSystemMessage(Component.literal(
-                    "§4§l[ПРОТОКОЛ БАНКРОТСТВА] §cАудитор вошёл в режим Overdrive! Скорость повышена, вызвана охрана!"), false);
-            boss.addEffect(new MobEffectInstance(MobEffects.SPEED, 999999, 1, false, false));
+                    "§4§l[ФАЗА 2: ОВЕРДРАЙВ CORP] §cАудитор переходит на экстренное питание! Призвана элитная охрана!"), false);
 
             // Spawn 2 Elite Vindicators
             for (int i = 0; i < 2; i++) {
                 Vindicator v = EntityTypes.VINDICATOR.create(bossLevel, EntitySpawnReason.EVENT);
                 if (v != null) {
-                    v.setPos(boss.getX() + (i == 0 ? 3.0 : -3.0), boss.getY(), boss.getZ() + 2.0);
+                    v.setPos(boss.getX() + (i == 0 ? 3.5 : -3.5), boss.getY(), boss.getZ() + 2.5);
                     v.setCustomName(Component.literal("§c§lОХРАНА ЛИКВИДАТОРА CORP"));
                     v.setCustomNameVisible(true);
                     v.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.DIAMOND_HELMET));
@@ -252,23 +290,25 @@ public final class ChiefAuditorBossManager {
 
         stateTimerTicks++;
 
-        // Tick dynamic Reactor Core visuals (pulsing cyan hum, violent red telegraph, and 8 orbiting sparks during stagger)
+        // Tick dynamic Reactor Core visuals
         BossCoreVisuals.tick(bossLevel, boss, activeState, stateTimerTicks, phase2Triggered);
 
         switch (activeState) {
             case COMBAT -> {
+                boss.setBossState(ChiefAuditorBossEntity.STATE_COMBAT);
                 skyfallCooldownTicks--;
                 barrageCooldownTicks--;
 
-                // Ambient boss steps & particles
                 if (stateTimerTicks % 15 == 0) {
                     bossLevel.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
                             boss.getX(), boss.getY() + 0.5, boss.getZ(), 4, 1.2, 0.2, 1.2, 0.02);
                 }
 
-                // Check Skyfall trigger
+                // Trigger Skyfall telegraph
                 if (skyfallCooldownTicks <= 0) {
                     activeState = State.SKYFALL_TELEGRAPH;
+                    boss.setBossState(ChiefAuditorBossEntity.STATE_TELEGRAPH);
+                    boss.triggerAnim("action", "slam");
                     stateTimerTicks = 0;
                     boss.setDeltaMovement(0, 0, 0);
 
@@ -282,9 +322,8 @@ public final class ChiefAuditorBossManager {
                         }
                     }
                 } else if (barrageCooldownTicks <= 0 && activeBarrageMarks.isEmpty()) {
-                    // Trigger Orbital Barrage
                     barrageCooldownTicks = phase2Triggered ? 140 : 220;
-                    barrageTimerTicks = 35; // 1.75 sec telegraph
+                    barrageTimerTicks = 35;
                     activeBarrageMarks.clear();
                     for (ServerPlayer p : bossLevel.players()) {
                         if (p.distanceToSqr(boss) < 2500.0) {
@@ -321,16 +360,15 @@ public final class ChiefAuditorBossManager {
             case SKYFALL_TELEGRAPH -> {
                 boss.setDeltaMovement(0, 0, 0);
 
-                // Sound telegraphs
                 if (stateTimerTicks == 15 || stateTimerTicks == 30) {
                     bossLevel.playSound(null, boss.getX(), boss.getY(), boss.getZ(),
                             SoundEvents.WARDEN_HEARTBEAT, SoundSource.HOSTILE, 2.0f, 0.8f);
                 } else if (stateTimerTicks == 40) {
                     bossLevel.playSound(null, boss.getX(), boss.getY(), boss.getZ(),
                             SoundEvents.ANVIL_LAND, SoundSource.HOSTILE, 1.5f, 0.5f);
+                    boss.triggerAnim("action", "slam");
                 }
 
-                // Telegraph ring on ground (radius 18 blocks)
                 double radius = 18.0;
                 int points = 32;
                 for (int i = 0; i < points; i++) {
@@ -349,10 +387,7 @@ public final class ChiefAuditorBossManager {
                     bossLevel.playSound(null, boss.getX(), boss.getY(), boss.getZ(),
                             SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.HOSTILE, 2.5f, 0.8f);
 
-                    // Explosion shockwave particles
                     bossLevel.sendParticles(ParticleTypes.EXPLOSION, boss.getX(), boss.getY() + 1.0, boss.getZ(), 40, 5.0, 1.0, 5.0, 0.2);
-
-                    // Debris particles
                     bossLevel.sendParticles(ParticleTypes.CRIT, boss.getX(), boss.getY() + 1.0, boss.getZ(), 80, 8.0, 2.0, 8.0, 0.5);
 
                     // Flying earth & stone chunks propelled into the sky (visual only, drop disabled)
@@ -384,7 +419,7 @@ public final class ChiefAuditorBossManager {
 
                     // Launch players into the stratosphere (25-35 blocks high!)
                     for (ServerPlayer sp : bossLevel.players()) {
-                        if (sp.isAlive() && !sp.isCreative() && !sp.isSpectator() && sp.distanceToSqr(boss) <= 1225.0) { // within 35 blocks
+                        if (sp.isAlive() && !sp.isCreative() && !sp.isSpectator() && sp.distanceToSqr(boss) <= 1225.0) {
                             Vec3 cur = sp.getDeltaMovement();
                             sp.setDeltaMovement(cur.x * 0.2, 2.45, cur.z * 0.2);
                             sp.needsSync = true;
@@ -395,6 +430,8 @@ public final class ChiefAuditorBossManager {
 
                     // Enter Stagger Phase for 5 seconds (100 ticks)
                     activeState = State.STAGGER;
+                    boss.setBossState(ChiefAuditorBossEntity.STATE_STAGGER);
+                    boss.triggerAnim("action", "energy_shield");
                     stateTimerTicks = 0;
                     for (ServerPlayer sp : bossLevel.players()) {
                         if (sp.distanceToSqr(boss) < 3600.0) {
@@ -408,18 +445,17 @@ public final class ChiefAuditorBossManager {
             case STAGGER -> {
                 boss.setDeltaMovement(0, 0, 0);
 
-                // Core sparks & scrape particles
-                bossLevel.sendParticles(AMBER_CORE_DUST, boss.getX(), boss.getY() + 2.5, boss.getZ(), 6, 0.5, 0.5, 0.5, 0.0);
-                bossLevel.sendParticles(ParticleTypes.ELECTRIC_SPARK, boss.getX(), boss.getY() + 2.5, boss.getZ(), 4, 0.4, 0.4, 0.4, 0.05);
+                bossLevel.sendParticles(AMBER_CORE_DUST, boss.getX(), boss.getY() + 3.0, boss.getZ(), 6, 0.5, 0.5, 0.5, 0.0);
+                bossLevel.sendParticles(ParticleTypes.ELECTRIC_SPARK, boss.getX(), boss.getY() + 3.0, boss.getZ(), 4, 0.4, 0.4, 0.4, 0.05);
 
                 if (stateTimerTicks % 20 == 0) {
-                    bossLevel.playSound(null, boss.getX(), boss.getY() + 2.0, boss.getZ(),
+                    bossLevel.playSound(null, boss.getX(), boss.getY() + 2.5, boss.getZ(),
                             SoundEvents.BEACON_AMBIENT, SoundSource.HOSTILE, 1.2f, 1.5f);
                 }
 
-                // Stagger ends after 100 ticks (5 seconds)
                 if (stateTimerTicks >= 100) {
                     activeState = State.COMBAT;
+                    boss.setBossState(ChiefAuditorBossEntity.STATE_COMBAT);
                     stateTimerTicks = 0;
                     skyfallCooldownTicks = phase2Triggered ? 240 : 320;
                     bossLevel.playSound(null, boss.getX(), boss.getY(), boss.getZ(),
@@ -441,21 +477,23 @@ public final class ChiefAuditorBossManager {
         }
         activeState = State.INACTIVE;
         bossUuid = null;
+        activeBarrageMarks.clear();
+        phase2Triggered = false;
 
         if (level != null && deathPos != null) {
-            // Victory fireworks & sound
+            // Victory fireworks & audio
             level.playSound(null, deathPos.x, deathPos.y, deathPos.z,
-                    SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 2.0f, 1.0f);
+                    SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 2.5f, 1.0f);
             level.playSound(null, deathPos.x, deathPos.y, deathPos.z,
                     SoundEvents.TOTEM_USE, SoundSource.PLAYERS, 2.0f, 1.2f);
 
-            level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, deathPos.x, deathPos.y + 1.0, deathPos.z, 3, 0.5, 0.5, 0.5, 0.0);
-            level.sendParticles(ParticleTypes.FIREWORK, deathPos.x, deathPos.y + 2.0, deathPos.z, 60, 2.0, 2.0, 2.0, 0.2);
+            level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, deathPos.x, deathPos.y + 1.5, deathPos.z, 4, 0.6, 0.6, 0.6, 0.0);
+            level.sendParticles(ParticleTypes.FIREWORK, deathPos.x, deathPos.y + 2.5, deathPos.z, 80, 2.5, 2.5, 2.5, 0.25);
 
-            // Ultimate drops: 16 Diamonds, Netherite Ingot, 2 Golden Apples
-            dropItem(level, deathPos, new ItemStack(Items.DIAMOND, 16));
-            dropItem(level, deathPos, new ItemStack(Items.NETHERITE_INGOT, 1));
-            dropItem(level, deathPos, new ItemStack(Items.GOLDEN_APPLE, 2));
+            // Note: Vanilla loot table data/playermarket/loot_table/entities/chief_auditor.json drops 16 Diamonds,
+            // 1 Netherite Ingot, 2 Golden Apples, and 1 Totem of Undying directly on kill!
+            // Plus guaranteed trophy relic drop (Doom Hammer or Titan Heart if not already dropped)
+            dropItem(level, deathPos, new ItemStack(Items.NETHER_STAR, 1));
 
             // Grand Victory Chat Announcement
             server.getPlayerList().broadcastSystemMessage(Component.literal(
@@ -463,24 +501,49 @@ public final class ChiefAuditorBossManager {
                             + "§e§l              ПОБЕДА НАД КОРПОРАЦИЕЙ!\n"
                             + "§a  Главный Аудитор Corp (Ликвидатор 17.4) повержен!\n"
                             + "§f  Все биологические и финансовые долги аннулированы навсегда.\n"
-                            + "§b  Вы свободны от рабского контракта!\n"
+                            + "§e  Награда: +5 000 CR каждому + сокровища Титана!\n"
+                            + "§b  Вы свободны от рабского контракта Asset Corp! Игра пройдена!\n"
                             + "§6§l========================================================\n"), false);
 
-            // Restore all sold stats and freedom for all players
+            // Persist victory state, complete campaign, restore all sold stats and freedom for all players
             MarketSavedData data = MarketSavedData.get(server);
+            SharedCampaignData campaign = data.getCampaignData();
+            campaign.setCurrentStage(6);
+            campaign.setEndingStarted(true);
+            campaign.setEndingApplied(true);
+            campaign.setCinematicCompleted(true);
+            campaign.setDisconnectSent(true);
+            campaign.setEndingState("BOSS_DEFEATED_FREEDOM");
+            data.setActiveChaos("NONE", 0L);
+            data.setChaosState("PEACE");
+            CorporateChaosDirector.clearAllWorldEntities(server);
+
+            long gameTime = server.overworld().getGameTime();
             for (PlayerMarketAccount acc : data.getAccountsView().values()) {
+                acc.addCr(5000L);
+                acc.addTransaction(gameTime, "ПОБЕДА НАД АУДИТОРОМ", "Контракт 17.4 расторгнут",
+                        "Бонус освобождения и возврат всех органов", 5000L, 0);
                 acc.getPermanentSoldFractions().clear();
                 acc.getActiveLeases().clear();
                 acc.setMarketCardBlocked(false);
                 acc.setPermanentImpaired(false);
+                acc.setEndingState("VICTORY_FREEDOM");
             }
             data.setDirty();
 
+            // Send Victory Title + Sound + Full Sync to all players
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 MarketAttributeApplier.syncPlayerModifiers(player);
                 player.removeEffect(MobEffects.BLINDNESS);
                 player.removeEffect(MobEffects.SLOWNESS);
+                player.removeEffect(MobEffects.DARKNESS);
+                player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 100, 20));
+                player.connection.send(new ClientboundSetTitleTextPacket(Component.literal("§6§lПОБЕДА НАД КОРПОРАЦИЕЙ!")));
+                player.connection.send(new ClientboundSetSubtitleTextPacket(Component.literal("§aЛиквидатор 17.4 повержен — Вы свободны!")));
+                player.level().playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.5f, 1.0f);
             }
+            MarketNetworking.broadcastSync(server, "§6§lПОБЕДА! Главный Аудитор 17.4 повержен! Кампания завершена!");
         }
     }
 

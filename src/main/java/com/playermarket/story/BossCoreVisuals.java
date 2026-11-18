@@ -5,8 +5,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.animal.golem.IronGolem;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Procedural Boss Core Visuals for Chief Auditor Corp // Liquidator 17.4.
@@ -24,15 +23,15 @@ public final class BossCoreVisuals {
     /**
      * Ticks procedural particles and audio cues for the Auditor's chest reactor core.
      */
-    public static void tick(ServerLevel level, IronGolem boss, ChiefAuditorBossManager.State state, int stateTimerTicks, boolean phase2) {
+    public static void tick(ServerLevel level, LivingEntity boss, ChiefAuditorBossManager.State state, int stateTimerTicks, boolean phase2) {
         if (level == null || boss == null || !boss.isAlive()) return;
 
-        // Boss scale is 2.8x, chest center is located at y + 3.0 relative to feet
-        double chestY = boss.getY() + 3.0;
+        // Dynamic chest height (approx 62% of entity bounding box height)
+        double chestY = boss.getY() + Math.max(2.4, boss.getBbHeight() * 0.62);
         float yRotRad = (float) Math.toRadians(-boss.getYRot());
-        // Forward offset vector from chest (0.8 blocks forward based on orientation)
-        double fwdX = Math.sin(yRotRad) * 0.85;
-        double fwdZ = Math.cos(yRotRad) * 0.85;
+        // Forward offset vector from chest
+        double fwdX = Math.sin(yRotRad) * 1.15;
+        double fwdZ = Math.cos(yRotRad) * 1.15;
         double coreX = boss.getX() + fwdX;
         double coreZ = boss.getZ() + fwdZ;
 

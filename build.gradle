@@ -4,6 +4,17 @@ plugins {
 }
 
 repositories {
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = 'GeckoLib'
+				url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+			}
+		}
+		filter {
+			includeGroupAndSubgroups('com.geckolib')
+		}
+	}
 }
 
 loom {
@@ -21,6 +32,7 @@ dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	implementation "com.geckolib:geckolib-fabric-${project.minecraft_version}:${project.geckolib_version}"
 }
 
 processResources {

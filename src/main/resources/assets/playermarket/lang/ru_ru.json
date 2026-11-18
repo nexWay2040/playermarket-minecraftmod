@@ -2,10 +2,10 @@
   "item.playermarket.market_access_card": "Карта Доступа Market Access Card",
   "item.playermarket.blocked_market_card": "Заблокированная карта доступа (BLOCKED)",
   "item.playermarket.crumpled_letter": "Мятое письмо",
-  "item.playermarket.corporate_grapple": "Корпоративный Крюк-Кошка (Мод. 17.4)",
-  "item.playermarket.doom_hammer": "Кредитный Молот Судного Дня",
-  "item.playermarket.titan_heart": "Сердце Титана (Био-Ядро)",
-  "item.playermarket.golden_exploit": "Золотой Эксплойт Корпорации",
+  "item.playermarket.corporate_grapple": "Корпоративный Крюк-Кошка",
+  "item.playermarket.doom_hammer": "Молот Суда Asset Corp",
+  "item.playermarket.titan_heart": "Сердце Титана",
+  "item.playermarket.golden_exploit": "Золотой Эксплойт",
   "item.playermarket.prop_hr_bomb": "Бомба-Контракт HR (3D)",
   "item.playermarket.prop_supply_crate": "Контейнер Asset Corp (3D)",
   "item.playermarket.prop_atm_safe": "Бронированный Банкомат HR (3D)",
@@ -18,17 +18,14 @@
   "itemGroup.playermarket.general": "Player Market",
   "key.category.playermarket": "Player Market",
   "key.playermarket.open_market": "Открыть рыночный терминал",
-
   "category.playermarket.body": "АКТИВЫ ТЕЛА",
   "category.playermarket.movement": "АКТИВЫ ДВИЖЕНИЯ",
   "category.playermarket.combat": "БОЕВЫЕ АКТИВЫ",
   "category.playermarket.professional": "ПРОФЕССИОНАЛЬНЫЕ АКТИВЫ",
-
   "upgrade.category.body": "ТЕЛЕСНЫЕ АУГМЕНТАЦИИ",
   "upgrade.category.combat": "БОЕВЫЕ АУГМЕНТАЦИИ",
   "upgrade.category.professional": "ПРОФЕССИОНАЛЬНЫЕ АУГМЕНТАЦИИ",
   "upgrade.category.corporate": "КОРПОРАТИВНЫЕ ПРИВИЛЕГИИ",
-
   "tab.playermarket.dashboard": "ОБЗОР",
   "tab.playermarket.story": "ПРОГРАММА",
   "tab.playermarket.mail": "ПОЧТА",
@@ -41,10 +38,8 @@
   "tab.playermarket.portfolio": "ПОРТФЕЛЬ",
   "tab.playermarket.history": "ИСТОРИЯ",
   "tab.playermarket.news": "НОВОСТИ",
-
   "message.playermarket.access_revoked": "§c[PLAYER MARKET] Доступ к бирже аннулирован (Статья 17.4). Вы больше не клиент.",
   "message.playermarket.access_revoked_overlay": "§cДОСТУП АННУЛИРОВАН (СТАТЬЯ 17.4)",
-
   "asset.playermarket.max_health": "Максимальное здоровье",
   "asset.playermarket.max_health.desc": "Продажа биологической живучести. Напрямую снижает сердца персонажа.",
   "asset.playermarket.natural_regeneration": "Естественная регенерация",
@@ -61,7 +56,6 @@
   "asset.playermarket.fall_resistance.desc": "Увеличивает получаемый кинетический урон при падениях.",
   "asset.playermarket.max_absorption": "Максимальное поглощение",
   "asset.playermarket.max_absorption.desc": "Снижает предельный запас защитного поглощения.",
-
   "asset.playermarket.movement_speed": "Скорость движения",
   "asset.playermarket.movement_speed.desc": "Уменьшает базовую скорость перемещения по суше.",
   "asset.playermarket.jump_strength": "Сила прыжка",
@@ -72,7 +66,6 @@
   "asset.playermarket.swim_speed.desc": "Замедляет гидродинамическое перемещение в жидкостях.",
   "asset.playermarket.step_height": "Высота шага",
   "asset.playermarket.step_height.desc": "Ограничивает способность автоматически преодолевать выступы.",
-
   "asset.playermarket.attack_damage": "Урон в ближнем бою",
   "asset.playermarket.attack_damage.desc": "Постоянно снижает силу ударов в ближнем бою.",
   "asset.playermarket.attack_speed": "Скорость атаки",
@@ -89,7 +82,6 @@
   "asset.playermarket.explosion_resistance.desc": "Увеличивает импульс отбрасывания и урон при взрывах.",
   "asset.playermarket.knockback_power": "Сила отбрасывания",
   "asset.playermarket.knockback_power.desc": "Снижает дистанцию, на которую ваши удары отталкивают врагов.",
-
   "asset.playermarket.mining_speed": "Скорость копания",
   "asset.playermarket.mining_speed.desc": "Замедляет темп разрушения каменных блоков инструментом.",
   "asset.playermarket.block_reach": "Дальность взаимодействия",
@@ -98,13 +90,11 @@
   "asset.playermarket.luck.desc": "Ухудшает шансы на ценную добычу из сундуков и рыбалки.",
   "asset.playermarket.submerged_mining": "Подводное бурение",
   "asset.playermarket.submerged_mining.desc": "Накладывает критический штраф к скорости копания под водой.",
-
   "upgrade.playermarket.dense_core": "Плотное ядро (Dense Core)",
   "upgrade.playermarket.vitality_surge": "Всплеск витальности (Vitality Surge)",
   "upgrade.playermarket.metabolism_upgrade": "Улучшенный метаболизм (Metabolism Upgrade)",
   "upgrade.playermarket.synthetic_lungs": "Синтетические лёгкие (Synthetic Lungs)",
   "upgrade.playermarket.thermal_adaptation": "Термоадаптация (Thermal Adaptation)",
-
   "upgrade.playermarket.muscle_overclock": "Разгон мускулатуры (Muscle Overclock)",
   "upgrade.playermarket.fast_reflexes": "Скоростные рефлексы (Fast Reflexes)",
   "upgrade.playermarket.reinforced_skin": "Армированная дерма (Reinforced Skin)",
@@ -112,7 +102,6 @@
   "upgrade.playermarket.precision_targeting": "Точечный фокус (Precision Targeting)",
   "upgrade.playermarket.projectile_calibration": "Калибровка баллистики (Projectile Calibration)",
   "upgrade.playermarket.combat_focus": "Боевая концентрация (Combat Focus)",
-
   "upgrade.playermarket.mining_protocol": "Протокол добычи (Mining Protocol)",
   "upgrade.playermarket.lucky_chip": "Чип удачи (Lucky Chip)",
   "upgrade.playermarket.xp_accelerator": "Акселератор опыта (XP Accelerator)",
@@ -120,14 +109,12 @@
   "upgrade.playermarket.efficient_metabolism": "Экономичный расход (Efficient Metabolism)",
   "upgrade.playermarket.aquatic_propulsion": "Гидропривод (Aquatic Propulsion)",
   "upgrade.playermarket.precision_hands": "Точные манипуляторы (Precision Hands)",
-
   "upgrade.playermarket.premium_account": "Премиум-аккаунт (Premium Account)",
   "upgrade.playermarket.broker_license": "Брокерская лицензия (Broker License)",
   "upgrade.playermarket.market_insurance": "Рыночная страховка (Market Insurance)",
   "upgrade.playermarket.vip_client": "VIP Клиент (VIP Client)",
   "upgrade.playermarket.price_lock": "Фиксация курса (Price Lock)",
   "upgrade.playermarket.diamond_cashback": "Алмазный кэшбэк (Diamond Cashback)",
-
   "blackmarket.playermarket.second_chance": "Второй шанс (Second Chance)",
   "blackmarket.playermarket.berserker_protocol": "Протокол Берсерка (Berserker Protocol)",
   "blackmarket.playermarket.phantom_step": "Фантомный шаг (Phantom Step)",
@@ -136,7 +123,6 @@
   "blackmarket.playermarket.emergency_battery": "Аварийная батарея (Emergency Battery)",
   "blackmarket.playermarket.golden_contract": "Золотой контракт (Golden Contract)",
   "blackmarket.playermarket.asset_insurance": "Страхование активов (Asset Insurance)",
-
   "build.playermarket.glass_cannon": "Стеклянная пушка",
   "build.playermarket.glass_cannon.title": "СТЕКЛЯННАЯ ПУШКА",
   "build.playermarket.glass_cannon.desc": "Колоссальный боевой урон при критически ослабленной биологической защите.",
@@ -155,7 +141,6 @@
   "build.playermarket.fragile_millionaire": "Хрупкий миллионер",
   "build.playermarket.fragile_millionaire.title": "ОПУСТОШЁННЫЙ ОЛИГАРХ",
   "build.playermarket.fragile_millionaire.desc": "Финансовый титан с огромным капиталом CR, отдавший на биржу почти всё человеческое тело.",
-
   "ending.playermarket.phase1.title": "ФИНАЛЬНЫЙ РАСЧЁТ",
   "ending.playermarket.phase1.sub": "Расчёт одобрен. Средства зачислены на корпоративный счёт.",
   "ending.playermarket.phase2.title": "ЛИКВИДАЦИЯ АКТИВОВ",
@@ -165,5 +150,6 @@
   "ending.playermarket.phase4.title": "СТАТЬЯ 17.4",
   "ending.playermarket.phase4.sub": "Установка постоянного ограничителя. Возврат невозможен.",
   "ending.playermarket.phase5.title": "ДОСТУП АННУЛИРОВАН",
-  "ending.playermarket.phase5.sub": "Права собственности переданы корпорации. Вы больше не клиент."
+  "ending.playermarket.phase5.sub": "Права собственности переданы корпорации. Вы больше не клиент.",
+  "entity.playermarket.chief_auditor": "Главный Аудитор Corp // Ликвидатор 17.4"
 }

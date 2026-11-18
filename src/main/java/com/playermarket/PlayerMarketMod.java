@@ -8,6 +8,7 @@ import com.playermarket.network.MarketNetworking;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityCombatEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -51,7 +52,16 @@ public class PlayerMarketMod implements ModInitializer {
         com.playermarket.item.BlockedMarketCardItem.registerItems();
         com.playermarket.item.MarketPropItems.registerItems();
         com.playermarket.item.MarketRelicItems.registerItems();
+        com.playermarket.entity.ModEntities.registerEntities();
         MarketNetworking.registerServer();
+
+        // Guaranteed Boss Death Handler (fires on kill by player, damage, or environment)
+        ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
+            if (entity.level() instanceof net.minecraft.server.level.ServerLevel serverLevel
+                    && com.playermarket.story.ChiefAuditorBossManager.isAuditorBoss(entity)) {
+                com.playermarket.story.ChiefAuditorBossManager.onBossDeath(serverLevel, entity, damageSource);
+            }
+        });
 
         // Register /market commands
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
@@ -124,36 +134,46 @@ public class PlayerMarketMod implements ModInitializer {
             });
         });
 
-        // Re-apply modifiers after player respawn, restore card or pre-start letter, handle lease death risk
-        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
-            if (newPlayer.hasDisconnected()) return;
+        // Preserve UUID-bound MarketAccount strictly across player death & respawn (never reset balance!)
+        ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> {
             try {
                 if (newPlayer.level().getServer() != null) {
                     MarketSavedData data = MarketSavedData.get(newPlayer.level().getServer());
+                    PlayerMarketAccount account = data.getOrCreateAccount(oldPlayer.getUUID());
+                    data.ensureAccountRegistered(newPlayer.getUUID(), account);
+                    data.setDirty();
+                }
+            } catch (Throwable t) {
+                LOGGER.error("Failed COPY_FROM account preservation for {}", newPlayer.getName().getString(), t);
+            }
+        });
+
+        // Re-apply modifiers after player respawn, restore card or pre-start letter, keep 100% of CR balance
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            if (newPlayer.hasDisconnected()) return;
+            try {
+                var server = newPlayer.level().getServer();
+                if (server != null) {
+                    MarketSavedData data = MarketSavedData.get(server);
                     PlayerMarketAccount account = data.getOrCreateAccount(newPlayer.getUUID());
+                    data.ensureAccountRegistered(newPlayer.getUUID(), account);
                     if (!data.getCampaignData().isCampaignAccepted()) {
                         account.setReceivedCrumpledLetter(false);
                         grantCrumpledLetterSafely(newPlayer, account);
-                    } else {
+                    } else if (!account.isMarketCardBlocked() && !account.isPermanentImpaired()) {
                         grantStarterCardSafely(newPlayer);
                     }
-                    if (!alive && !com.playermarket.story.StoryManager.isProgramTerminated(data.getCampaignData(), account)) {
-                        int activeLeaseCount = account.getActiveLeases().size();
-                        if (activeLeaseCount > 0) {
-                            long penalty = (350L * activeLeaseCount) + Math.round(account.getCrBalance() * 0.10);
-                            long deducted = account.forcePenaltyCr(penalty);
-                            if (deducted > 0) {
-                                account.addTransaction(newPlayer.level().getServer().overworld().getGameTime(),
-                                        "РИСК ЛИЗИНГА", "Смерть оператора",
-                                        "Неустойка по активным договорам аренды (+10% капитала)", -deducted, 0);
-                                newPlayer.sendSystemMessage(Component.literal("§8[§cPLAYER MARKET§8] §cСтраховой сбор: Смерть при активном лизинге. Удержано §e-"
-                                        + deducted + " CR §cнеустойки (§e350×" + activeLeaseCount + " +10%§c)."));
-                            }
+                    data.setDirty();
+                    MarketAttributeApplier.syncPlayerModifiers(newPlayer);
+                    MarketNetworking.sendSyncToPlayer(newPlayer);
+                    // Also re-sync on next server tick after client completes respawn transition
+                    server.execute(() -> {
+                        if (!newPlayer.hasDisconnected()) {
+                            MarketAttributeApplier.syncPlayerModifiers(newPlayer);
+                            MarketNetworking.sendSyncToPlayer(newPlayer);
                         }
-                    }
+                    });
                 }
-                MarketAttributeApplier.syncPlayerModifiers(newPlayer);
-                MarketNetworking.sendSyncToPlayer(newPlayer);
             } catch (Throwable t) {
                 LOGGER.error("Failed AFTER_RESPAWN sync for {}", newPlayer.getName().getString(), t);
             }

@@ -2,10 +2,10 @@
   "item.playermarket.market_access_card": "Market Access Card",
   "item.playermarket.blocked_market_card": "Blocked Market Card",
   "item.playermarket.crumpled_letter": "Crumpled Letter",
-  "item.playermarket.corporate_grapple": "Corporate Grappling Hook (Mod. 17.4)",
-  "item.playermarket.doom_hammer": "Judgement Credit Hammer",
-  "item.playermarket.titan_heart": "Titan Heart (Bio-Core)",
-  "item.playermarket.golden_exploit": "Corporate Golden Exploit",
+  "item.playermarket.corporate_grapple": "Corporate Grappling Hook",
+  "item.playermarket.doom_hammer": "Asset Corp Doom Hammer",
+  "item.playermarket.titan_heart": "Titan Heart",
+  "item.playermarket.golden_exploit": "Golden Exploit",
   "item.playermarket.prop_hr_bomb": "HR Contract Time Bomb (3D)",
   "item.playermarket.prop_supply_crate": "Asset Corp Supply Crate (3D)",
   "item.playermarket.prop_atm_safe": "Armored HR ATM Safe (3D)",
@@ -18,17 +18,14 @@
   "itemGroup.playermarket.general": "Player Market",
   "key.category.playermarket": "Player Market",
   "key.playermarket.open_market": "Open Market Terminal",
-
   "category.playermarket.body": "BODY ASSETS",
   "category.playermarket.movement": "MOVEMENT ASSETS",
   "category.playermarket.combat": "COMBAT ASSETS",
   "category.playermarket.professional": "PROFESSIONAL ASSETS",
-
   "upgrade.category.body": "BODY AUGMENTATIONS",
   "upgrade.category.combat": "COMBAT AUGMENTATIONS",
   "upgrade.category.professional": "PROFESSIONAL AUGMENTATIONS",
   "upgrade.category.corporate": "CORPORATE PRIVILEGES",
-
   "tab.playermarket.dashboard": "OVERVIEW",
   "tab.playermarket.story": "PROGRAM",
   "tab.playermarket.mail": "MAIL",
@@ -41,10 +38,8 @@
   "tab.playermarket.portfolio": "PORTFOLIO",
   "tab.playermarket.history": "HISTORY",
   "tab.playermarket.news": "NEWS",
-
   "message.playermarket.access_revoked": "§c[PLAYER MARKET] Market access permanently revoked (Section 17.4). You are no longer the client.",
   "message.playermarket.access_revoked_overlay": "§cACCESS REVOKED (SECTION 17.4)",
-
   "asset.playermarket.max_health": "Maximum Health",
   "asset.playermarket.max_health.desc": "Sell core vital capacity. Reduces player base hearts.",
   "asset.playermarket.natural_regeneration": "Natural Regeneration",
@@ -61,7 +56,6 @@
   "asset.playermarket.fall_resistance.desc": "Increases impact damage sustained from vertical falls.",
   "asset.playermarket.max_absorption": "Maximum Absorption",
   "asset.playermarket.max_absorption.desc": "Lowers maximum shielding capacity.",
-
   "asset.playermarket.movement_speed": "Movement Speed",
   "asset.playermarket.movement_speed.desc": "Decreases ground traversal and walking velocity.",
   "asset.playermarket.jump_strength": "Jump Strength",
@@ -72,7 +66,6 @@
   "asset.playermarket.swim_speed.desc": "Reduces velocity and hydro-mobility in fluids.",
   "asset.playermarket.step_height": "Step Height",
   "asset.playermarket.step_height.desc": "Restricts ability to step smoothly over elevation changes.",
-
   "asset.playermarket.attack_damage": "Attack Damage",
   "asset.playermarket.attack_damage.desc": "Permanently diminishes kinetic melee strike power.",
   "asset.playermarket.attack_speed": "Attack Speed",
@@ -89,7 +82,6 @@
   "asset.playermarket.explosion_resistance.desc": "Amplifies blast impulse and explosive vulnerability.",
   "asset.playermarket.knockback_power": "Knockback Power",
   "asset.playermarket.knockback_power.desc": "Lessens the impulse imparted to enemies upon landing strikes.",
-
   "asset.playermarket.mining_speed": "Mining Speed",
   "asset.playermarket.mining_speed.desc": "Slows tool excavation rate against subterranean strata.",
   "asset.playermarket.block_reach": "Block Reach",
@@ -98,13 +90,11 @@
   "asset.playermarket.luck.desc": "Lowers favorable probabilities for dungeon loot and rare fishing yields.",
   "asset.playermarket.submerged_mining": "Submerged Excavation",
   "asset.playermarket.submerged_mining.desc": "Imposes severe underwater block destruction penalties.",
-
   "upgrade.playermarket.dense_core": "Dense Core",
   "upgrade.playermarket.vitality_surge": "Vitality Surge",
   "upgrade.playermarket.metabolism_upgrade": "Metabolism Upgrade",
   "upgrade.playermarket.synthetic_lungs": "Synthetic Lungs",
   "upgrade.playermarket.thermal_adaptation": "Thermal Adaptation",
-
   "upgrade.playermarket.muscle_overclock": "Muscle Overclock",
   "upgrade.playermarket.fast_reflexes": "Fast Reflexes",
   "upgrade.playermarket.reinforced_skin": "Reinforced Skin",
@@ -112,7 +102,6 @@
   "upgrade.playermarket.precision_targeting": "Precision Targeting",
   "upgrade.playermarket.projectile_calibration": "Projectile Calibration",
   "upgrade.playermarket.combat_focus": "Combat Focus",
-
   "upgrade.playermarket.mining_protocol": "Mining Protocol",
   "upgrade.playermarket.lucky_chip": "Lucky Chip",
   "upgrade.playermarket.xp_accelerator": "XP Accelerator",
@@ -120,14 +109,12 @@
   "upgrade.playermarket.efficient_metabolism": "Efficient Metabolism",
   "upgrade.playermarket.aquatic_propulsion": "Aquatic Propulsion",
   "upgrade.playermarket.precision_hands": "Precision Hands",
-
   "upgrade.playermarket.premium_account": "Premium Account",
   "upgrade.playermarket.broker_license": "Broker License",
   "upgrade.playermarket.market_insurance": "Market Insurance",
   "upgrade.playermarket.vip_client": "VIP Client",
   "upgrade.playermarket.price_lock": "Price Lock",
   "upgrade.playermarket.diamond_cashback": "Diamond Cashback",
-
   "blackmarket.playermarket.second_chance": "Second Chance",
   "blackmarket.playermarket.berserker_protocol": "Berserker Protocol",
   "blackmarket.playermarket.phantom_step": "Phantom Step",
@@ -136,7 +123,6 @@
   "blackmarket.playermarket.emergency_battery": "Emergency Battery",
   "blackmarket.playermarket.golden_contract": "Golden Contract",
   "blackmarket.playermarket.asset_insurance": "Asset Insurance",
-
   "build.playermarket.glass_cannon": "Glass Cannon",
   "build.playermarket.glass_cannon.title": "GLASS CANNON",
   "build.playermarket.glass_cannon.desc": "Massive combat output paired with razor-thin vital capacity.",
@@ -155,7 +141,6 @@
   "build.playermarket.fragile_millionaire": "Fragile Millionaire",
   "build.playermarket.fragile_millionaire.title": "HOLLOW OLIGARCH",
   "build.playermarket.fragile_millionaire.desc": "Immense CR capital hoarded at the expense of nearly all human bodily traits.",
-
   "ending.playermarket.phase1.title": "FINAL SETTLEMENT",
   "ending.playermarket.phase1.sub": "Settlement approved. Corporate payout transferred to account.",
   "ending.playermarket.phase2.title": "ASSET LIQUIDATION",
@@ -165,5 +150,6 @@
   "ending.playermarket.phase4.title": "SECTION 17.4",
   "ending.playermarket.phase4.sub": "Applying permanent structural mobility constraint. Action is irreversible.",
   "ending.playermarket.phase5.title": "ACCESS REVOKED",
-  "ending.playermarket.phase5.sub": "Ownership transferred to the Corporation. You are no longer the client."
+  "ending.playermarket.phase5.sub": "Ownership transferred to the Corporation. You are no longer the client.",
+  "entity.playermarket.chief_auditor": "Chief Auditor Corp // Liquidator 17.4"
 }

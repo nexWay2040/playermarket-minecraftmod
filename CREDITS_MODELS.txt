@@ -1,0 +1,5 @@
+3D Entity Model Attribution:
+- Chief Auditor Titan Boss (`chief_auditor.geo.json`, `chief_auditor.animation.json`, `chief_auditor.png`)
+  Source: Irisko007/Exotron (`exo_4_titan`)
+  License: CC0-1.0 Universal (Public Domain Dedication)
+  URL: https://github.com/Irisko007/Exotron

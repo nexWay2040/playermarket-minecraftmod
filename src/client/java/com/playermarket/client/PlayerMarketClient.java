@@ -5,8 +5,10 @@ import com.playermarket.PlayerMarketMod;
 import com.playermarket.client.gui.CrumpledLetterScreen;
 import com.playermarket.client.gui.MarketMainScreen;
 import com.playermarket.client.hud.MarketHudOverlay;
+import com.playermarket.client.render.ChiefAuditorRenderer;
 import com.playermarket.client.render.OreScannerRenderer;
 import com.playermarket.client.render.PlayerBraceRenderLayer;
+import com.playermarket.entity.ModEntities;
 import com.playermarket.item.CrumpledLetterItem;
 import com.playermarket.item.MarketAccessCardItem;
 import com.playermarket.network.MarketNetworking;
@@ -19,6 +21,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.LivingEntityRenderLayerRegistrationCallback;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraft.client.renderer.entity.player.AvatarRenderer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
@@ -70,6 +73,9 @@ public class PlayerMarketClient implements ClientModInitializer {
                 client.gui.setScreen(new MarketMainScreen());
             }
         };
+
+        // Register GeckoLib 5 custom 3D Titan Boss renderer
+        EntityRenderers.register(ModEntities.CHIEF_AUDITOR, ChiefAuditorRenderer::new);
 
         // Register visual orthopedic brace on Player Model
         LivingEntityRenderLayerRegistrationCallback.EVENT.register((entityType, entityRenderer, helper, context) -> {
