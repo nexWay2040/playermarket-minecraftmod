@@ -15,9 +15,18 @@
       "trigger": "minecraft:player_killed_entity",
       "conditions": {
         "entity": {
-          "type": "playermarket:chief_auditor"
+          "type": "minecraft:entity_properties",
+          "entity": "this",
+          "predicate": {
+            "minecraft:entity_type": "playermarket:chief_auditor"
+          }
         }
       }
     }
-  }
+  },
+  "requirements": [
+    [
+      "killed_boss"
+    ]
+  ]
 }
