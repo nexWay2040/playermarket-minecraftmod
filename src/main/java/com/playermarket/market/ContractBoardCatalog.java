@@ -119,7 +119,7 @@ public final class ContractBoardCatalog {
     public static boolean needsMigration(List<ContractEntry> existing) {
         if (existing == null || existing.isEmpty()) return true;
         if (existing.getFirst().title().startsWith("INDUSTRIAL")) return true;
-        if (existing.stream().anyMatch(c -> c.rewardDiamonds() <= 0 || (!c.active() && !c.completed() && c.rewardDiamonds() > 4))) return true;
+        if (existing.stream().anyMatch(c -> c.rewardDiamonds() < 0 || (!c.active() && !c.completed() && c.rewardDiamonds() > 4))) return true;
         if (existing.stream().anyMatch(c -> !c.active() && !c.completed() && DEPRECATED_TEDIOUS_TYPES.contains(c.typeId()))) return true;
         // Legacy unaccepted default 7-item static list without creative types -> upgrade unaccepted slots smoothly
         boolean allLegacyIds = existing.stream().allMatch(c ->
@@ -137,7 +137,7 @@ public final class ContractBoardCatalog {
 
     public static void ensurePopulated(List<ContractEntry> board) {
         if (needsMigration(board)) {
-            board.removeIf(c -> !c.active() && !c.completed() && (DEPRECATED_TEDIOUS_TYPES.contains(c.typeId()) || c.rewardDiamonds() <= 0 || c.rewardDiamonds() > 4));
+            board.removeIf(c -> !c.active() && !c.completed() && (DEPRECATED_TEDIOUS_TYPES.contains(c.typeId()) || c.rewardDiamonds() < 0 || c.rewardDiamonds() > 4));
             fillBoard(board, false);
             return;
         }
