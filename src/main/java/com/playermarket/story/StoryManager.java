@@ -92,9 +92,9 @@ public class StoryManager {
 
         long gameTick = server.overworld().getGameTime();
         if (firstActivation) {
-            // Fire first hilarious Corporate Chaos Directive ~9s after signing
-            savedData.setNextChaosTick(gameTick + 180L);
-            savedData.setNextEventSwitchTick(gameTick + 2400L);
+            // Calm 6-minute grace period before first Corporate Chaos Directive & Market cycle shift
+            savedData.setNextChaosTick(gameTick + 7200L);
+            savedData.setNextEventSwitchTick(gameTick + 7200L);
         }
 
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {

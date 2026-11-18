@@ -300,73 +300,10 @@ public class MarketHudOverlay {
         graphics.fill(0, sh - barH, sw, sh, 0xF205070B);
         graphics.fill(0, sh - barH, sw, sh - barH + 1, accent);
 
-        // Timeline: 0..8000ms (5 phases) -> 8000..9200ms (blackout) -> 9200..11150ms (1.95s screamer) -> 11150ms+ (cut black until disconnect)
+        // Timeline: 0..8000ms (5 cinematic phases, NO screamer/kick in Rework 2.0)
         String tag;
         String title;
         if (elapsedMs >= 8000L) {
-            // Pure pitch-black blackout before & immediately after the 1.95s screamer
-            graphics.fill(0, 0, sw, sh, 0xFF000000);
-
-            if (elapsedMs < 9200L) {
-                com.playermarket.client.PlayerMarketClient.resetEndingScreamer();
-                if (elapsedMs < 8320L && ((elapsedMs / 60L) % 2L) == 0L) {
-                    String msg = "SIGNAL TERMINATED // DISCONNECTING...";
-                    graphics.text(font, msg, (sw - font.width(msg)) / 2, sh / 2 - 4, 0xFF7F1D1D, false);
-                }
-                return;
-            }
-
-            // Cut immediately back to black void once the 1.95s screamer sound completes (never linger silently)
-            if (elapsedMs >= 11150L) {
-                return;
-            }
-
-            // SUDDEN FULLSCREEN SCREAMER WITH SOUND (exact 1950ms window synced to screamer.ogg)
-            com.playermarket.client.PlayerMarketClient.triggerEndingScreamerOnce();
-            long scareMs = elapsedMs - 9200L;
-            boolean whiteStrobe = scareMs < 85L || (scareMs > 760L && scareMs < 820L);
-            boolean redStrobe = (scareMs >= 85L && scareMs < 170L) || ((scareMs / 55L) % 8L == 0L);
-
-            if (redStrobe) {
-                graphics.fill(0, 0, sw, sh, 0x3AD00000);
-            }
-
-            boolean useAlt = ((scareMs / 60L) % 7L == 0L) || (scareMs > 880L && scareMs < 1060L);
-            net.minecraft.resources.Identifier scareTex = PlayerMarketMod.id(
-                    useAlt ? "textures/gui/screamer_alt.png" : "textures/gui/screamer.png");
-
-            float lunge = Math.min(1.0f, scareMs / 145.0f);
-            int size = Math.round(Math.max(sw * 0.68f, sh * 1.12f) * (0.74f + 0.34f * lunge));
-            long rng = (System.nanoTime() >>> 14) ^ (scareMs * 2654435761L);
-            int maxJ = scareMs < 550L ? 15 : 8;
-            int jx = (int) (Math.floorMod(rng, maxJ * 2L + 1L) - maxJ);
-            int jy = (int) (Math.floorMod(rng >> 8, maxJ * 2L + 1L) - maxJ);
-            int drawX = (sw - size) / 2 + jx;
-            int drawY = (sh - size) / 2 + jy;
-            int tint = whiteStrobe ? 0xFFFFFFFF : (redStrobe ? 0xFFFF7A7A : 0xFFECECEC);
-
-            graphics.blit(RenderPipelines.GUI_TEXTURED, scareTex, drawX, drawY,
-                    0.0f, 0.0f, size, size, 512, 512, 512, 512, tint);
-
-            // CRT scanline flicker & torn red horror bands
-            int lineStart = (int) ((scareMs / 24L) % 4L);
-            for (int sy = lineStart; sy < sh; sy += 4) {
-                graphics.fill(0, sy, sw, sy + 1, 0x3E000000);
-            }
-            if (((scareMs / 48L) % 3L) == 0L) {
-                int tearY = (int) Math.floorMod(rng >> 16, Math.max(1, sh - 12));
-                graphics.fill(0, tearY, sw, tearY + 3, 0x66DC2626);
-            }
-
-            if (whiteStrobe) {
-                graphics.fill(0, 0, sw, sh, 0x45FFFFFF);
-            }
-
-            if (((scareMs / 75L) % 4L) != 1L) {
-                String scareCaption = "ВЫ БОЛЬШЕ НЕ КЛИЕНТ.";
-                int capCol = ((scareMs / 50L) % 2L) == 0L ? 0xFFDC2626 : 0xFFFCA5A5;
-                graphics.text(font, scareCaption, (sw - font.width(scareCaption)) / 2 + (jx / 2), sh - 24 + (jy / 3), capCol, true);
-            }
             return;
         }
 

@@ -37,15 +37,19 @@ import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Корпоративный силовик-коллектор (заменяет ванильного Vindicator в рейдах,
- * охране 3D-аирдропа/банкомата и 2-й фазе Главного Аудитора 17.4).
+ * Корпоративный силовик-коллектор (GeckoLib 5.5.7 / MC 26.3).
+ * <p>
+ * Сбалансирован для динамичных схваток без удушения:
+ * умеренное HP/броня, рывок раз в 8 сек и короткий Slowness I (0.75с) только при заряженном рывковом ударе.
  */
 public class CollectorEnforcerEntity extends Monster implements GeoEntity {
 
-    // 1.3 секунды * 20 тиков = 26 тиков до исчезновения трупа
-    private static final int DEATH_ANIMATION_TICKS = 26;
-    private static final int DASH_COOLDOWN_TICKS = 90;
-    private static final int CHARGED_STRIKE_WINDOW_TICKS = 45;
+    private static final double BASE_MAX_HEALTH = 24.0;
+    private static final double BASE_ATTACK_DAMAGE = 4.5;
+
+    private static final int DEATH_ANIMATION_TICKS = 26; // 1.3 сек анимации смерти
+    private static final int DASH_COOLDOWN_TICKS = 160;  // 8 сек между рывками
+    private static final int CHARGED_STRIKE_WINDOW_TICKS = 40;
 
     private static final RawAnimation IDLE_ANIM = RawAnimation.begin().thenLoop("idle");
     private static final RawAnimation WALK_ANIM = RawAnimation.begin().thenLoop("walk");
@@ -53,34 +57,34 @@ public class CollectorEnforcerEntity extends Monster implements GeoEntity {
     private static final RawAnimation HURT_ANIM = RawAnimation.begin().thenPlay("hurt");
     private static final RawAnimation DEATH_ANIM = RawAnimation.begin().thenPlayAndHold("death");
 
-    private static final DustParticleOptions TASER_SPARK_DUST = new DustParticleOptions(0x38E8FF, 1.05F);
+    private static final DustParticleOptions TASER_SPARK_DUST = new DustParticleOptions(0x38E8FF, 1.0F);
 
     private final AnimatableInstanceCache animatableCache = GeckoLibUtil.createInstanceCache(this);
 
     private boolean raidEnforcer = false;
     private int enforcerTier = 1;
-    private int dashCooldownTicks = 30;
+    private int dashCooldownTicks = 60;
     private int chargedStrikeTicks = 0;
 
     public CollectorEnforcerEntity(EntityType<? extends Monster> entityType, Level level) {
         super(entityType, level);
-        this.xpReward = 10;
+        this.xpReward = 8;
     }
 
     public static AttributeSupplier.Builder createAttributes() {
         return Monster.createMonsterAttributes()
-                .add(Attributes.MAX_HEALTH, 36.0)
-                .add(Attributes.MOVEMENT_SPEED, 0.33)
-                .add(Attributes.ATTACK_DAMAGE, 7.0)
-                .add(Attributes.ARMOR, 6.0)
-                .add(Attributes.KNOCKBACK_RESISTANCE, 0.35)
-                .add(Attributes.FOLLOW_RANGE, 36.0);
+                .add(Attributes.MAX_HEALTH, BASE_MAX_HEALTH)
+                .add(Attributes.MOVEMENT_SPEED, 0.28)
+                .add(Attributes.ATTACK_DAMAGE, BASE_ATTACK_DAMAGE)
+                .add(Attributes.ARMOR, 3.0)
+                .add(Attributes.KNOCKBACK_RESISTANCE, 0.15)
+                .add(Attributes.FOLLOW_RANGE, 32.0);
     }
 
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
-        this.goalSelector.addGoal(1, new MeleeAttackGoal(this, 1.18, false));
+        this.goalSelector.addGoal(1, new MeleeAttackGoal(this, 1.05, false));
         this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.85));
         this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 10.0F));
         this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
@@ -90,24 +94,28 @@ public class CollectorEnforcerEntity extends Monster implements GeoEntity {
     }
 
     /**
-     * Помечает силовика как участника рейда/волны: запрещает деспавн и усиливает по номеру волны.
+     * Помечает силовика как участника рейда/волны, защищает от деспавна
+     * и мягко масштабирует характеристики по номеру волны.
      */
     public void markAsRaidEnforcer(int waveTier) {
         this.raidEnforcer = true;
         this.enforcerTier = Math.max(1, waveTier);
         this.setPersistenceRequired();
 
-        if (this.enforcerTier > 1) {
-            double bonusHealth = Math.min(24.0, (this.enforcerTier - 1) * 5.0);
+        int extraTiers = this.enforcerTier - 1;
+        if (extraTiers > 0) {
+            double bonusHealth = Math.min(12.0, extraTiers * 4.0);
             AttributeInstance maxHealth = this.getAttribute(Attributes.MAX_HEALTH);
             if (maxHealth != null) {
-                double newMax = 36.0 + bonusHealth;
+                double newMax = BASE_MAX_HEALTH + bonusHealth;
                 maxHealth.setBaseValue(newMax);
                 this.setHealth((float) newMax);
             }
+
+            double bonusAttack = Math.min(2.0, extraTiers * 0.5);
             AttributeInstance attack = this.getAttribute(Attributes.ATTACK_DAMAGE);
             if (attack != null) {
-                attack.setBaseValue(7.0 + Math.min(4.0, (this.enforcerTier - 1) * 1.0));
+                attack.setBaseValue(BASE_ATTACK_DAMAGE + bonusAttack);
             }
         }
     }
@@ -138,7 +146,7 @@ public class CollectorEnforcerEntity extends Monster implements GeoEntity {
         }
         if (this.chargedStrikeTicks > 0) {
             this.chargedStrikeTicks--;
-            if (this.tickCount % 3 == 0) {
+            if (this.tickCount % 4 == 0) {
                 level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
                         this.getX(), this.getY() + 1.05, this.getZ(),
                         2, 0.25, 0.25, 0.25, 0.04);
@@ -148,8 +156,7 @@ public class CollectorEnforcerEntity extends Monster implements GeoEntity {
         LivingEntity target = this.getTarget();
         if (target != null && target.isAlive() && this.dashCooldownTicks <= 0) {
             double distSq = this.distanceToSqr(target);
-            // Рывок к должнику на средней дистанции 4.5..14.5 блоков
-            if (distSq >= 20.25 && distSq <= 210.25 && (this.onGround() || this.isInWater()) && this.hasLineOfSight(target)) {
+            if (distSq >= 25.0 && distSq <= 196.0 && (this.onGround() || this.isInWater()) && this.hasLineOfSight(target)) {
                 performDashToDebtor(level, target);
             }
         }
@@ -165,21 +172,21 @@ public class CollectorEnforcerEntity extends Monster implements GeoEntity {
 
         Vec3 dir = flat.scale(1.0 / horizLen);
         double heightDiff = Math.max(0.0, delta.y);
-        double verticalBoost = Mth.clamp(0.32 + heightDiff * 0.08, 0.32, 0.62);
-        double speed = 1.08;
+        double verticalBoost = Mth.clamp(0.28 + heightDiff * 0.07, 0.28, 0.52);
+        double dashSpeed = 0.82;
 
-        this.setDeltaMovement(dir.x * speed, verticalBoost, dir.z * speed);
+        this.setDeltaMovement(dir.x * dashSpeed, verticalBoost, dir.z * dashSpeed);
         this.syncVelocity = true;
         this.getLookControl().setLookAt(target, 45.0F, 45.0F);
 
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
                 this.getX(), this.getY() + 0.85, this.getZ(),
-                12, 0.35, 0.35, 0.35, 0.12);
+                10, 0.3, 0.3, 0.3, 0.1);
         level.sendParticles(ParticleTypes.CLOUD,
                 this.getX(), this.getY() + 0.2, this.getZ(),
-                6, 0.25, 0.08, 0.25, 0.04);
+                5, 0.22, 0.08, 0.22, 0.03);
         level.playSound(null, this.getX(), this.getY(), this.getZ(),
-                SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 1.0F, 1.35F);
+                SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.HOSTILE, 0.9F, 1.3F);
 
         this.dashCooldownTicks = DASH_COOLDOWN_TICKS;
         this.chargedStrikeTicks = CHARGED_STRIKE_WINDOW_TICKS;
@@ -200,23 +207,20 @@ public class CollectorEnforcerEntity extends Monster implements GeoEntity {
 
             level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
                     tx, ty, tz,
-                    charged ? 18 : 10, 0.3, 0.35, 0.3, 0.14);
+                    charged ? 14 : 7, 0.28, 0.32, 0.28, 0.12);
             level.sendParticles(TASER_SPARK_DUST,
                     tx, ty, tz,
-                    charged ? 10 : 5, 0.28, 0.3, 0.28, 0.02);
+                    charged ? 8 : 4, 0.25, 0.28, 0.25, 0.02);
 
             level.playSound(null, tx, ty, tz,
-                    SoundEvents.TRIDENT_HIT, SoundSource.HOSTILE, 0.85F, charged ? 1.45F : 1.15F);
-            if (charged) {
-                level.playSound(null, tx, ty, tz,
-                        SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.HOSTILE, 0.9F, 1.3F);
-            }
+                    SoundEvents.TRIDENT_HIT, SoundSource.HOSTILE, 0.8F, charged ? 1.4F : 1.15F);
 
-            if (target instanceof LivingEntity livingTarget) {
+            // Без спама замедлением: короткий Slowness I (0.75с) только при ударе с рывка
+            if (charged && target instanceof LivingEntity livingTarget) {
                 livingTarget.addEffect(new MobEffectInstance(
                         MobEffects.SLOWNESS,
-                        charged ? 30 : 20,
-                        charged ? 1 : 0,
+                        15,
+                        0,
                         false,
                         true
                 ));
@@ -232,7 +236,7 @@ public class CollectorEnforcerEntity extends Monster implements GeoEntity {
             this.triggerAnim("reaction", "hurt");
             level.sendParticles(ParticleTypes.ELECTRIC_SPARK,
                     this.getX(), this.getY() + this.getBbHeight() * 0.55, this.getZ(),
-                    6, 0.25, 0.3, 0.25, 0.09);
+                    5, 0.22, 0.28, 0.22, 0.08);
         }
         return hurt;
     }
@@ -240,7 +244,6 @@ public class CollectorEnforcerEntity extends Monster implements GeoEntity {
     @Override
     protected void tickDeath() {
         this.deathTime++;
-        // Ждём все 26 тиков (1.3с), чтобы скелетная анимация смерти доиграла до конца
         if (this.deathTime >= DEATH_ANIMATION_TICKS && !this.level().isClientSide() && !this.isRemoved()) {
             this.level().broadcastEntityEvent(this, (byte) 60); // EntityEvent.POOF
             this.remove(Entity.RemovalReason.KILLED);

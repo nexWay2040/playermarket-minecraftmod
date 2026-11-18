@@ -240,8 +240,8 @@ public class EndingSequenceManager {
             }
         }
 
-        if (activeMs >= 11250L) {
-            // Finalize sequence immediately after the 1.95s blackout screamer (9.2s -> 11.15s)
+        if (activeMs >= 8000L) {
+            // Rework 2.0: NO kick-screamer! Smoothly finish termination without disconnecting the player.
             campaignData.setEndingState("SETTLED");
             campaignData.setCinematicCompleted(true);
             campaignData.setDisconnectSent(true);
@@ -251,10 +251,8 @@ public class EndingSequenceManager {
             for (ServerPlayer target : new java.util.ArrayList<>(server.getPlayerList().getPlayers())) {
                 target.removeEffect(MobEffects.BLINDNESS);
                 target.removeEffect(MobEffects.SLOWNESS);
-                campaignData.getDisconnectedPlayers().add(target.getUUID());
                 MarketAttributeApplier.syncPlayerModifiers(target);
-                com.playermarket.network.MarketNetworking.sendSyncToPlayer(target, "");
-                target.connection.disconnect(Component.literal("§c§lДОСТУП ЗАБЛОКИРОВАН // СТАТЬЯ 17.4\n§7Права на активы переданы корпорации.\n§8Вы больше не клиент."));
+                com.playermarket.network.MarketNetworking.sendSyncToPlayer(target, "§c§lДОСТУП К БИРЖЕ АННУЛИРОВАН // СТАТЬЯ 17.4");
             }
         }
     }
@@ -265,6 +263,21 @@ public class EndingSequenceManager {
         MarketSavedData savedData = MarketSavedData.get(server);
         PlayerMarketAccount account = savedData.getOrCreateAccount(player.getUUID());
         SharedCampaignData campaignData = savedData.getCampaignData();
+
+        if (FreedomProtocolManager.isFreedomActive(account)) {
+            account.setMarketCardBlocked(true);
+            account.setAccountClosed(true);
+            account.setPermanentImpaired(false);
+            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+                ItemStack stack = player.getInventory().getItem(i);
+                if (!stack.isEmpty() && stack.is(MarketAccessCardItem.MARKET_ACCESS_CARD)) {
+                    player.getInventory().setItem(i, new ItemStack(BlockedMarketCardItem.BLOCKED_MARKET_CARD));
+                }
+            }
+            MarketAttributeApplier.syncPlayerModifiers(player);
+            player.sendSystemMessage(Component.literal("§a§l[FREEDOM PROTOCOL] §eВы свободны от Asset Corp! Вечные бонусы активны."));
+            return;
+        }
 
         if (account.isPermanentImpaired() || "SETTLED".equals(campaignData.getEndingState()) || campaignData.isPlayerImpaired(player.getUUID())) {
             // Ensure UUID & termination flags persist cleanly across reconnects (never re-enable contracts/quests)

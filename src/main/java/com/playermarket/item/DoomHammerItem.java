@@ -24,7 +24,7 @@ public class DoomHammerItem extends Item {
     public void hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
         if (!attacker.level().isClientSide() && attacker.level() instanceof ServerLevel sl) {
             boolean isAuditor = ChiefAuditorBossManager.isAuditorBoss(target);
-            boolean staggered = ChiefAuditorBossManager.isCoreStaggered(target);
+            boolean staggered = ChiefAuditorBossManager.isCoreStaggered() || ChiefAuditorBossManager.isCoreOpen();
 
             if (isAuditor && staggered) {
                 sl.sendParticles(ParticleTypes.EXPLOSION, target.getX(), target.getY() + 1.5, target.getZ(), 8, 0.5, 0.5, 0.5, 0.1);

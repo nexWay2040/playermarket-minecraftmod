@@ -162,6 +162,20 @@ public class MarketCommands {
                             return 1;
                         }))
 
+                .then(Commands.literal("legacy")
+                        .then(Commands.literal("explorer")
+                                .executes(ctx -> com.playermarket.story.FreedomProtocolManager.selectLegacySpec(
+                                        ctx.getSource().getPlayerOrException(),
+                                        com.playermarket.story.FreedomProtocolManager.LegacySpec.EXPLORER) ? 1 : 0))
+                        .then(Commands.literal("craftsman")
+                                .executes(ctx -> com.playermarket.story.FreedomProtocolManager.selectLegacySpec(
+                                        ctx.getSource().getPlayerOrException(),
+                                        com.playermarket.story.FreedomProtocolManager.LegacySpec.CRAFTSMAN) ? 1 : 0))
+                        .then(Commands.literal("survivor")
+                                .executes(ctx -> com.playermarket.story.FreedomProtocolManager.selectLegacySpec(
+                                        ctx.getSource().getPlayerOrException(),
+                                        com.playermarket.story.FreedomProtocolManager.LegacySpec.SURVIVOR) ? 1 : 0)))
+
                 // Administrative / Developer subcommands
                 .then(Commands.literal("give")
                         .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))

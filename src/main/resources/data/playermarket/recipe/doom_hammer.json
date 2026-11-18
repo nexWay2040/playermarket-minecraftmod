@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "NDN",
+    "NSN",
+    " S "
+  ],
+  "key": {
+    "N": "minecraft:netherite_ingot",
+    "D": "minecraft:diamond_block",
+    "S": "minecraft:blaze_rod"
+  },
+  "result": {
+    "id": "playermarket:doom_hammer",
+    "count": 1
+  }
+}

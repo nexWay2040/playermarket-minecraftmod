@@ -26,11 +26,10 @@ public final class BossCoreVisuals {
     public static void tick(ServerLevel level, LivingEntity boss, ChiefAuditorBossManager.State state, int stateTimerTicks, boolean phase2) {
         if (level == null || boss == null || !boss.isAlive()) return;
 
-        // Dynamic chest height (approx 62% of entity bounding box height)
-        double chestY = boss.getY() + Math.max(2.4, boss.getBbHeight() * 0.62);
-        float yRotRad = (float) Math.toRadians(-boss.getYRot());
-        // Forward offset vector from chest
-        double fwdX = Math.sin(yRotRad) * 1.15;
+        // Exact chest reactor center matching ChiefAuditorBossEntity (scale 1.25) and BossCoreHitboxController
+        double chestY = boss.getY() + 3.1;
+        float yRotRad = (float) Math.toRadians(boss.yBodyRot);
+        double fwdX = -Math.sin(yRotRad) * 1.15;
         double fwdZ = Math.cos(yRotRad) * 1.15;
         double coreX = boss.getX() + fwdX;
         double coreZ = boss.getZ() + fwdZ;
@@ -65,9 +64,9 @@ public final class BossCoreVisuals {
             }
 
             case STAGGER -> {
-                // Exposed Staggered Core: Core is thrust forward (+0.4m), 8 orbiting electric sparks, End Rod aura
-                double exposedX = boss.getX() + Math.sin(yRotRad) * 1.25;
-                double exposedZ = boss.getZ() + Math.cos(yRotRad) * 1.25;
+                // Exposed Staggered Core: Core is thrust forward (+0.15m), 8 orbiting electric sparks, End Rod aura
+                double exposedX = boss.getX() - Math.sin(yRotRad) * 1.3;
+                double exposedZ = boss.getZ() + Math.cos(yRotRad) * 1.3;
 
                 // Orbiting sparks around exposed core
                 double orbitRadius = 0.95;

@@ -258,8 +258,8 @@ public final class CorporateChaosDirector {
     public static void tickServer(MinecraftServer server, MarketSavedData data, SharedCampaignData campaign, long gameTime) {
         boolean worldSettled = StoryManager.isProgramTerminated(campaign, null);
 
-        if (worldSettled || !campaign.isCampaignAccepted() || !MarketConfig.get().enableChaosDirectives || !data.isChaosEnabled()) {
-            if (!"NONE".equals(data.getActiveChaosId())) {
+        if (worldSettled || !campaign.isCampaignAccepted() || !MarketConfig.get().enableChaosDirectives || !data.isChaosEnabled() || ChiefAuditorBossManager.isBattleActive()) {
+            if (!"NONE".equals(data.getActiveChaosId()) && !"COOLDOWN".equals(data.getActiveChaosId())) {
                 endActiveDirective(server, data, campaign, gameTime, false);
             }
             if (worldSettled) {
@@ -368,15 +368,16 @@ public final class CorporateChaosDirector {
 
         if (stage != lastCompanionStage) {
             lastCompanionStage = stage;
-            nextStageCompanionTick = gameTime + 200L; // ~10s after entering a stage
+            nextStageCompanionTick = gameTime + 3600L; // 3 minutes calm grace after entering a stage
             return;
         }
         if (nextStageCompanionTick <= 0L || gameTime < nextStageCompanionTick) {
             return;
         }
-        // Strictly prevent stacked animals/entities in the world
-        if (hasAnyLiveTrackedMob(server) || gameTime < mobSpawnCooldownUntil) {
-            nextStageCompanionTick = gameTime + 200L;
+        // Strictly prevent stacked animals/entities or overlapping with active chaos/boss
+        if (hasAnyLiveTrackedMob(server) || gameTime < mobSpawnCooldownUntil
+                || !"PEACE".equals(data.getChaosState()) || ChiefAuditorBossManager.isBattleActive()) {
+            nextStageCompanionTick = gameTime + 1200L;
             return;
         }
 
@@ -421,7 +422,7 @@ public final class CorporateChaosDirector {
             }
         }
 
-        nextStageCompanionTick = gameTime + (spawned ? 1500L : 400L);
+        nextStageCompanionTick = gameTime + (spawned ? 9600L : 2400L);
     }
 
     private static boolean hasAnyLiveTrackedMob(MinecraftServer server) {
@@ -476,9 +477,9 @@ public final class CorporateChaosDirector {
             if (d.isSpawnsEntity() && !canSpawnMob) continue;
 
             int weight = switch (d) {
-                case SUPPLY_OR_MIMIC, VAULT_HEIST, DRONE_STRIKE -> 5;
-                case PIGGY_BANK, BOUNTY_HUNT -> 4;
-                case COLLECTOR_RAID, RAINBOW_PINATA, BRIBE_INSPECTOR -> 3;
+                case VAULT_HEIST, DRONE_STRIKE -> 4;
+                case PIGGY_BANK, BOUNTY_HUNT, RAINBOW_PINATA, BRIBE_INSPECTOR -> 3;
+                case SUPPLY_OR_MIMIC, COLLECTOR_RAID -> 2;
                 default -> 1;
             };
             for (int w = 0; w < weight; w++) {
@@ -511,14 +512,14 @@ public final class CorporateChaosDirector {
 
         int warnSec = warningTicks / 20;
         for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
-            sp.connection.send(new ClientboundSetTitlesAnimationPacket(6, 40, 10));
-            sp.connection.send(new ClientboundSetTitleTextPacket(Component.literal("§c§l⚠ ОРБИТАЛЬНЫЙ СИГНАЛ ⚠")));
-            sp.connection.send(new ClientboundSetSubtitleTextPacket(Component.literal("§e" + directive.getTitle() + " §7(через " + warnSec + "с)")));
-            sp.sendSystemMessage(Component.literal(
-                    "\n§8[§cВНИМАНИЕ ASSET CORP§8] §eОбнаружен корпоративный инцидент: §f§l" + directive.getTitle()
+            ScreenAlertHelper.sendChaosBanner(
+                    sp,
+                    "§c§l⚠ СИГНАЛ",
+                    directive.getTitle() + " (" + warnSec + "с)",
+                    directive.getDescription()
                             + (mod != ChaosModifier.NONE ? " §c[Модификатор: " + mod.getTitle() + "]" : "")
-                            + "\n§7" + directive.getDescription()
-                            + "\n§6Ожидаемое время до сброса: §e" + warnSec + " секунд§6. Приготовьтесь!\n"));
+                            + " §6(Сброс через " + warnSec + " сек)"
+            );
             sp.level().playSound(null, sp.getX(), sp.getY(), sp.getZ(),
                     SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 1.0f, 1.2f);
         }
@@ -582,8 +583,8 @@ public final class CorporateChaosDirector {
             RECENT_DIRECTIVES.removeFirst();
         }
 
-        int minInt = Math.max(160, MarketConfig.get().chaosIntervalMinTicks);
-        int maxInt = Math.max(minInt + 80, MarketConfig.get().chaosIntervalMaxTicks);
+        int minInt = Math.max(14400, MarketConfig.get().chaosIntervalMinTicks);
+        int maxInt = Math.max(minInt + 4800, MarketConfig.get().chaosIntervalMaxTicks);
         long nextStart = endsAt + minInt + server.overworld().getRandom().nextInt(maxInt - minInt + 1);
         data.setNextChaosTick(nextStart);
 
@@ -611,9 +612,8 @@ public final class CorporateChaosDirector {
 
         for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
             MarketAttributeApplier.syncPlayerModifiers(sp);
-            sp.sendSystemMessage(Component.literal("§8[§6ДИРЕКТИВА ASSET CORP§8] §e§l" + directive.getTitle() + "\n§7" + directive.getDescription()));
-            sp.sendOverlayMessage(Component.literal("§6§l⚡ " + directive.getTitle() + " ⚡"));
-            sendDirectiveTitle(sp, "§6§l⚡ " + directive.getTitle(), "§f" + truncateSubtitle(directive.getDescription(), 54));
+            sp.sendOverlayMessage(Component.literal("§6§l⚡ " + ScreenAlertHelper.stripAndClamp(directive.getTitle(), 32)));
+            ScreenAlertHelper.sendChaosBanner(sp, "§6§l⚡ ИНЦИДЕНТ", directive.getTitle(), directive.getDescription());
             sp.level().playSound(null, sp.getX(), sp.getY(), sp.getZ(),
                     SoundEvents.BELL_RESONATE, SoundSource.PLAYERS, 0.85f, 1.15f);
         }
@@ -1287,13 +1287,8 @@ public final class CorporateChaosDirector {
 
         clearDirectiveRuntimeState();
         ChaosProp3DManager.clearAll(server);
-        if (evaluateChallenge) {
-            enterCooldownPhase(server, data, gameTime);
-        } else {
-            data.setChaosState("PEACE");
-            data.setActiveChaos("NONE", 0L);
-            data.setActiveModifierId("none");
-        }
+        // Always enter cooldown & reschedule nextChaosTick (12-18 min) even on early completion — eliminates instant re-trigger spam!
+        enterCooldownPhase(server, data, gameTime);
         for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
             campaign.setObjective("chaos_sq_" + sp.getUUID(), 0);
             campaign.setObjective("chaos_jmp_" + sp.getUUID(), 0);

@@ -1,49 +1,59 @@
 package com.playermarket.story;
 
+import com.playermarket.entity.CollectorEnforcerEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.monster.illager.Pillager;
-import net.minecraft.world.entity.monster.illager.Vindicator;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Механика «Жадность и выдержка» (Risk / Reward) для 3D Аирдропа и Банкомата.
+ * Плавная и честная механика «Жадность и выдержка» (Risk / Reward) для 3D-аирдропов и банкоматов.
  * <p>
- * Чем дольше игрок не забирает контейнер и отбивает волны охраны Corp, тем жирнее куш CR:
+ * Тиры созревания (Rework 2.0):
  * <ul>
- *     <li>0–29с: x1.0</li>
- *     <li>30–59с: x1.5</li>
- *     <li>60–89с: x2.0</li>
- *     <li>90с+: x3.0 (максимум)</li>
+ *     <li>0–44с: {@code x1.0} (SECURE — базовая награда гарантирована)</li>
+ *     <li>45–89с: {@code x1.5} (WARM)</li>
+ *     <li>90–134с: {@code x2.0} (GOLDEN)</li>
+ *     <li>135с+: {@code x3.0} (OVERDRIVE)</li>
  * </ul>
- * Каждые 30 секунд (600 тиков) сигнализирует о спавне волны охранников (Vindicator + Pillager).
+ * Новая волна охраны приходит каждые 45 секунд (900 тиков).
  */
 public final class AirdropGreedManager {
 
     public static final int TICKS_PER_SECOND = 20;
-    public static final int WAVE_INTERVAL_SECONDS = 30;
+    public static final int WAVE_INTERVAL_SECONDS = 45;
     public static final int WAVE_INTERVAL_TICKS = WAVE_INTERVAL_SECONDS * TICKS_PER_SECOND;
+
+    private static final Identifier COLLECTOR_ENFORCER_ID = Identifier.fromNamespaceAndPath("playermarket", "collector_enforcer");
+
+    private static EntityType<? extends Mob> customEnforcerType = null;
 
     private final Map<UUID, ContainerGreedState> activeContainers = new HashMap<>();
 
-    /**
-     * Явная регистрация нового 3D-контейнера (аирдропа или банкомата).
-     */
+    public static void setEnforcerEntityType(EntityType<? extends Mob> entityType) {
+        customEnforcerType = entityType;
+    }
+
     public void registerContainer(UUID containerId) {
         if (containerId == null) {
             return;
@@ -51,9 +61,6 @@ public final class AirdropGreedManager {
         activeContainers.putIfAbsent(containerId, new ContainerGreedState());
     }
 
-    /**
-     * Тикает таймер созревания конкретного контейнера (1 раз за серверный тик).
-     */
     public GreedTickResult tickContainer(UUID containerId) {
         if (containerId == null) {
             return GreedTickResult.EMPTY;
@@ -68,15 +75,15 @@ public final class AirdropGreedManager {
 
         boolean spawnWave = false;
         int waveNumber = state.spawnedWaves;
-        int vindicators = 0;
+        int enforcers = 0;
         int pillagers = 0;
 
-        // Волна каждые 30 секунд (на 30с, 60с, 90с, 120с...)
+        // Волна охраны каждые 45 секунд (на 45с, 90с, 135с...)
         if (state.elapsedTicks > 0 && state.elapsedTicks % WAVE_INTERVAL_TICKS == 0) {
             state.spawnedWaves++;
-            spawnWave = true;
             waveNumber = state.spawnedWaves;
-            vindicators = computeVindicatorCount(waveNumber);
+            spawnWave = true;
+            enforcers = computeEnforcerCount(waveNumber);
             pillagers = computePillagerCount(waveNumber);
         }
 
@@ -88,7 +95,7 @@ public final class AirdropGreedManager {
                 tierUpgraded,
                 spawnWave,
                 waveNumber,
-                vindicators,
+                enforcers,
                 pillagers,
                 computeSecondsToNextTier(elapsedSeconds)
         );
@@ -107,11 +114,11 @@ public final class AirdropGreedManager {
 
     public GreedTier getTier(UUID containerId) {
         if (containerId == null) {
-            return GreedTier.BASE;
+            return GreedTier.SECURE;
         }
         ContainerGreedState state = activeContainers.get(containerId);
         if (state == null) {
-            return GreedTier.BASE;
+            return GreedTier.SECURE;
         }
         return resolveTier(state.elapsedTicks / TICKS_PER_SECOND);
     }
@@ -121,39 +128,30 @@ public final class AirdropGreedManager {
         return state == null ? 0 : state.elapsedTicks / TICKS_PER_SECOND;
     }
 
-    /**
-     * Короткое название тира для 3D-подписи над ящиком / банкоматом.
-     */
     public String getTierTitle(UUID containerId) {
         return getTier(containerId).displayTitle;
     }
 
-    /**
-     * Готовая цветная строка Component для рендера 3D-голограммы над контейнером.
-     */
     public Component getFloatingLabel(UUID containerId) {
         int elapsedSeconds = getElapsedSeconds(containerId);
         GreedTier tier = resolveTier(elapsedSeconds);
         int toNext = computeSecondsToNextTier(elapsedSeconds);
 
         if (toNext <= 0) {
-            return Component.literal(tier.displayTitle + " [x3.0 МАКС]")
+            return Component.literal(tier.displayTitle + " [x3.0 OVERDRIVE]")
                     .withStyle(tier.color, ChatFormatting.BOLD);
         }
         return Component.literal(tier.displayTitle + " [" + formatMultiplier(tier.multiplier) + "] • до апгрейда " + toNext + "с")
                 .withStyle(tier.color, ChatFormatting.BOLD);
     }
 
-    /**
-     * Забирает финальный снимок жадности при вскрытии ящика/банкомата и удаляет трекер из памяти.
-     */
     public GreedSnapshot claimAndRemove(UUID containerId) {
         if (containerId == null) {
-            return new GreedSnapshot(0, GreedTier.BASE, 0);
+            return new GreedSnapshot(0, GreedTier.SECURE, 0);
         }
         ContainerGreedState removed = activeContainers.remove(containerId);
         if (removed == null) {
-            return new GreedSnapshot(0, GreedTier.BASE, 0);
+            return new GreedSnapshot(0, GreedTier.SECURE, 0);
         }
         int seconds = removed.elapsedTicks / TICKS_PER_SECOND;
         return new GreedSnapshot(seconds, resolveTier(seconds), removed.spawnedWaves);
@@ -170,33 +168,47 @@ public final class AirdropGreedManager {
     }
 
     /**
-     * Готовый спавнер волны охранников Corp (Vindicator + Pillager) вокруг контейнера.
-     * Можно вызывать напрямую, когда {@link GreedTickResult#shouldSpawnGuardWave()} == true.
+     * Спавнит ослабленную честную волну охраны (CollectorEnforcerEntity + Pillager) вокруг контейнера.
      */
     public List<Mob> spawnGuardWave(
             ServerLevel level,
             BlockPos centerPos,
-            int vindicatorCount,
+            int enforcerCount,
             int pillagerCount,
             LivingEntity initialTarget
     ) {
-        List<Mob> spawned = new ArrayList<>(vindicatorCount + pillagerCount);
+        List<Mob> spawned = new ArrayList<>(Math.max(0, enforcerCount) + Math.max(0, pillagerCount));
         if (level == null || centerPos == null) {
             return spawned;
         }
 
         RandomSource random = level.getRandom();
-        for (int i = 0; i < vindicatorCount; i++) {
+        EntityType<?> resolvedEnforcerType = resolveEnforcerEntityType();
+        int estimatedWaveTier = enforcerCount >= 2 ? 3 : (pillagerCount >= 2 ? 2 : 1);
+
+        for (int i = 0; i < enforcerCount; i++) {
             BlockPos spawnPos = findSafeGuardSpawnPos(level, centerPos, random);
-            var enforcer = com.playermarket.entity.ModEntities.COLLECTOR_ENFORCER.spawn(level, spawnPos, EntitySpawnReason.EVENT);
-            if (enforcer != null) {
-                enforcer.markAsRaidEnforcer(Math.max(1, vindicatorCount));
-                enforcer.setCustomName(Component.literal("Силовик Corp [Штурмовик]").withStyle(ChatFormatting.RED));
-                enforcer.setCustomNameVisible(true);
-                if (initialTarget != null && initialTarget.isAlive()) {
-                    enforcer.setTarget(initialTarget);
+            Mob guard = null;
+            if (resolvedEnforcerType != null) {
+                var spawnedEntity = resolvedEnforcerType.spawn(level, spawnPos, EntitySpawnReason.EVENT);
+                if (spawnedEntity instanceof Mob mob) {
+                    guard = mob;
                 }
-                spawned.add(enforcer);
+            }
+            if (guard == null) {
+                guard = EntityTypes.VINDICATOR.spawn(level, spawnPos, EntitySpawnReason.EVENT);
+            }
+            if (guard != null) {
+                guard.setCustomName(Component.literal("Охрана Corp [Силовик]").withStyle(ChatFormatting.RED));
+                if (guard instanceof CollectorEnforcerEntity enforcer) {
+                    enforcer.markAsRaidEnforcer(estimatedWaveTier);
+                } else {
+                    guard.setPersistenceRequired();
+                }
+                if (initialTarget != null && initialTarget.isAlive()) {
+                    guard.setTarget(initialTarget);
+                }
+                spawned.add(guard);
             }
         }
 
@@ -205,6 +217,7 @@ public final class AirdropGreedManager {
             Pillager pillager = EntityTypes.PILLAGER.spawn(level, spawnPos, EntitySpawnReason.EVENT);
             if (pillager != null) {
                 pillager.setCustomName(Component.literal("Охрана Corp [Стрелок]").withStyle(ChatFormatting.GOLD));
+                pillager.setPersistenceRequired();
                 if (initialTarget != null && initialTarget.isAlive()) {
                     pillager.setTarget(initialTarget);
                 }
@@ -213,51 +226,53 @@ public final class AirdropGreedManager {
         }
 
         if (!spawned.isEmpty()) {
-            level.playSound(null, centerPos, SoundEvents.RAID_HORN.value(), SoundSource.HOSTILE, 1.4F, 1.0F);
+            level.playSound(null, centerPos, SoundEvents.RAID_HORN.value(), SoundSource.HOSTILE, 1.3F, 1.0F);
         }
         return spawned;
     }
 
     public static GreedTier resolveTier(int elapsedSeconds) {
-        if (elapsedSeconds >= 90) {
-            return GreedTier.MAX_GREED;
+        if (elapsedSeconds >= 135) {
+            return GreedTier.OVERDRIVE;
         }
-        if (elapsedSeconds >= 60) {
+        if (elapsedSeconds >= 90) {
             return GreedTier.GOLDEN;
         }
-        if (elapsedSeconds >= 30) {
+        if (elapsedSeconds >= 45) {
             return GreedTier.WARM;
         }
-        return GreedTier.BASE;
+        return GreedTier.SECURE;
     }
 
     private static int computeSecondsToNextTier(int elapsedSeconds) {
-        if (elapsedSeconds < 30) {
-            return 30 - elapsedSeconds;
-        }
-        if (elapsedSeconds < 60) {
-            return 60 - elapsedSeconds;
+        if (elapsedSeconds < 45) {
+            return 45 - elapsedSeconds;
         }
         if (elapsedSeconds < 90) {
             return 90 - elapsedSeconds;
         }
+        if (elapsedSeconds < 135) {
+            return 135 - elapsedSeconds;
+        }
         return 0;
     }
 
-    private static int computeVindicatorCount(int waveNumber) {
-        return switch (waveNumber) {
-            case 1 -> 1;
-            case 2 -> 2;
-            default -> Math.min(4, 1 + waveNumber);
-        };
+    private static int computeEnforcerCount(int waveNumber) {
+        // Волна 1: 1 Enforcer, Волна 2: 1 Enforcer, Волна 3+: макс 2 Enforcer
+        return waveNumber >= 3 ? 2 : 1;
     }
 
     private static int computePillagerCount(int waveNumber) {
-        return switch (waveNumber) {
-            case 1 -> 2;
-            case 2 -> 2;
-            default -> Math.min(4, waveNumber);
-        };
+        // Волна 1: 1 Pillager, Волна 2: 2 Pillager, Волна 3+: макс 2 Pillager
+        return waveNumber <= 1 ? 1 : 2;
+    }
+
+    private static EntityType<?> resolveEnforcerEntityType() {
+        if (customEnforcerType != null) {
+            return customEnforcerType;
+        }
+        Optional<EntityType<?>> found = BuiltInRegistries.ENTITY_TYPE.getOptional(COLLECTOR_ENFORCER_ID);
+        return found.orElse(null);
     }
 
     private static BlockPos findSafeGuardSpawnPos(ServerLevel level, BlockPos center, RandomSource random) {
@@ -267,7 +282,6 @@ public final class AirdropGreedManager {
             int x = center.getX() + (int) Math.round(Math.cos(angle) * radius);
             int z = center.getZ() + (int) Math.round(Math.sin(angle) * radius);
 
-            // Сначала ищем свободное место на высоте контейнера (для подземелий/зданий)
             for (int dy = -2; dy <= 4; dy++) {
                 BlockPos candidate = new BlockPos(x, center.getY() + dy, z);
                 if (isTwoBlockHeadroom(level, candidate)) {
@@ -275,7 +289,6 @@ public final class AirdropGreedManager {
                 }
             }
 
-            // Иначе берём поверхность по heightmap
             BlockPos surface = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, center.getY(), z));
             if (Math.abs(surface.getY() - center.getY()) <= 12) {
                 return surface;
@@ -294,14 +307,14 @@ public final class AirdropGreedManager {
         if (Math.abs(multiplier - Math.rint(multiplier)) < 0.001) {
             return "x" + (int) Math.rint(multiplier) + ".0";
         }
-        return String.format(java.util.Locale.ROOT, "x%.1f", multiplier);
+        return String.format(Locale.ROOT, "x%.1f", multiplier);
     }
 
     public enum GreedTier {
-        BASE(1.0, "БАЗОВЫЙ КУШ", ChatFormatting.GRAY),
+        SECURE(1.0, "SECURE // ГАРАНТ", ChatFormatting.GREEN),
         WARM(1.5, "ОХРАНА В ПУТИ", ChatFormatting.YELLOW),
-        GOLDEN(2.0, "ЗОЛОТОЙ СЕЙФ", ChatFormatting.GOLD),
-        MAX_GREED(3.0, "ДЖЕКПОТ ЖАДНОСТИ", ChatFormatting.RED);
+        GOLDEN(2.0, "ЗОЛОТОЙ КУШ", ChatFormatting.GOLD),
+        OVERDRIVE(3.0, "OVERDRIVE", ChatFormatting.RED);
 
         private final double multiplier;
         private final String displayTitle;
@@ -334,13 +347,17 @@ public final class AirdropGreedManager {
             boolean tierUpgraded,
             boolean shouldSpawnGuardWave,
             int waveNumber,
-            int vindicatorCount,
+            int enforcerCount,
             int pillagerCount,
             int secondsToNextTier
     ) {
         public static final GreedTickResult EMPTY = new GreedTickResult(
-                0, 0, 1.0, GreedTier.BASE, false, false, 0, 0, 0, 30
+                0, 0, 1.0, GreedTier.SECURE, false, false, 0, 0, 0, 45
         );
+
+        public int vindicatorCount() {
+            return enforcerCount;
+        }
     }
 
     public record GreedSnapshot(int elapsedSeconds, GreedTier finalTier, int wavesSurvived) {

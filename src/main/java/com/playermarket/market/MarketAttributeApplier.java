@@ -200,6 +200,9 @@ public class MarketAttributeApplier {
             addModifier(player, Attributes.BLOCK_BREAK_SPEED, "permanent_impaired_mining", -0.22, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
         }
 
+        // Apply permanent Freedom Protocol perks (Titan's Legacy, Freedom of Movement, Legacy Specialization)
+        com.playermarket.story.FreedomProtocolManager.applyFreedomModifiers(player, account);
+
         // Clamp current health if Max Health decreased
         if (player.getHealth() > player.getMaxHealth()) {
             player.setHealth(player.getMaxHealth());
@@ -558,25 +561,11 @@ public class MarketAttributeApplier {
             for (ServerPlayer p : server.getPlayerList().getPlayers()) {
                 PlayerMarketAccount pAcc = data.getOrCreateAccount(p.getUUID());
                 if (pAcc.isPermanentImpaired() || pAcc.isMarketCardBlocked()) continue;
-                if (isCrash) {
-                    p.sendOverlayMessage(Component.literal("§c§l⚡ ОБВАЛ РЫНКА: " + next.getHeadline() + " ⚡"));
-                    p.level().playSound(null, p.getX(), p.getY(), p.getZ(),
-                            SoundEvents.WITHER_SPAWN, SoundSource.PLAYERS, 0.6f, 1.6f);
-                } else {
-                    p.sendOverlayMessage(Component.literal("§a§l⚡ БИРЖЕВОЙ БУМ: " + next.getHeadline() + " ⚡"));
-                    p.level().playSound(null, p.getX(), p.getY(), p.getZ(),
-                            SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 0.7f, 1.1f);
-                }
-                p.sendSystemMessage(Component.literal("§8[§6БИРЖЕВОЙ ВЕСТНИК§8] §eВНИМАНИЕ! Смена рыночного цикла:\n"
-                        + "§f▶ §e§l" + next.getHeadline() + "\n"
-                        + "§7" + next.getDescription()));
-                if (p.connection != null) {
-                    p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket(5, 36, 8));
-                    p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(
-                            Component.literal((isCrash ? "§c§l📉 " : "§a§l📈 ") + next.getHeadline())));
-                    p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket(
-                            Component.literal("§fРыночный цикл биржи обновлён")));
-                }
+                p.sendOverlayMessage(Component.literal((isCrash ? "§c§l📉 " : "§a§l📈 ") + com.playermarket.story.ScreenAlertHelper.stripAndClamp(next.getHeadline(), 36)));
+                p.level().playSound(null, p.getX(), p.getY(), p.getZ(),
+                        isCrash ? SoundEvents.WITHER_SPAWN : SoundEvents.UI_TOAST_CHALLENGE_COMPLETE,
+                        SoundSource.PLAYERS, 0.65f, isCrash ? 1.5f : 1.1f);
+                com.playermarket.story.ScreenAlertHelper.sendMarketEventBanner(p, isCrash, next.getHeadline(), next.getDescription());
                 MarketNetworking.sendSyncToPlayer(p);
             }
         }

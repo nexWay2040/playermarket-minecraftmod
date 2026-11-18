@@ -58,6 +58,10 @@ public abstract class LivingEntityMarketMixin {
                 cir.setReturnValue(0);
                 return;
             }
+            double freedomFallMult = com.playermarket.story.FreedomProtocolManager.getFreedomFallDamageMultiplier(acc);
+            if (freedomFallMult < 0.999) {
+                cir.setReturnValue(Math.max(0, (int) Math.floor(cir.getReturnValue() * freedomFallMult)));
+            }
             double soldFall = acc.getTotalSoldFraction(AssetType.FALL_RESISTANCE);
             int bonesLvl = acc.getUpgradeLevel(UpgradeType.REINFORCED_BONES);
             if (soldFall > 0.01) {
@@ -82,14 +86,9 @@ public abstract class LivingEntityMarketMixin {
         LivingEntity target = (LivingEntity) (Object) this;
         Entity attackerEntity = source.getEntity();
 
-        // Special Boss Multipliers:
-        if (com.playermarket.story.ChiefAuditorBossManager.isAuditorBoss(target)) {
-            if (com.playermarket.story.ChiefAuditorBossManager.isCoreStaggered(target)) {
-                amount *= 2.5f;
-            }
-            if (attackerEntity instanceof ServerPlayer sp && sp.getMainHandItem().is(com.playermarket.item.MarketRelicItems.DOOM_HAMMER)) {
-                amount *= 1.5f;
-            }
+        // Chief Auditor 17.4 Weapon Lock & Armor/Body Damage Rules (Core hits bypass via BossCombatRules)
+        if (target instanceof com.playermarket.entity.ChiefAuditorBossEntity auditorBoss) {
+            return com.playermarket.story.BossCombatRules.filterBodyDamage(level, auditorBoss, source, amount);
         }
 
         // 1. Outgoing Critical & Projectile Damage from a ServerPlayer attacker
@@ -212,6 +211,7 @@ public abstract class LivingEntityMarketMixin {
         if (target instanceof ServerPlayer victim && !victim.isCreative() && victim.isAlive()) {
             MarketSavedData data = MarketSavedData.get(level.getServer());
             PlayerMarketAccount victimAcc = data.getOrCreateAccount(victim.getUUID());
+            com.playermarket.story.FreedomProtocolManager.tryTriggerSurvivorSecondWind(victim, victimAcc, level.getGameTime());
             var campaign = data.getCampaignData();
             if (com.playermarket.story.StoryManager.isProgramTerminated(campaign, victimAcc)) return;
 

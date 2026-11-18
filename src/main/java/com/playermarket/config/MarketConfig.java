@@ -19,7 +19,7 @@ public class MarketConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static MarketConfig INSTANCE = new MarketConfig();
 
-    public int configVersion = 5;
+    public int configVersion = 7;
     public long startingCr = 250L;
     public double assetPriceMultiplier = 1.0;
     public double resourceSellRatio = 0.65;
@@ -31,7 +31,7 @@ public class MarketConfig {
     public double maxAttributeSaleFraction = 0.80; // Max 80% of any attribute can be sold
     public int maxUpgradeLevelCap = 3;
     public int contractRefreshTicks = 24000; // 1 Minecraft day
-    public int marketEventDurationTicks = 2400; // 2.0 minutes dynamic cycle
+    public int marketEventDurationTicks = 9600; // 8 minutes calm market cycle
     public double premiumAccountBonus = 0.10; // +10% CR payout
     public double brokerLicenseDiscount = 0.15; // -15% buyback commission
     public double diamondCashbackChance = 0.25; // 25% chance to refund 1 diamond on L2/L3 purchases
@@ -41,8 +41,8 @@ public class MarketConfig {
     public boolean enableStoryToasts = true;
     public boolean enableSideQuests = true;
     public boolean enableChaosDirectives = true;
-    public int chaosIntervalMinTicks = 6000; // 5 minutes
-    public int chaosIntervalMaxTicks = 9600; // 8 minutes
+    public int chaosIntervalMinTicks = 14400; // 12 minutes
+    public int chaosIntervalMaxTicks = 21600; // 18 minutes
 
     public Map<String, Long> customResourceBasePrices = new LinkedHashMap<>();
     public Map<String, Long> customAssetUnitPrices = new LinkedHashMap<>();
@@ -144,17 +144,17 @@ public class MarketConfig {
                         loaded.enableChaosDirectives = true;
                         upgraded = true;
                     }
-                    if (rawVersion < 5) {
-                        if (loaded.marketEventDurationTicks >= 3000 || loaded.marketEventDurationTicks <= 0) {
-                            loaded.marketEventDurationTicks = 2400;
+                    if (rawVersion < 7) {
+                        if (loaded.marketEventDurationTicks < 7200) {
+                            loaded.marketEventDurationTicks = 9600;
                         }
-                        if (loaded.chaosIntervalMinTicks <= 0 || loaded.chaosIntervalMinTicks < 1200) {
-                            loaded.chaosIntervalMinTicks = 6000;
+                        if (loaded.chaosIntervalMinTicks < 12000) {
+                            loaded.chaosIntervalMinTicks = 14400;
                         }
-                        if (loaded.chaosIntervalMaxTicks <= loaded.chaosIntervalMinTicks) {
-                            loaded.chaosIntervalMaxTicks = 9600;
+                        if (loaded.chaosIntervalMaxTicks < 18000 || loaded.chaosIntervalMaxTicks <= loaded.chaosIntervalMinTicks) {
+                            loaded.chaosIntervalMaxTicks = 21600;
                         }
-                        loaded.configVersion = 6;
+                        loaded.configVersion = 7;
                         upgraded = true;
                     }
                     INSTANCE = loaded;

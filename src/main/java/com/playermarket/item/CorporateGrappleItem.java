@@ -33,9 +33,14 @@ public class CorporateGrappleItem extends Item {
 
     @Override
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
+        boolean liberated = false;
+        if (!level.isClientSide() && player instanceof ServerPlayer sp && sp.level().getServer() != null) {
+            PlayerMarketAccount accCheck = MarketSavedData.get(sp.level().getServer()).getOrCreateAccount(sp.getUUID());
+            liberated = com.playermarket.story.FreedomProtocolManager.isGrappleLiberated(accCheck);
+        }
         Vec3 eyePos = player.getEyePosition();
         Vec3 look = player.getViewVector(1.0F);
-        double reach = 30.0;
+        double reach = liberated ? 42.0 : 32.0;
         Vec3 targetPos = eyePos.add(look.scale(reach));
 
         ClipContext context = new ClipContext(eyePos, targetPos, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
@@ -48,8 +53,8 @@ public class CorporateGrappleItem extends Item {
 
             if (dist > 1.2) {
                 Vec3 dir = pullVec.normalize();
-                double speed = Math.min(2.2, 0.8 + dist * 0.07);
-                Vec3 motion = new Vec3(dir.x * speed, Math.max(0.45, dir.y * speed + 0.38), dir.z * speed);
+                double speed = Math.min(liberated ? 2.55 : 2.25, 0.85 + dist * 0.075);
+                Vec3 motion = new Vec3(dir.x * speed, Math.max(0.48, dir.y * speed + 0.40), dir.z * speed);
 
                 player.setDeltaMovement(motion);
                 player.resetFallDistance();
@@ -57,7 +62,7 @@ public class CorporateGrappleItem extends Item {
                 if (!level.isClientSide() && player instanceof ServerPlayer serverPlayer) {
                     serverPlayer.needsSync = true;
                     ServerLevel serverLevel = (ServerLevel) level;
-                    int steps = (int) Math.min(32, dist * 2);
+                    int steps = (int) Math.min(36, dist * 2);
                     for (int i = 0; i <= steps; i++) {
                         double t = (double) i / steps;
                         double px = eyePos.x + (hitVec.x - eyePos.x) * t;
@@ -67,17 +72,17 @@ public class CorporateGrappleItem extends Item {
                     }
 
                     serverLevel.playSound(null, player.getX(), player.getY(), player.getZ(),
-                            SoundEvents.CROSSBOW_SHOOT, SoundSource.PLAYERS, 1.0F, 1.4F);
+                            SoundEvents.CROSSBOW_SHOOT, SoundSource.PLAYERS, 1.0F, liberated ? 1.65F : 1.4F);
                     serverLevel.playSound(null, hitVec.x, hitVec.y, hitVec.z,
                             SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 1.0F, 1.2F);
 
                     if (serverPlayer.level().getServer() != null) {
                         PlayerMarketAccount acc = MarketSavedData.get(serverPlayer.level().getServer()).getOrCreateAccount(serverPlayer.getUUID());
-                        acc.setGrappleSafeTick(serverPlayer.level().getServer().overworld().getGameTime() + 75L);
+                        acc.setGrappleSafeTick(serverPlayer.level().getServer().overworld().getGameTime() + (liberated ? 100L : 80L));
                     }
                 }
 
-                player.getCooldowns().addCooldown(PlayerMarketMod.id("corporate_grapple"), 18);
+                player.getCooldowns().addCooldown(PlayerMarketMod.id("corporate_grapple"), liberated ? 8 : 16);
                 return InteractionResult.SUCCESS;
             }
         } else {

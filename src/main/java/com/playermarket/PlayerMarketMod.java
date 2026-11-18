@@ -71,7 +71,7 @@ public class PlayerMarketMod implements ModInitializer {
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
             if (entity.level() instanceof net.minecraft.server.level.ServerLevel serverLevel
                     && com.playermarket.story.ChiefAuditorBossManager.isAuditorBoss(entity)) {
-                com.playermarket.story.ChiefAuditorBossManager.onBossDeath(serverLevel, entity, damageSource);
+                com.playermarket.story.ChiefAuditorBossManager.onBossDeath(serverLevel.getServer(), serverLevel, entity);
             }
         });
 
@@ -208,6 +208,9 @@ public class PlayerMarketMod implements ModInitializer {
                 }
 
                 long gameTick = sp.level().getServer().overworld().getGameTime();
+                if (com.playermarket.story.BossCoreHitboxController.handleEntityInteraction(sp, entity)) {
+                    return InteractionResult.SUCCESS;
+                }
                 if (com.playermarket.story.ChaosProp3DManager.handleHitboxTrigger(sp, entity, data, campaign, gameTick)) {
                     data.setDirty();
                     return InteractionResult.SUCCESS;
@@ -252,6 +255,9 @@ public class PlayerMarketMod implements ModInitializer {
                     return InteractionResult.PASS;
                 }
                 long gameTick = sp.level().getServer().overworld().getGameTime();
+                if (com.playermarket.story.BossCoreHitboxController.handleEntityInteraction(sp, entity)) {
+                    return InteractionResult.SUCCESS;
+                }
                 if (com.playermarket.story.ChaosProp3DManager.handleHitboxTrigger(sp, entity, data, campaign, gameTick)) {
                     data.setDirty();
                     return InteractionResult.SUCCESS;
