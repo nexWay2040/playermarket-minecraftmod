@@ -1,0 +1,25 @@
+{
+  "parent": "playermarket:root",
+  "display": {
+    "icon": {
+      "id": "playermarket:corporate_grapple"
+    },
+    "title": "Антигравитационный контракт",
+    "description": "Получите Корпоративный Крюк-Кошку в рулетке 50/50 для выживания при Skyfall.",
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "has_grapple": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "playermarket:corporate_grapple"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "ODO",
+    "DED",
+    "ODO"
+  ],
+  "key": {
+    "O": "minecraft:obsidian",
+    "D": "minecraft:diamond",
+    "E": "minecraft:ender_eye"
+  },
+  "result": {
+    "id": "playermarket:audit_summon",
+    "count": 1
+  }
+}

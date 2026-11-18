@@ -1,0 +1,26 @@
+{
+  "display": {
+    "icon": {
+      "id": "playermarket:market_access_card"
+    },
+    "title": "Asset Corp: У всего есть цена",
+    "description": "Добро пожаловать в Player Market: Leafxup Edition. Продай тело, сорви куш и сокруши Ликвидатора 17.4.",
+    "background": "minecraft:gui/advancements/backgrounds/stone",
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "criteria": {
+    "has_card": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "playermarket:market_access_card"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -284,6 +284,8 @@ public class MarketNetworking {
                         "Дивидент: " + divId, payout, bioDiamondBonus);
 
                 com.playermarket.story.StoryManager.onStatSold(player, account, asset, requestedFraction, false);
+                com.playermarket.story.CorporateProgressionHints.onOrganSold(player);
+                com.playermarket.story.CorporateQuotaManager.contribute(server, Math.max(10L, payout / 4L));
 
                 status = "§aПРОДАНО " + Math.round(requestedFraction * 100) + "% " + asset.getDisplayName() + " за +" + payout + " CR"
                         + (bioDiamondBonus > 0 ? " §b[БИО-БОНУС: +" + bioDiamondBonus + " ♦!]" : "");
@@ -947,6 +949,7 @@ public class MarketNetworking {
                 if (status == null) {
                     return;
                 }
+                com.playermarket.story.CorporateProgressionHints.onCasinoSpin(player);
             }
             case SPAWN_EVENT_MOB -> {
                 status = com.playermarket.story.CorporateChaosDirector.triggerStageManualSpawn(server, player, savedData, gameTick);

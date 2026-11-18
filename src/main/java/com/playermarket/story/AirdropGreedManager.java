@@ -188,13 +188,15 @@ public final class AirdropGreedManager {
         RandomSource random = level.getRandom();
         for (int i = 0; i < vindicatorCount; i++) {
             BlockPos spawnPos = findSafeGuardSpawnPos(level, centerPos, random);
-            Vindicator vindicator = EntityTypes.VINDICATOR.spawn(level, spawnPos, EntitySpawnReason.EVENT);
-            if (vindicator != null) {
-                vindicator.setCustomName(Component.literal("Охрана Corp [Штурмовик]").withStyle(ChatFormatting.RED));
+            var enforcer = com.playermarket.entity.ModEntities.COLLECTOR_ENFORCER.spawn(level, spawnPos, EntitySpawnReason.EVENT);
+            if (enforcer != null) {
+                enforcer.markAsRaidEnforcer(Math.max(1, vindicatorCount));
+                enforcer.setCustomName(Component.literal("Силовик Corp [Штурмовик]").withStyle(ChatFormatting.RED));
+                enforcer.setCustomNameVisible(true);
                 if (initialTarget != null && initialTarget.isAlive()) {
-                    vindicator.setTarget(initialTarget);
+                    enforcer.setTarget(initialTarget);
                 }
-                spawned.add(vindicator);
+                spawned.add(enforcer);
             }
         }
 

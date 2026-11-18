@@ -151,5 +151,7 @@
   "ending.playermarket.phase4.sub": "Установка постоянного ограничителя. Возврат невозможен.",
   "ending.playermarket.phase5.title": "ДОСТУП АННУЛИРОВАН",
   "ending.playermarket.phase5.sub": "Права собственности переданы корпорации. Вы больше не клиент.",
-  "entity.playermarket.chief_auditor": "Главный Аудитор Corp // Ликвидатор 17.4"
+  "entity.playermarket.chief_auditor": "Главный Аудитор Corp // Ликвидатор 17.4",
+  "entity.playermarket.collector_enforcer": "Корпоративный Силовик-Коллектор",
+  "item.playermarket.audit_summon": "Повестка на Финальный Аудит (17.4)"
 }

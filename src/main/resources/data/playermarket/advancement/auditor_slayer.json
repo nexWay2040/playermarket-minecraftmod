@@ -1,0 +1,23 @@
+{
+  "parent": "playermarket:audit_summon",
+  "display": {
+    "icon": {
+      "id": "minecraft:nether_star"
+    },
+    "title": "Банкротство Корпорации",
+    "description": "Повергните 3D-Титана «Главного Аудитора 17.4» и расторгните рабский контракт!",
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "killed_boss": {
+      "trigger": "minecraft:player_killed_entity",
+      "conditions": {
+        "entity": {
+          "type": "playermarket:chief_auditor"
+        }
+      }
+    }
+  }
+}

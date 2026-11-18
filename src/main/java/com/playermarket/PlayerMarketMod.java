@@ -50,6 +50,15 @@ public class PlayerMarketMod implements ModInitializer {
         MarketCoreCurator.configureMarketEventIds(java.util.List.of(
                 "HEALTH_DEMAND", "BUYBACK_DISCOUNT", "MINING_BOOM", "BULL_MARKET", "MARKET_PANIC"
         ));
+        com.playermarket.story.CorporateProgressionHints.setCrRewardHandler((sp, cr) -> {
+            if (sp != null && cr > 0L && sp.level().getServer() != null) {
+                MarketSavedData d = MarketSavedData.get(sp.level().getServer());
+                PlayerMarketAccount a = d.getOrCreateAccount(sp.getUUID());
+                a.addCr(cr);
+                d.setDirty();
+                MarketNetworking.sendSyncToPlayer(sp);
+            }
+        });
         MarketAccessCardItem.registerItems();
         com.playermarket.item.CrumpledLetterItem.registerItems();
         com.playermarket.item.BlockedMarketCardItem.registerItems();
@@ -131,6 +140,7 @@ public class PlayerMarketMod implements ModInitializer {
 
                     MarketAttributeApplier.syncPlayerModifiers(player);
                     com.playermarket.story.StoryManager.checkAllQuests(player, account);
+                    com.playermarket.story.CorporateProgressionHints.onPlayerJoin(player);
                     com.playermarket.story.EndingSequenceManager.onPlayerJoin(player);
                     MarketNetworking.sendSyncToPlayer(player);
                 } catch (Throwable t) {
@@ -142,6 +152,7 @@ public class PlayerMarketMod implements ModInitializer {
         // Preserve UUID-bound MarketAccount strictly across player death & respawn (never reset balance!)
         ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> {
             try {
+                com.playermarket.story.CorporateProgressionHints.copyOnRespawn(oldPlayer, newPlayer);
                 if (newPlayer.level().getServer() != null) {
                     MarketSavedData data = MarketSavedData.get(newPlayer.level().getServer());
                     PlayerMarketAccount account = data.getOrCreateAccount(oldPlayer.getUUID());

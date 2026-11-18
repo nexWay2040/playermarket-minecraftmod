@@ -1,0 +1,25 @@
+{
+  "parent": "playermarket:root",
+  "display": {
+    "icon": {
+      "id": "playermarket:doom_hammer"
+    },
+    "title": "Молот Суда",
+    "description": "Заполучите легендарный Молот Суда Asset Corp (x3.5 урона по ядру Титана).",
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "has_hammer": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "playermarket:doom_hammer"
+          }
+        ]
+      }
+    }
+  }
+}

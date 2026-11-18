@@ -26,9 +26,24 @@ public final class ModEntities {
                     .build(CHIEF_AUDITOR_KEY)
     );
 
+    public static final ResourceKey<EntityType<?>> COLLECTOR_ENFORCER_KEY =
+            ResourceKey.create(Registries.ENTITY_TYPE, PlayerMarketMod.id("collector_enforcer"));
+
+    public static final EntityType<CollectorEnforcerEntity> COLLECTOR_ENFORCER = Registry.register(
+            BuiltInRegistries.ENTITY_TYPE,
+            COLLECTOR_ENFORCER_KEY,
+            EntityType.Builder.of(CollectorEnforcerEntity::new, MobCategory.MONSTER)
+                    .sized(1.05f, 1.95f)
+                    .eyeHeight(1.68f)
+                    .clientTrackingRange(10)
+                    .updateInterval(2)
+                    .build(COLLECTOR_ENFORCER_KEY)
+    );
+
     private ModEntities() {}
 
     public static void registerEntities() {
         FabricDefaultAttributeRegistry.register(CHIEF_AUDITOR, ChiefAuditorBossEntity.createAttributes());
+        FabricDefaultAttributeRegistry.register(COLLECTOR_ENFORCER, CollectorEnforcerEntity.createAttributes());
     }
 }

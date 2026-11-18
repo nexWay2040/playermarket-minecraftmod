@@ -40,6 +40,13 @@ public final class MarketRelicItems {
             new GoldenExploitItem(new Item.Properties().setId(GOLDEN_EXPLOIT_KEY).stacksTo(16).rarity(Rarity.RARE))
     );
 
+    public static final ResourceKey<Item> AUDIT_SUMMON_KEY = ResourceKey.create(
+            Registries.ITEM, PlayerMarketMod.id("audit_summon"));
+    public static final Item AUDIT_SUMMON = Registry.register(
+            BuiltInRegistries.ITEM, AUDIT_SUMMON_KEY,
+            new AuditSummonItem(new Item.Properties().setId(AUDIT_SUMMON_KEY).stacksTo(1).rarity(Rarity.EPIC))
+    );
+
     private MarketRelicItems() {}
 
     public static void registerItems() {
@@ -52,6 +59,7 @@ public final class MarketRelicItems {
             output.accept(DOOM_HAMMER);
             output.accept(TITAN_HEART);
             output.accept(GOLDEN_EXPLOIT);
+            output.accept(AUDIT_SUMMON);
         });
     }
 }

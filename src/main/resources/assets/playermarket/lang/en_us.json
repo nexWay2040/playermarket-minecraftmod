@@ -151,5 +151,7 @@
   "ending.playermarket.phase4.sub": "Applying permanent structural mobility constraint. Action is irreversible.",
   "ending.playermarket.phase5.title": "ACCESS REVOKED",
   "ending.playermarket.phase5.sub": "Ownership transferred to the Corporation. You are no longer the client.",
-  "entity.playermarket.chief_auditor": "Chief Auditor Corp // Liquidator 17.4"
+  "entity.playermarket.chief_auditor": "Chief Auditor Corp // Liquidator 17.4",
+  "entity.playermarket.collector_enforcer": "Corporate Collector Enforcer",
+  "item.playermarket.audit_summon": "Final Audit Summon Warrant (17.4)"
 }

@@ -6,6 +6,7 @@ import com.playermarket.client.gui.CrumpledLetterScreen;
 import com.playermarket.client.gui.MarketMainScreen;
 import com.playermarket.client.hud.MarketHudOverlay;
 import com.playermarket.client.render.ChiefAuditorRenderer;
+import com.playermarket.client.render.CollectorEnforcerRenderer;
 import com.playermarket.client.render.OreScannerRenderer;
 import com.playermarket.client.render.PlayerBraceRenderLayer;
 import com.playermarket.entity.ModEntities;
@@ -74,8 +75,9 @@ public class PlayerMarketClient implements ClientModInitializer {
             }
         };
 
-        // Register GeckoLib 5 custom 3D Titan Boss renderer
+        // Register GeckoLib 5 custom 3D Boss & Collector Enforcer renderers
         EntityRenderers.register(ModEntities.CHIEF_AUDITOR, ChiefAuditorRenderer::new);
+        EntityRenderers.register(ModEntities.COLLECTOR_ENFORCER, CollectorEnforcerRenderer::new);
 
         // Register visual orthopedic brace on Player Model
         LivingEntityRenderLayerRegistrationCallback.EVENT.register((entityType, entityRenderer, helper, context) -> {

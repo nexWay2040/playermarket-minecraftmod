@@ -1410,6 +1410,7 @@ public final class CorporateChaosDirector {
                     player.sendSystemMessage(Component.literal("§a📦 3D ГРУЗ ВСКРЫТ: §e+" + cr + " CR" + greedTag + "§a, Яблоки и ресурсы!"));
                 }
                 CorporateTaskTracker.advanceContract(player, acc, "COURIER_LOOT", 1);
+                CorporateProgressionHints.onGreedAirdropOpened(player, greedMult);
                 StoryManager.checkAllQuests(player, acc);
                 data.setDirty();
                 endActiveDirective(server, data, campaign, gameTime, false);
@@ -1680,24 +1681,18 @@ public final class CorporateChaosDirector {
             return;
         }
 
-        Vindicator collector = EntityTypes.VINDICATOR.create(sl, EntitySpawnReason.EVENT);
+        var collector = com.playermarket.entity.ModEntities.COLLECTOR_ENFORCER.create(sl, EntitySpawnReason.EVENT);
         if (collector == null) return;
 
         BlockPos pos = findSafeGroundPos(sl, target.blockPosition(), 5, 9);
         collector.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+        collector.markAsRaidEnforcer(1);
         collector.addTag(MobKind.COLLECTOR.tag);
-        collector.setCustomName(Component.literal("§c§lКОЛЛЕКТОР ASSET CORP"));
+        collector.setCustomName(Component.literal("§c§lКОЛЛЕКТОР-СИЛОВИК ASSET CORP"));
         collector.setCustomNameVisible(true);
         collector.setPersistenceRequired();
         collector.setTarget(target);
-        collector.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
         collector.addEffect(new MobEffectInstance(MobEffects.GLOWING, 1200, 0, false, false));
-        collector.addEffect(new MobEffectInstance(MobEffects.SPEED, 1200, 0, false, false));
-        var hpAttr = collector.getAttribute(Attributes.MAX_HEALTH);
-        if (hpAttr != null) {
-            hpAttr.setBaseValue(24.0);
-            collector.setHealth(24.0f);
-        }
 
         sl.addFreshEntity(collector);
         TRACKED_MOBS.put(collector.getUUID(), new TrackedMob(collector.getUUID(), MobKind.COLLECTOR, gameTime + 1100L));

@@ -2,6 +2,7 @@ package com.playermarket.client.render;
 
 import com.geckolib.model.DefaultedEntityGeoModel;
 import com.geckolib.renderer.GeoEntityRenderer;
+import com.geckolib.renderer.base.GeoRenderState;
 import com.playermarket.PlayerMarketMod;
 import com.playermarket.entity.ChiefAuditorBossEntity;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -18,5 +19,10 @@ public class ChiefAuditorRenderer extends GeoEntityRenderer<ChiefAuditorBossEnti
     public ChiefAuditorRenderer(EntityRendererProvider.Context context) {
         super(context, new DefaultedEntityGeoModel<>(PlayerMarketMod.id("chief_auditor")));
         this.shadowRadius = 2.0f;
+    }
+
+    @Override
+    protected float getDeathMaxRotation(GeoRenderState renderState) {
+        return 0.0F;
     }
 }

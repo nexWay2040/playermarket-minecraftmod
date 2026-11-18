@@ -1,0 +1,25 @@
+{
+  "parent": "playermarket:grapple_master",
+  "display": {
+    "icon": {
+      "id": "playermarket:audit_summon"
+    },
+    "title": "Статья 17.4",
+    "description": "Создайте Повестку на Финальный Аудит для вызова Главного Аудитора Corp.",
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "has_summon": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "playermarket:audit_summon"
+          }
+        ]
+      }
+    }
+  }
+}

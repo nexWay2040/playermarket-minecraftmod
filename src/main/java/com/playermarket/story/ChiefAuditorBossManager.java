@@ -261,16 +261,15 @@ public final class ChiefAuditorBossManager {
             server.getPlayerList().broadcastSystemMessage(Component.literal(
                     "§4§l[ФАЗА 2: ОВЕРДРАЙВ CORP] §cАудитор переходит на экстренное питание! Призвана элитная охрана!"), false);
 
-            // Spawn 2 Elite Vindicators
+            // Spawn 2 Custom 3D GeckoLib Corporate Collector Enforcers
             for (int i = 0; i < 2; i++) {
-                Vindicator v = EntityTypes.VINDICATOR.create(bossLevel, EntitySpawnReason.EVENT);
-                if (v != null) {
-                    v.setPos(boss.getX() + (i == 0 ? 3.5 : -3.5), boss.getY(), boss.getZ() + 2.5);
-                    v.setCustomName(Component.literal("§c§lОХРАНА ЛИКВИДАТОРА CORP"));
-                    v.setCustomNameVisible(true);
-                    v.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.DIAMOND_HELMET));
-                    v.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.DIAMOND_AXE));
-                    bossLevel.addFreshEntity(v);
+                var enforcer = ModEntities.COLLECTOR_ENFORCER.create(bossLevel, EntitySpawnReason.EVENT);
+                if (enforcer != null) {
+                    enforcer.setPos(boss.getX() + (i == 0 ? 3.5 : -3.5), boss.getY(), boss.getZ() + 2.5);
+                    enforcer.markAsRaidEnforcer(2);
+                    enforcer.setCustomName(Component.literal("§c§lСИЛОВИК ЛИКВИДАТОРА CORP"));
+                    enforcer.setCustomNameVisible(true);
+                    bossLevel.addFreshEntity(enforcer);
                 }
             }
         }
@@ -549,6 +548,7 @@ public final class ChiefAuditorBossManager {
                         SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.PLAYERS, 1.5f, 1.0f);
             }
             MarketNetworking.broadcastSync(server, "§6§lПОБЕДА! Главный Аудитор 17.4 повержен! Кампания завершена!");
+            CorporateProgressionHints.onAuditorDefeated(server);
         }
     }
 
